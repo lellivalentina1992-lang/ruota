@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>La Ruota - Fixed Rules</title>
+    <title>La Ruota - Multiplayer Smart</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -12,15 +12,15 @@
         .hidden { display: none !important; }
         .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
 
-        /* UI SETUP */
+        /* SETUP UI */
         #setup-overlay { max-width: 600px; margin: 0 auto; }
         .panel { background: var(--box); padding: 20px; border-radius: 10px; border: 2px solid var(--gold); margin-bottom: 20px; text-align: left; }
         input, button { width: 100%; padding: 12px; margin: 5px 0; font-size: 1.1em; border-radius: 5px; box-sizing: border-box; }
         button { background: var(--gold); border: none; cursor: pointer; color: black; font-weight: bold; }
         
-        /* TABELLONE */
+        /* GIOCO & TABELLONE */
         #game-board { display: flex; flex-wrap: wrap; justify-content: center; margin: 20px 0; outline: none; }
-        .word { display: flex; margin-right: 25px; margin-bottom: 20px; }
+        .word { display: flex; margin-right: 20px; margin-bottom: 20px; }
         .letter-box { 
             width: 45px; height: 65px; border: 2px solid #fff; margin: 2px; 
             display: flex; justify-content: center; align-items: center; 
@@ -28,9 +28,10 @@
         }
         .letter-box.revealed { background: white; color: black; }
         .letter-box.punct { background: white; color: black; border: none; }
-        
-        /* GIOCATORI DINAMICI */
-        #player-scores { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; width: 100%; margin-bottom: 15px; }
+        .letter-box:focus { outline: 4px solid var(--focus); z-index: 100; }
+
+        /* GIOCATORI - Stile Pulito */
+        #player-scores { display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; width: 100%; margin-bottom: 15px; }
         .player-box {
             background-color: var(--box); border: 1px solid #888; border-radius: 8px; 
             padding: 10px; text-align: center; color: white; opacity: 0.7; min-width: 120px;
@@ -38,13 +39,14 @@
         .player-box.active { 
             border: 3px solid var(--gold); background-color: #005bb5; opacity: 1; transform: scale(1.05);
         }
-        .player-box.me { border-color: #00ff00; } /* Evidenzia me stesso */
-
-        /* RUOTA */
-        #wheel-container { width: 250px; height: 250px; border-radius: 50%; border: 4px solid white; margin: 0 auto; background: #333; position: relative; overflow: hidden; transition: transform 4s ease-out; }
-        .wheel-wedge { position: absolute; top: 0; right: 0; width: 50%; height: 50%; transform-origin: 0% 100%; border: 1px solid rgba(0,0,0,0.1); }
         
-        /* MESSAGGI */
+        /* RUOTA (Decorativa per screen reader) */
+        #wheel-wrapper { width: 250px; height: 250px; margin: 10px auto; position: relative; }
+        #wheel-container { width: 100%; height: 100%; border-radius: 50%; border: 4px solid white; background: #333; position: relative; overflow: hidden; transition: transform 4s ease-out; }
+        .wheel-wedge { position: absolute; top: 0; right: 0; width: 50%; height: 50%; transform-origin: 0% 100%; border: 1px solid rgba(0,0,0,0.1); }
+        .wedge-text { position: absolute; left: -100%; width: 200%; height: 200%; text-align: center; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 10px; font-weight: bold; font-size: 14px; color: black; text-shadow: 0px 0px 2px white; }
+
+        /* INFO & MESSAGGI */
         #status-message { font-size: 1.4em; color: var(--gold); margin: 15px 0; font-weight: bold; min-height: 1.5em; }
     </style>
 </head>
@@ -89,7 +91,7 @@
 <div id="game-container" class="hidden">
     <div style="display:flex; justify-content:space-between; padding:10px; background:#000;">
         <span>Stanza: <span id="room-code-display" style="color:yellow">---</span></span>
-        <button id="btn-close-room" class="hidden" onclick="closeRoom()" style="width:auto; background:red; padding:5px; font-size:0.8em;">TERMINA PARTITA</button>
+        <button id="btn-close-room" class="hidden" onclick="closeRoom()" style="width:auto; background:red; padding:5px; font-size:0.8em;">TERMINA</button>
     </div>
     
     <div id="category-display" style="font-size:2em; color:var(--gold); font-weight:bold; margin:10px;">---</div>
@@ -99,14 +101,14 @@
 
     <div id="player-scores"></div>
 
-    <div style="position:relative; width:250px; margin:10px auto;">
+    <div id="wheel-wrapper" aria-hidden="true">
         <div style="position:absolute; top:-15px; left:50%; transform:translate(-50%); border-left:15px solid transparent; border-right:15px solid transparent; border-top:25px solid white; z-index:50;"></div>
         <div id="wheel-container"></div>
     </div>
 
     <div id="status-message" aria-hidden="true">In attesa...</div>
 
-    <div id="controls-panel" style="width:100%; max-width:500px;">
+    <div id="controls-panel" style="width:100%; max-width:500px; margin:0 auto;">
         <div id="main-actions">
             <button id="btn-spin" onclick="spin()">Gira (CTRL+G)</button>
             <button onclick="setControls('vowel')">Vocale €500 (CTRL+V)</button>
@@ -134,7 +136,7 @@
 </div>
 
 <script>
-    // CONFIGURAZIONE
+    // CONFIG
     const SUPABASE_URL = 'https://azcwkpdjbysnivknnino.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Y3drcGRqYnlzbml2a25uaW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MzAwNDksImV4cCI6MjA3OTIwNjA0OX0.R8wkMJEmsP8cTVUUOcWtD4Rrg_ZhuOE-PYBJ56eGqMU';
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -143,21 +145,39 @@
     const nato = {'A':'Ancona','B':'Bologna','C':'Como','D':'Domodossola','E':'Empoli','F':'Firenze','G':'Genova','H':'Hotel','I':'Imola','J':'Jolly','K':'Kappa','L':'Livorno','M':'Milano','N':'Napoli','O':'Otranto','P':'Palermo','Q':'Quadro','R':'Roma','S':'Savona','T':'Torino','U':'Udine','V':'Venezia','W':'Washington','X':'Xilofono','Y':'Yogurt','Z':'Zara'};
     
     let myId, myRoomId, myIndex, myName, roomState = {}, curSol = "", curSolDisp = "";
-    let inspectorMode = false; // Per CTRL+I
-    let inspectorWordIndex = 0;
+    let inspectorMode = false; let inspectorWordIndex = 0;
 
-    // --- AUDIO & TTS ---
     function speak(text) {
-        const el = document.getElementById('sr-announcer');
-        el.textContent = ''; setTimeout(() => { el.textContent = text; }, 50);
+        const el = document.getElementById('sr-announcer'); el.textContent = ''; setTimeout(() => { el.textContent = text; }, 50);
         document.getElementById('status-message').textContent = text;
     }
-    function playSound(id, times = 1) {
-        const audio = document.getElementById(id);
-        if(!audio) return;
-        let c = 0;
-        function loop() { if(c<times){ audio.currentTime=0; audio.play().catch(()=>{}); c++; setTimeout(loop, 800); } }
-        loop();
+    function playSound(id, times=1) {
+        const audio = document.getElementById(id); if(!audio) return;
+        let c=0; function l(){ if(c<times){ audio.currentTime=0; audio.play().catch(()=>{}); c++; setTimeout(l, 800); } } l();
+    }
+
+    // --- GESTIONE UTENTE (EVITA DUPLICATI) ---
+    
+    async function getOrCreatePlayer(roomId, name, isHost=false) {
+        // 1. Cerca se esisto già in questa stanza (Case Insensitive simulation)
+        const { data: existing } = await supabase.from('giocatori')
+            .select('*').eq('stanza_id', roomId).ilike('nome', name).single();
+
+        if(existing) {
+            speak("Bentornato " + existing.nome);
+            return existing;
+        }
+
+        // 2. Se non esisto, controllo spazio
+        const { count } = await supabase.from('giocatori').select('*', { count: 'exact', head: true }).eq('stanza_id', roomId);
+        if(count >= 3) return null; // Stanza piena
+
+        // 3. Creo nuovo
+        const { data: newPlayer } = await supabase.from('giocatori').insert([{ 
+            stanza_id: roomId, nome: name, indice: count, is_host: isHost 
+        }]).select().single();
+        
+        return newPlayer;
     }
 
     // --- LOBBY ---
@@ -167,7 +187,7 @@
         list.innerHTML = '';
         if(!rooms || !rooms.length) { list.innerHTML = '<li>Nessuna stanza pubblica.</li>'; return; }
         rooms.forEach(r => {
-            list.innerHTML += `<li style="margin-bottom:5px;"><b>${r.codice}</b> (${r.giocatori[0].count} gioc.) <button style="width:auto; padding:5px;" onclick="joinSpecificRoom('${r.codice}')">ENTRA</button></li>`;
+            list.innerHTML += `<li style="margin-bottom:5px;"><b>${r.codice}</b> (${r.giocatori[0].count}/3) <button style="width:auto; padding:5px;" onclick="joinSpecificRoom('${r.codice}')">ENTRA</button></li>`;
         });
         speak("Lista aggiornata.");
     }
@@ -179,9 +199,17 @@
         const isPriv = document.getElementById('is-private-check').checked;
         if(!name || !code) return speak("Nome e stanza obbligatori.");
         
-        // Controllo duplicati
+        // Se esiste la stanza, provo a unirmi come Host se sono io, o errore
         const { data: ex } = await supabase.from('stanze').select('id').eq('codice', code).single();
-        if(ex) return speak("Nome stanza già usato.");
+        if(ex) {
+            // Provo a rientrare
+            const p = await getOrCreatePlayer(ex.id, name, true);
+            if(p) { 
+                const {data:r} = await supabase.from('stanze').select('*, frasi(*)').eq('id', ex.id).single();
+                return enterGame(r, p, p.indice, r.frasi);
+            }
+            return speak("Nome stanza già usato da altri.");
+        }
 
         await ensurePhrases();
         const { data: f } = await supabase.from('frasi').select('*');
@@ -191,8 +219,7 @@
             codice: code, stato: 'attesa', is_private: isPriv, frase_corrente_id: rF.id
         }]).select().single();
 
-        const { data: p } = await supabase.from('giocatori').insert([{ stanza_id: room.id, nome: name, indice: 0, is_host: true }]).select().single();
-        
+        const p = await getOrCreatePlayer(room.id, name, true);
         enterGame(room, p, 0, rF);
     }
 
@@ -203,11 +230,10 @@
         const { data: room } = await supabase.from('stanze').select('*, frasi(*)').eq('codice', code).single();
         if(!room) return speak("Stanza non trovata.");
         
-        // Ottieni indice corretto
-        const { count } = await supabase.from('giocatori').select('*', { count: 'exact', head: true }).eq('stanza_id', room.id);
+        const p = await getOrCreatePlayer(room.id, name, false);
+        if(!p) return speak("Stanza piena.");
         
-        const { data: p } = await supabase.from('giocatori').insert([{ stanza_id: room.id, nome: name, indice: count, is_host: false }]).select().single();
-        enterGame(room, p, count, room.frasi);
+        enterGame(room, p, p.indice, room.frasi);
     }
     async function joinPrivate() { joinSpecificRoom(document.getElementById('private-room-code').value.toUpperCase()); }
 
@@ -219,15 +245,12 @@
         document.getElementById('game-container').classList.remove('hidden');
         document.getElementById('room-code-display').textContent = room.codice;
         document.getElementById('category-display').textContent = frase.categoria;
-
         if(player.is_host) document.getElementById('btn-close-room').classList.remove('hidden');
 
         buildWheel(); setupRealtime(); handleUpdate(room);
-        speak(`Entrato. Sei Giocatore ${idx+1}.`);
     }
 
-    // --- GAME LOGIC (Regole Corrette) ---
-
+    // --- ENGINE ---
     async function broadcast(action, msg, updates = {}) {
         await supabase.from('stanze').update({
             ...updates, ultima_azione: action, ultimo_messaggio: msg, azione_timestamp: Date.now().toString()
@@ -246,8 +269,7 @@
             } else if (v === 'BANCAROTTA') {
                 bankrupt();
             } else if (v === 'PASSA') {
-                await broadcast('miss', `${myName} passa il turno.`);
-                pass();
+                await broadcast('miss', `${myName} passa.`, {}); pass();
             } else if (v === 'MISTERO') {
                 mystery();
             }
@@ -257,51 +279,31 @@
     async function confirmLetter() {
         const l = document.getElementById('letter-input').value.toUpperCase().trim();
         document.getElementById('letter-input').value='';
-        if(!l.match(/[A-Z]/)) return speak("Non valido.");
-        if((roomState.lettere_chiamate||[]).includes(l)) return speak("Già chiamata.");
+        if(!l.match(/[A-Z]/)) return speak("Lettera non valida.");
+        if((roomState.lettere_chiamate||[]).includes(l)) return speak("Già detta.");
 
         let count=0, rev=[...(roomState.lettere_rivelate||[])];
-        let clean = curSol.replace(/ /g, ''); // Soluzione normalizzata senza spazi
-        
-        // Mappatura indici corretta
-        let tempSol = ""; 
-        // Ricostruiamo una stringa pulita mappando gli indici originali (che includono spazi)
-        // La logica è: scorrere curSolDisp (che ha spazi).
-        // Se char != spazio, confronta. Se uguale, aggiungi indice.
-        
-        // FIX LOGICA INDICI
+        let clean = curSol.replace(/ /g, ''); 
         let rawIndex = 0;
         for(let i=0; i<curSolDisp.length; i++) {
-            if(curSolDisp[i] === ' ') continue; // Salta spazi nel conteggio "visivo" ma l'indice array è su char reali
-            // Qui usiamo clean[rawIndex]
-            if(clean[rawIndex] === l) {
-                count++;
-                if(!rev.includes(rawIndex)) rev.push(rawIndex);
-            }
+            if(curSolDisp[i] === ' ') continue; 
+            if(clean[rawIndex] === l) { count++; if(!rev.includes(rawIndex)) rev.push(rawIndex); }
             rawIndex++;
         }
 
         let sv = parseInt(sessionStorage.getItem('sv')||0);
         let isV = ['A','E','I','O','U'].includes(l);
-        
-        // REGOLA VOCALI
-        if(isV) {
-            if((roomState.montepremi_round||0) < 500) return speak("Non hai 500 euro per la vocale.");
-        }
+        if(isV && (roomState.montepremi_round||0) < 500) return speak("Soldi insufficienti.");
 
         let money = (roomState.montepremi_round||0) + (isV ? -500 : (sv*count));
 
         if(count > 0) {
-            await broadcast(`hit-${count}`, `${myName} chiama ${l}: ce ne sono ${count}.`, {
+            await broadcast(`hit-${count}`, `${myName}: ${count} ${l}.`, {
                 lettere_chiamate:[...(roomState.lettere_chiamate||[]),l], lettere_rivelate:rev, montepremi_round:money
             });
-            // RESTA DI TURNO
             setControls('main');
         } else {
-            await broadcast('miss', `${myName} chiama ${l}: non c'è.`, {
-                lettere_chiamate:[...(roomState.lettere_chiamate||[]),l]
-            });
-            // PASSA IL TURNO
+            await broadcast('miss', `${myName}: ${l} non c'è.`, { lettere_chiamate:[...(roomState.lettere_chiamate||[]),l] });
             setTimeout(pass, 1500);
         }
     }
@@ -312,30 +314,19 @@
             const w = (roomState.montepremi_round||0)+1000;
             const {data:me}=await supabase.from('giocatori').select('punteggio_totale').eq('id',myId).single();
             await supabase.from('giocatori').update({punteggio_totale:(me.punteggio_totale||0)+w}).eq('id',myId);
-            
-            // Calcola tutti indici
-            let allIndices = [];
-            let c = 0;
-            for(let char of curSolDisp) if(char !== ' ') { allIndices.push(c); c++; }
-
-            await broadcast('hit-5', `VITTORIA! ${myName} indovina: ${curSolDisp}`, {lettere_rivelate: allIndices});
+            let allIndices = []; let c = 0; for(let char of curSolDisp) if(char !== ' ') { allIndices.push(c); c++; }
+            await broadcast('hit-5', `VITTORIA! ${myName}: ${curSolDisp}`, {lettere_rivelate: allIndices});
         } else {
-            await broadcast('miss', `${myName} sbaglia la soluzione.`);
-            setTimeout(pass, 1500);
+            await broadcast('miss', `${myName} sbaglia soluzione.`); setTimeout(pass, 1500);
         }
     }
 
     async function pass() {
-        // Calcola prossimo giocatore reale
         const { data: players } = await supabase.from('giocatori').select('indice').eq('stanza_id', myRoomId).order('indice');
         if(!players) return;
-        
-        // Trova indice corrente nell'array players
         let currArrIdx = players.findIndex(p => p.indice === myIndex);
         let nextArrIdx = (currArrIdx + 1) % players.length;
-        let nextPlayerIndex = players[nextArrIdx].indice;
-
-        await supabase.from('stanze').update({id_giocatore_corrente: nextPlayerIndex}).eq('id', myRoomId);
+        await supabase.from('stanze').update({id_giocatore_corrente: players[nextArrIdx].indice}).eq('id', myRoomId);
     }
 
     async function bankrupt() {
@@ -343,31 +334,34 @@
         if(me.jolly>0) {
              speak("Hai Jolly. Usalo?");
              document.getElementById('extra-decision-area').classList.remove('hidden');
-             document.getElementById('btn-use-jolly').focus(); // Focus forzato
+             document.getElementById('btn-use-jolly').focus();
         } else {
-             await broadcast('miss', "Bancarotta!", {montepremi_round:0});
-             setTimeout(pass, 1500);
+             await broadcast('miss', "Bancarotta!", {montepremi_round:0}); setTimeout(pass, 1500);
         }
     }
+    async function mystery() {
+        speak("Mistero...");
+        setTimeout(async()=>{
+            if(Math.random()<0.5) { await broadcast('miss', "Mistero: Bancarotta!", {montepremi_round:0}); setTimeout(pass,1500); }
+            else { 
+                const {data:me}=await supabase.from('giocatori').select('jolly').eq('id',myId).single();
+                await supabase.from('giocatori').update({jolly:(me.jolly||0)+1}).eq('id',myId);
+                await broadcast('hit-1', "Mistero: Jolly!", {}); setControls('main'); 
+            }
+        }, 1500);
+    }
 
-    // --- REALTIME & UI ---
+    // --- REALTIME ---
+    let lastTs = "";
     function setupRealtime() {
         supabase.channel(`room:${myRoomId}`)
         .on('postgres_changes', {event:'UPDATE', schema:'public', table:'stanze', filter:`id=eq.${myRoomId}`}, p=>handleUpdate(p.new))
         .on('postgres_changes', {event:'*', schema:'public', table:'giocatori', filter:`stanza_id=eq.${myRoomId}`}, ()=>refreshPlayers())
         .subscribe();
     }
-
-    let lastTs = "";
     function handleUpdate(s) {
         roomState = s; renderBoard();
-        
-        if(s.stato === 'chiusa') {
-            alert("L'host ha chiuso la partita.");
-            location.reload();
-            return;
-        }
-
+        if(s.stato === 'chiusa') { alert("Partita chiusa."); location.reload(); return; }
         if(s.azione_timestamp !== lastTs) {
             lastTs = s.azione_timestamp;
             if(s.ultimo_messaggio) speak(s.ultimo_messaggio);
@@ -375,55 +369,41 @@
             if(s.ultima_azione==='miss') playSound('snd-miss');
             if(s.ultima_azione && s.ultima_azione.startsWith('hit-')) playSound('snd-hit', parseInt(s.ultima_azione.split('-')[1]));
         }
-
         const myTurn = s.id_giocatore_corrente === myIndex;
-        
-        // Aggiorna classi attive giocatori
         document.querySelectorAll('.player-box').forEach(el => el.classList.remove('active'));
         const activeBox = document.querySelector(`.player-box[data-idx="${s.id_giocatore_corrente}"]`);
         if(activeBox) activeBox.classList.add('active');
-
         if(myTurn) {
             const menus = ['letter-input-area','solve-input-area','extra-decision-area'];
             const open = menus.some(id => !document.getElementById(id).classList.contains('hidden'));
             if(!open) setControls('main');
-        } else {
-            setControls('none');
-        }
+        } else { setControls('none'); }
         document.getElementById('used-letters-display').textContent = "Uscite: " + (s.lettere_chiamate||[]).join("-");
     }
 
     async function refreshPlayers() {
         const { data: ps } = await supabase.from('giocatori').select('*').eq('stanza_id', myRoomId).order('indice');
         const div = document.getElementById('player-scores'); div.innerHTML = '';
-        
         ps.forEach(p => {
             const isMe = p.id === myId;
             const el = document.createElement('div');
-            el.className = `player-box ${isMe?'me':''}`;
-            el.dataset.idx = p.indice;
-            el.innerHTML = `
-                <div style="font-weight:bold; border-bottom:1px solid #aaa; margin-bottom:5px;">${p.nome}${isMe?' (TU)':''}</div>
-                <div>€${p.punteggio_totale}</div>
-                <div style="font-size:0.9em; color:gold;">JOLLY: ${p.jolly}</div>
-            `;
-            // Accessibilità pulita
+            el.className = `player-box ${isMe?'active':''}`; el.dataset.idx = p.indice;
+            el.innerHTML = `<div style="font-weight:bold; border-bottom:1px solid #aaa;">${p.nome}</div><div>€${p.punteggio_totale}</div><div style="color:gold;">JOLLY: ${p.jolly}</div>`;
             let txt = `${p.nome}: ${p.punteggio_totale} euro, ${p.jolly} jolly.`;
             if(roomState.id_giocatore_corrente === p.indice) txt += " È il suo turno.";
-            el.setAttribute('aria-label', txt);
-            el.setAttribute('role', 'region');
+            el.setAttribute('aria-label', txt); el.setAttribute('role', 'region'); el.tabIndex = 0;
             div.appendChild(el);
         });
     }
 
     async function closeRoom() {
-        if(!confirm("Chiudere la stanza per tutti?")) return;
+        if(!confirm("Chiudere?")) return;
         await supabase.from('stanze').update({stato:'chiusa'}).eq('id', myRoomId);
-        await supabase.from('stanze').delete().eq('id', myRoomId); // Pulizia
+        await supabase.from('stanze').delete().eq('id', myRoomId);
         location.reload();
     }
 
-    // --- RENDER & ISPETTORE ---
+    // --- RENDER ---
     function renderBoard() {
         const b = document.getElementById('game-board'); b.innerHTML='';
         let abs=0;
@@ -433,9 +413,8 @@
                 const bx=document.createElement('div');
                 if(c.match(/[A-ZÀ-Ù]/)) {
                     bx.className='letter-box'; 
-                    if((roomState.lettere_rivelate||[]).includes(abs)) {
-                        bx.classList.add('revealed'); bx.textContent=c; 
-                    } else { bx.textContent=''; }
+                    if((roomState.lettere_rivelate||[]).includes(abs)) { bx.classList.add('revealed'); bx.textContent=c; } 
+                    else { bx.textContent=''; }
                     abs++;
                 } else { bx.className='letter-box punct'; bx.textContent=c; }
                 wd.appendChild(bx);
@@ -443,46 +422,27 @@
             b.appendChild(wd);
         });
     }
-
-    // MODALITÀ ISPETTORE (CTRL+I)
+    
+    // ISPETTORE (CTRL+I)
     function toggleInspectorMode() {
-        inspectorMode = !inspectorMode;
-        inspectorWordIndex = 0;
-        if(inspectorMode) {
-            speak("Modalità ispettore. Usa freccia Su e Giù per scorrere le parole.");
-            announceWordInfo();
-        } else {
-            speak("Uscita ispezione.");
-        }
+        inspectorMode = !inspectorMode; inspectorWordIndex = 0;
+        speak(inspectorMode ? "Modalità ispettore: Frecce Su/Giù per parole." : "Uscita ispettore.");
+        if(inspectorMode) announceWordInfo();
     }
-
     function announceWordInfo() {
         const words = curSolDisp.split(' ');
         if(inspectorWordIndex < 0) inspectorWordIndex = words.length - 1;
         if(inspectorWordIndex >= words.length) inspectorWordIndex = 0;
-
-        let w = words[inspectorWordIndex];
-        let status = "";
-        
-        // Ricostruiamo lo stato lettere per questa parola
-        // Dobbiamo calcolare l'offset assoluto per sapere quali lettere sono rivelate
+        let w = words[inspectorWordIndex]; let status = "";
         let currentAbsIndex = 0;
-        for(let k=0; k<inspectorWordIndex; k++) {
-             // Conta solo lettere valide delle parole precedenti
-             for(let char of words[k]) if(char.match(/[A-ZÀ-Ù]/)) currentAbsIndex++;
-        }
-
+        for(let k=0; k<inspectorWordIndex; k++) for(let char of words[k]) if(char.match(/[A-ZÀ-Ù]/)) currentAbsIndex++;
         for(let char of w) {
             if(char.match(/[A-ZÀ-Ù]/)) {
-                if((roomState.lettere_rivelate||[]).includes(currentAbsIndex)) status += char + ", ";
-                else status += "Nascosta, ";
+                status += ((roomState.lettere_rivelate||[]).includes(currentAbsIndex) ? char : "Nascosta") + ", ";
                 currentAbsIndex++;
-            } else {
-                status += char + ", "; // Punteggiatura
-            }
+            } else status += char + ", ";
         }
-
-        speak(`Parola ${inspectorWordIndex+1}: ${w.length} lettere. ${status}`);
+        speak(`Parola ${inspectorWordIndex+1}, ${w.length} lettere: ${status}`);
     }
 
     // UTILS
@@ -491,18 +451,17 @@
         if(m==='main') { document.getElementById('main-actions').classList.remove('hidden'); document.getElementById('btn-spin').focus(); }
         if(m==='consonant'||m==='vowel') { 
             document.getElementById('letter-input-area').classList.remove('hidden'); 
-            document.getElementById('letter-input').placeholder = m==='vowel'?"VOCALE":"CONSONANTE";
-            document.getElementById('letter-input').focus(); 
+            const inp = document.getElementById('letter-input'); inp.placeholder = m==='vowel'?"VOCALE":"CONSONANTE"; inp.focus(); 
         }
         if(m==='solve') { document.getElementById('solve-input-area').classList.remove('hidden'); document.getElementById('solve-input').focus(); }
     }
     function buildWheel() {
-        const c = document.getElementById('wheel-container'); c.innerHTML = '';
-        const arc = 360/wheelValues.length;
+        const c = document.getElementById('wheel-container'); c.innerHTML = ''; const arc = 360/wheelValues.length;
         wheelValues.forEach((v, i) => {
             const d = document.createElement('div'); d.className = 'wheel-wedge';
-            d.style.transform = `rotate(${i*arc}deg)`;
-            d.style.backgroundColor = v==='BANCAROTTA'?'black':(v==='MISTERO'?'indigo':(i%2?'#666':'#888'));
+            d.style.transform = `rotate(${i*arc}deg)`; d.style.backgroundColor = v==='BANCAROTTA'?'black':(v==='MISTERO'?'indigo':(i%2?'#666':'#888'));
+            // TESTO NASCOSTO PER ARIA
+            d.innerHTML = `<span style="display:none;">${v}</span>`;
             c.appendChild(d);
         });
     }
@@ -520,22 +479,17 @@
         if(me.jolly>0){await supabase.from('giocatori').update({jolly:me.jolly-1}).eq('id',myId); setControls('main');}
     }
 
-    // SHORTCUTS E NAVIGAZIONE
     window.addEventListener('keydown', e => {
         if(e.key === 'Enter') {
              if(document.activeElement.id==='letter-input') confirmLetter();
              if(document.activeElement.id==='solve-input') solve();
         }
-        
-        // Gestione Ispettore
         if(inspectorMode) {
             if(e.key === 'ArrowDown') { e.preventDefault(); inspectorWordIndex++; announceWordInfo(); return; }
             if(e.key === 'ArrowUp') { e.preventDefault(); inspectorWordIndex--; announceWordInfo(); return; }
-            if(e.key === 'Escape') { toggleInspectorMode(); return; }
+            if(e.key === 'Escape' || (e.ctrlKey && e.key.toLowerCase()==='i')) { toggleInspectorMode(); return; }
         }
-
         if(document.activeElement.tagName==='INPUT') return;
-
         if(e.ctrlKey) {
             if(e.key.toLowerCase()==='g') { e.preventDefault(); document.getElementById('btn-spin').click(); }
             if(e.key.toLowerCase()==='v') { e.preventDefault(); setControls('vowel'); }

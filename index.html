@@ -1,13 +1,353 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>La Ruota - Standard</title>
-    <script src="frasi.js"></script>
-    <!-- (contenuto tagliato per brevità nel notebook, ma nel file reale ci sarebbe tutto l'HTML completo) -->
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ruota Multiplayer – Test Supabase</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 1rem;
+      background: #002b4e;
+      color: #f5f5f5;
+    }
+    main {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    h1, h2, h3 {
+      margin-top: 1rem;
+      margin-bottom: 0.5rem;
+    }
+    section {
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      background: rgba(0,0,0,0.2);
+    }
+    label {
+      display: block;
+      margin-top: 0.5rem;
+    }
+    input {
+      width: 100%;
+      max-width: 280px;
+      padding: 0.4rem;
+      margin-top: 0.2rem;
+      border-radius: 0.3rem;
+      border: 1px solid #ccc;
+    }
+    button {
+      margin-top: 0.8rem;
+      margin-right: 0.5rem;
+      padding: 0.5rem 0.9rem;
+      border-radius: 0.4rem;
+      border: none;
+      cursor: pointer;
+      background: #f3922b;
+      color: #002b4e;
+      font-weight: 600;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    ul {
+      padding-left: 1.2rem;
+    }
+    .small {
+      font-size: 0.9rem;
+      opacity: 0.8;
+    }
+    #status {
+      margin-top: 0.5rem;
+      min-height: 1.2rem;
+    }
+  </style>
+  <!-- Supabase JS dal CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-    <!-- Metti qui TUTTO l'HTML completo che ti ho scritto nel messaggio precedente -->
+  <main>
+    <h1>Ruota Multiplayer – Collegamento stanze</h1>
+    <p>
+      Questa è una prima versione di <strong>test multiplayer</strong> con Supabase.
+      Serve per verificare che due giocatori, da case diverse, vedano lo stesso stato in tempo reale.
+    </p>
+
+    <section aria-labelledby="sec-conn">
+      <h2 id="sec-conn">1. Dati del giocatore e stanza</h2>
+
+      <label for="playerName">Il tuo nome (come comparirà agli altri):</label>
+      <input id="playerName" type="text" autocomplete="off" />
+
+      <label for="roomCode">Codice stanza (es. ABC123):</label>
+      <input id="roomCode" type="text" autocomplete="off" />
+
+      <button id="createRoomBtn">Crea nuova stanza</button>
+      <button id="joinRoomBtn">Entra in stanza esistente</button>
+
+      <p class="small">
+        Suggerimento: apri questa pagina da due dispositivi diversi, usa lo stesso codice stanza
+        e verifica che tutto ciò che cambia nella stanza si aggiorna per entrambi.
+      </p>
+
+      <div id="status" aria-live="polite"></div>
+    </section>
+
+    <section aria-labelledby="sec-room">
+      <h2 id="sec-room">2. Stanza corrente</h2>
+      <p id="currentRoomLabel">Nessuna stanza ancora collegata.</p>
+
+      <h3>Giocatori collegati</h3>
+      <ul id="playersList" aria-live="polite"></ul>
+
+      <h3>Stato condiviso di test</h3>
+      <p>
+        Contatore condiviso nella stanza:
+        <strong id="sharedCounter">–</strong>
+      </p>
+      <button id="incCounterBtn" disabled>Incrementa contatore condiviso</button>
+
+      <p class="small">
+        Se il contatore aumenta su tutti i dispositivi collegati alla stessa stanza, significa che
+        il realtime Supabase funziona. In seguito, al posto del contatore, ci sarà lo stato completo
+        della Ruota (punteggi, turni, caselle, frase, ecc.).
+      </p>
+    </section>
+  </main>
+
+  <script>
+    // === CONFIGURAZIONE SUPABASE (usa il tuo progetto già creato) ===
+    const SUPABASE_URL = "https://azcwkpdjbysnivknnino.supabase.co";
+    const SUPABASE_ANON_KEY =
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Y3drcGRqYnlzbml2a25uaW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MzAwNDksImV4cCI6MjA3OTIwNjA0OX0.R8wkMJEmsP8cTVUUOcWtD4Rrg_ZhuOE-PYBJ56eGqMU";
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // === RIFERIMENTI DOM ===
+    const playerNameInput = document.getElementById("playerName");
+    const roomCodeInput = document.getElementById("roomCode");
+    const createRoomBtn = document.getElementById("createRoomBtn");
+    const joinRoomBtn = document.getElementById("joinRoomBtn");
+    const statusEl = document.getElementById("status");
+    const currentRoomLabel = document.getElementById("currentRoomLabel");
+    const playersList = document.getElementById("playersList");
+    const sharedCounterEl = document.getElementById("sharedCounter");
+    const incCounterBtn = document.getElementById("incCounterBtn");
+
+    let currentRoomId = null;
+    let currentPlayerName = null;
+    let currentState = null;
+    let subscription = null;
+
+    function setStatus(text) {
+      console.log(text);
+      statusEl.textContent = text;
+    }
+
+    function normalizzaCodiceRoom(raw) {
+      return (raw || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+    }
+
+    function generaCodiceRoom() {
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let out = "";
+      for (let i = 0; i < 6; i++) {
+        out += chars[Math.floor(Math.random() * chars.length)];
+      }
+      return out;
+    }
+
+    function renderState() {
+      if (!currentState) {
+        currentRoomLabel.textContent = "Nessuna stanza ancora collegata.";
+        playersList.innerHTML = "";
+        sharedCounterEl.textContent = "–";
+        incCounterBtn.disabled = true;
+        return;
+      }
+
+      currentRoomLabel.textContent = "Stanza " + currentRoomId + " – giocatore: " + currentPlayerName;
+
+      // Giocatori
+      playersList.innerHTML = "";
+      const players = Array.isArray(currentState.players) ? currentState.players : [];
+      players.forEach((name) => {
+        const li = document.createElement("li");
+        li.textContent = name;
+        playersList.appendChild(li);
+      });
+
+      // Contatore condiviso
+      const counter = typeof currentState.counter === "number" ? currentState.counter : 0;
+      sharedCounterEl.textContent = String(counter);
+      incCounterBtn.disabled = false;
+    }
+
+    async function caricaStanza(roomId) {
+      const { data, error } = await supabase
+        .from("rooms")
+        .select("id, state")
+        .eq("id", roomId)
+        .maybeSingle();
+
+      if (error) {
+        console.error(error);
+        setStatus("Errore nel leggere la stanza: " + error.message);
+        return null;
+      }
+      if (!data) {
+        setStatus("Nessuna stanza trovata con codice " + roomId);
+        return null;
+      }
+      return data;
+    }
+
+    async function salvaStato(roomId, newState) {
+      const { error } = await supabase
+        .from("rooms")
+        .update({
+          state: newState,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", roomId);
+
+      if (error) {
+        console.error(error);
+        setStatus("Errore nel salvare lo stato: " + error.message);
+        return false;
+      }
+      return true;
+    }
+
+    async function creaNuovaStanza() {
+      const rawName = playerNameInput.value.trim();
+      if (!rawName) {
+        setStatus("Scrivi prima il tuo nome.");
+        playerNameInput.focus();
+        return;
+      }
+      currentPlayerName = rawName;
+      const roomId = normalizzaCodiceRoom(roomCodeInput.value) || generaCodiceRoom();
+
+      const initialState = {
+        createdAt: new Date().toISOString(),
+        players: [currentPlayerName],
+        counter: 0,
+      };
+
+      const { error } = await supabase.from("rooms").insert({
+        id: roomId,
+        state: initialState,
+      });
+
+      if (error) {
+        if (error.code === "23505") {
+          setStatus("Esiste già una stanza con questo codice. Prova a usare 'Entra in stanza'.");
+        } else {
+          console.error(error);
+          setStatus("Errore nel creare la stanza: " + error.message);
+        }
+        return;
+      }
+
+      currentRoomId = roomId;
+      currentState = initialState;
+      setStatus("Stanza " + roomId + " creata. Ora sei collegata.");
+      roomCodeInput.value = roomId;
+      attivaRealtimePerStanza(roomId);
+      renderState();
+    }
+
+    async function entraInStanzaEsistente() {
+      const rawName = playerNameInput.value.trim();
+      if (!rawName) {
+        setStatus("Scrivi prima il tuo nome.");
+        playerNameInput.focus();
+        return;
+      }
+      const roomId = normalizzaCodiceRoom(roomCodeInput.value);
+      if (!roomId) {
+        setStatus("Scrivi un codice stanza valido (es. ABC123).");
+        roomCodeInput.focus();
+        return;
+      }
+      currentPlayerName = rawName;
+
+      const data = await caricaStanza(roomId);
+      if (!data) return;
+
+      // aggiorna elenco giocatori se non presente
+      const state = data.state || {};
+      if (!Array.isArray(state.players)) state.players = [];
+      if (!state.players.includes(currentPlayerName)) {
+        state.players.push(currentPlayerName);
+        const ok = await salvaStato(roomId, state);
+        if (!ok) return;
+      }
+
+      currentRoomId = roomId;
+      currentState = state;
+      setStatus("Sei entrata nella stanza " + roomId + ".");
+      attivaRealtimePerStanza(roomId);
+      renderState();
+    }
+
+    function attivaRealtimePerStanza(roomId) {
+      if (subscription) {
+        subscription.unsubscribe();
+        subscription = null;
+      }
+
+      subscription = supabase
+        .channel("room-" + roomId)
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "rooms",
+            filter: "id=eq." + roomId,
+          },
+          (payload) => {
+            console.log("UPDATE realtime", payload);
+            currentState = payload.new.state;
+            renderState();
+            setStatus("Stato aggiornato dalla stanza " + roomId + ".");
+          }
+        )
+        .subscribe((status) => {
+          console.log("Stato canale realtime:", status);
+        });
+    }
+
+    async function incrementaContatore() {
+      if (!currentRoomId || !currentState) return;
+      if (typeof currentState.counter !== "number") currentState.counter = 0;
+      currentState.counter += 1;
+      const ok = await salvaStato(currentRoomId, currentState);
+      if (!ok) return;
+      // Il render vero avverrà via evento realtime; questo è solo un fallback
+      renderState();
+    }
+
+    // === EVENT LISTENERS ===
+    createRoomBtn.addEventListener("click", () => {
+      creaNuovaStanza();
+    });
+
+    joinRoomBtn.addEventListener("click", () => {
+      entraInStanzaEsistente();
+    });
+
+    incCounterBtn.addEventListener("click", () => {
+      incrementaContatore();
+    });
+
+    // Messaggio iniziale
+    setStatus("Inserisci il tuo nome e un codice stanza per iniziare.");
+  </script>
 </body>
 </html>

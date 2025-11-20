@@ -3,577 +3,525 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>La Ruota - Classica e Accessibile</title>
-    
+    <title>La Ruota - Multiplayer Accessibile</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
     <style>
-        :root {
-            --colore-sfondo: #02203C;
-            --colore-casella-vuota: #004a91;
-            --colore-casella-piena: #FFFFFF;
-            --colore-lettera: #000000;
-            --colore-oro: #FFD700;
-            --colore-focus: #FF00FF;
-        }
-
-        body {
-            margin: 0; padding: 10px;
-            font-family: Arial, sans-serif;
-            background-color: var(--colore-sfondo);
-            color: white;
-            display: flex; flex-direction: column; align-items: center;
-            min-height: 100vh; box-sizing: border-box;
-            text-transform: uppercase; overflow-x: hidden;
-        }
-        
-        h1, h2 { outline: none; text-align: center; }
-        
-        .sr-only {
-            position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-            overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0;
-        }
-
-        /* SETUP */
-        #setup-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.95);
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            z-index: 100; color: white; overflow-y: auto;
-        }
-        .setup-box {
-            background: #004a91; padding: 20px; border-radius: 10px; border: 2px solid var(--colore-oro);
-            width: 90%; max-width: 450px; text-align: center;
-        }
-        .setup-section {
-            margin: 15px 0; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 8px;
-        }
-        .setup-box input, .setup-box button {
-            width: 90%; padding: 12px; font-size: 1.1em; margin: 5px 0;
-            text-align: center; font-weight: bold; border-radius: 5px;
-        }
-        .setup-box button { background-color: var(--colore-oro); border: none; cursor: pointer; color: black; }
-        .setup-box h3 { margin: 0 0 10px 0; color: var(--colore-oro); }
-
-        /* GIOCO */
-        #game-container { width: 100%; display: flex; flex-direction: column; align-items: center; }
-        #room-info { font-size: 1.2em; background: #000; padding: 10px; border-radius: 5px; margin-bottom: 10px; border: 1px solid white; }
-        #category-display { font-size: 2em; font-weight: bold; margin-bottom: 15px; color: var(--colore-oro); text-align: center; }
-
-        #game-board {
-            width: 90%; max-width: 1200px; display: flex; flex-wrap: wrap; justify-content: center;
-            align-items: center; padding: 10px; min-height: 150px; outline: none;
-        }
-        
-        .word { display: flex; margin-right: 20px; margin-bottom: 15px; flex-wrap: nowrap; }
-        .letter-box {
-            width: 40px; height: 60px; background-color: var(--colore-casella-vuota);
-            border: 2px solid var(--colore-sfondo); margin-right: 2px;
-            display: flex; justify-content: center; align-items: center;
-            font-size: 2em; font-weight: bold; color: var(--colore-lettera);
-            position: relative;
-        }
-        .letter-box:focus { outline: 4px solid var(--colore-focus); z-index: 10; }
-        .letter-box.revealed { background-color: var(--colore-casella-piena); }
-        .letter-box.punct { background-color: var(--colore-casella-piena); }
-        .letter-box.space { background-color: transparent; border: none; width: 20px; }
-        .letter-content { visibility: hidden; }
-        .revealed .letter-content, .punct .letter-content { visibility: visible; }
-
-        #player-scores { width: 100%; display: flex; justify-content: space-around; gap: 5px; margin-bottom: 10px; }
-        .player-box {
-            flex: 1; padding: 5px; background-color: #004a91; border: 2px solid gray;
-            border-radius: 8px; text-align: center; color: white; opacity: 0.6; font-size: 0.9em;
-        }
-        .player-box.active { 
-            border-color: var(--colore-oro); background-color: #005bb5; 
-            box-shadow: 0 0 10px var(--colore-oro); opacity: 1; font-weight: bold;
-        }
-        
-        /* RUOTA */
-        #wheel-wrapper { width: 250px; height: 250px; position: relative; margin: 0 auto; }
-        #wheel-pointer {
-            position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
-            width: 0; height: 0; 
-            border-left: 15px solid transparent; border-right: 15px solid transparent; border-top: 25px solid white; z-index: 50;
-        }
-        #wheel-container {
-            width: 100%; height: 100%; border-radius: 50%; border: 4px solid white;
-            position: relative; overflow: hidden; transition: transform 5s cubic-bezier(0.2, 0.8, 0.2, 1); background: #333;
-        }
-        .wheel-wedge {
-            position: absolute; top: 0; right: 0; width: 50%; height: 50%;
-            transform-origin: 0% 100%; display: flex; align-items: flex-end; justify-content: flex-start;
-            border: 1px solid rgba(0,0,0,0.1);
-        }
-        .wedge-text {
-            position: absolute; left: -100%; width: 200%; height: 200%; text-align: center;
-            display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 10px;
-            font-weight: bold; font-size: 14px; color: black; text-shadow: 0px 0px 2px white;
-        }
-
-        /* AZIONI */
-        #game-actions { width: 100%; display: flex; flex-direction: column; align-items: center; }
-        #status-message { font-size: 1.4em; color: var(--colore-oro); margin-bottom: 20px; text-align: center; font-weight: bold; min-height: 1.5em; }
-        #controls-panel button, #controls-panel input {
-            width: 100%; font-size: 1.3em; padding: 15px; margin-bottom: 10px;
-            border-radius: 8px; border: none; cursor: pointer; text-transform: uppercase;
-        }
-        #controls-panel button { background-color: #007bff; color: white; }
-        #controls-panel button:disabled { background-color: #555; cursor: not-allowed; opacity: 0.5; }
+        /* COLORI E BASI */
+        :root { --bg: #02203C; --box: #004a91; --gold: #FFD700; --focus: #FF00FF; }
+        body { margin: 0; padding: 10px; font-family: Arial, sans-serif; background-color: var(--bg); color: white; text-align: center; }
         .hidden { display: none !important; }
         
-        #btn-solve { background-color: #28a745; } 
-        #btn-buy-vowel { background-color: #17a2b8; } 
-        #btn-read-board { background-color: #6f42c1; }
-        #btn-cancel-solve, #btn-skip-turn { background-color: #dc3545; }
+        /* ACCESSIBILITÀ */
+        .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+        
+        /* LAYOUT LOBBY */
+        #setup-overlay { max-width: 600px; margin: 0 auto; padding-bottom: 50px; }
+        .panel { background: var(--box); padding: 20px; border-radius: 10px; border: 2px solid var(--gold); margin-bottom: 20px; text-align: left; }
+        .panel h2 { margin-top: 0; color: var(--gold); text-align: center; }
+        input[type="text"], button { width: 100%; padding: 12px; margin: 5px 0; font-size: 1.1em; border-radius: 5px; box-sizing: border-box; }
+        button { background: var(--gold); border: none; cursor: pointer; color: black; font-weight: bold; }
+        button:hover { background: #fff; }
+        
+        /* LAYOUT GIOCO */
+        #game-container { display: flex; flex-direction: column; align-items: center; }
+        
+        /* TABELLONE */
+        #game-board { display: flex; flex-wrap: wrap; justify-content: center; padding: 10px; outline: none; margin: 10px 0; }
+        .word { display: flex; margin-right: 20px; margin-bottom: 15px; }
+        .letter-box { width: 40px; height: 60px; border: 2px solid var(--bg); background: var(--box); margin-right: 2px; display: flex; justify-content: center; align-items: center; font-size: 2em; font-weight: bold; color: black; }
+        .letter-box.revealed { background: white; } 
+        .letter-box.punct { background: white; }
+        .letter-box:focus { outline: 4px solid var(--focus); z-index: 10; }
+        .letter-content { visibility: hidden; }
+        .revealed .letter-content, .punct .letter-content { visibility: visible; }
+        
+        /* LISTA STANZE */
+        #rooms-list { list-style: none; padding: 0; }
+        .room-item { background: rgba(0,0,0,0.3); padding: 10px; margin-bottom: 5px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; }
+
+        /* PUNTEGGI GIOCATORI (Stile migliorato) */
+        .player-box {
+            flex: 1; 
+            background-color: var(--box); 
+            border: 1px solid #888;
+            border-radius: 8px; 
+            padding: 8px; 
+            text-align: center; 
+            color: white; 
+            opacity: 0.7;
+            max-width: 150px;
+            min-width: 100px;
+        }
+        .player-box.active { 
+            border: 2px solid var(--gold); 
+            background-color: #005bb5; 
+            opacity: 1; 
+            transform: scale(1.05);
+            box-shadow: 0 0 10px var(--gold);
+        }
+
+        /* RUOTA */
+        #wheel-container { width: 250px; height: 250px; border-radius: 50%; border: 4px solid white; position: relative; overflow: hidden; transition: transform 5s ease-out; background: #333; margin: 0 auto; }
+        .wheel-wedge { position: absolute; top: 0; right: 0; width: 50%; height: 50%; transform-origin: 0% 100%; border: 1px solid rgba(0,0,0,0.1); display: flex; align-items: flex-end; }
+        .wedge-text { position: absolute; left: -100%; width: 200%; height: 200%; text-align: center; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 10px; font-weight: bold; font-size: 14px; color: black; text-shadow: 0px 0px 2px white; }
+        #wheel-pointer { position: absolute; top: -15px; left: 50%; transform: translateX(-50%); border-left: 15px solid transparent; border-right: 15px solid transparent; border-top: 25px solid white; z-index: 50; }
+
+        /* UI UTILS */
+        #status-message { font-size: 1.4em; color: var(--gold); margin: 15px 0; font-weight: bold; min-height: 1.5em; }
     </style>
 </head>
 <body>
 
     <div id="sr-announcer" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
-    
+
     <audio id="snd-spin" src="ruota.wav"></audio>
-    <audio id="snd-ding" src="ding.mp3"></audio> 
-    <audio id="snd-buzz" src="buzz.mp3"></audio> 
+    <audio id="snd-hit" src="lettera presente.wav"></audio>
+    <audio id="snd-miss" src="lettera assente.wav"></audio>
 
     <div id="setup-overlay">
-        <h1>LA RUOTA CLASSICA</h1>
-        <div class="setup-box">
-            <label for="player-name-input">Il tuo Nome:</label>
+        <h1>LA RUOTA ONLINE</h1>
+        
+        <div class="panel">
+            <label for="player-name-input">1. IL TUO NOME:</label>
             <input id="player-name-input" type="text" placeholder="Es: Mario">
-            
-            <div class="setup-section">
-                <h3>CREA NUOVA STANZA</h3>
-                <label for="create-room-code">Scegli il nome della stanza:</label>
-                <input id="create-room-code" type="text" placeholder="Es: PIPPO">
-                <button onclick="createRoom()">CREA</button>
-            </div>
-            
-            <div class="setup-section">
-                <h3>ENTRA IN STANZA</h3>
-                <label for="join-room-code">Nome stanza esistente:</label>
-                <input id="join-room-code" type="text" placeholder="Es: PIPPO">
-                <button onclick="joinRoom()">ENTRA</button>
-            </div>
-
-            <p id="login-error" style="color:red; font-weight:bold;" aria-live="polite"></p>
         </div>
+
+        <div class="panel">
+            <h2>LISTA STANZE</h2>
+            <button onclick="fetchRooms()">Aggiorna Lista</button>
+            <ul id="rooms-list"><li>Caricamento...</li></ul>
+        </div>
+
+        <div class="panel">
+            <h2>CREA STANZA</h2>
+            <label>Nome Stanza (Es. PIPPO):</label>
+            <input id="create-room-name" type="text" placeholder="Nome">
+            <div style="margin:10px 0;">
+                <input id="is-private-check" type="checkbox" style="width:20px;"> 
+                <label for="is-private-check">Privata (Nascosta)</label>
+            </div>
+            <button onclick="createRoom()">CREA</button>
+        </div>
+
+        <div class="panel">
+            <h2>ENTRA CON CODICE</h2>
+            <input id="private-room-code" type="text" placeholder="Nome Stanza Nascosta">
+            <button onclick="joinPrivate()">ENTRA</button>
+        </div>
+        <p id="login-error" style="color:red; font-weight:bold;" aria-live="polite"></p>
     </div>
 
     <div id="game-container" class="hidden">
-        <div id="room-info" aria-live="polite">Stanza: <span id="room-code-display" style="font-weight:bold; color:yellow;">---</span></div>
-        <div id="category-display">CARICAMENTO...</div>
+        <div id="room-info" style="background:black; padding:10px; margin-bottom:10px;">
+            Stanza: <span id="room-code-display" style="color:yellow">---</span>
+        </div>
+        <div id="category-display" style="font-size:2em; color:var(--gold); font-weight:bold;">---</div>
         
-        <div id="game-board" role="application" aria-label="Tabellone. Usa frecce destra e sinistra per leggere le caselle."></div>
-        
-        <div id="used-letters-display" style="color:#ddd; margin: 10px;"></div>
+        <div id="game-board" tabindex="0" role="grid" aria-label="Tabellone. Usa le frecce per esplorare le caselle."></div>
+        <div id="used-letters-display" style="color:#ccc; margin-bottom: 10px;"></div>
 
-        <div id="controls-area">
-            <div id="player-scores">
-                <div id="player-0" class="player-box"><div class="player-name">P1</div><div class="player-score">€0</div><div class="player-jolly">J:0</div></div>
-                <div id="player-1" class="player-box"><div class="player-name">P2</div><div class="player-score">€0</div><div class="player-jolly">J:0</div></div>
-                <div id="player-2" class="player-box"><div class="player-name">P3</div><div class="player-score">€0</div><div class="player-jolly">J:0</div></div>
+        <div id="player-scores" style="display: flex; justify-content: center; gap: 10px; width: 100%; margin-bottom: 15px;">
+            <div id="player-0" class="player-box" role="region" aria-label="In attesa">
+                <div class="p-name" style="font-weight:bold; border-bottom:1px solid #555; margin-bottom:3px;">---</div>
+                <div><span class="p-score" style="color:var(--gold);">€0</span> | <span class="p-jolly">🃏0</span></div>
             </div>
-
-            <div id="wheel-wrapper" aria-hidden="true">
-                <div id="wheel-pointer"></div>
-                <div id="wheel-container"></div>
+            <div id="player-1" class="player-box" role="region" aria-label="In attesa">
+                <div class="p-name" style="font-weight:bold; border-bottom:1px solid #555; margin-bottom:3px;">---</div>
+                <div><span class="p-score" style="color:var(--gold);">€0</span> | <span class="p-jolly">🃏0</span></div>
             </div>
+            <div id="player-2" class="player-box" role="region" aria-label="In attesa">
+                <div class="p-name" style="font-weight:bold; border-bottom:1px solid #555; margin-bottom:3px;">---</div>
+                <div><span class="p-score" style="color:var(--gold);">€0</span> | <span class="p-jolly">🃏0</span></div>
+            </div>
+        </div>
 
-            <div id="game-actions">
-                <div id="status-message" aria-live="polite">In attesa...</div>
-                
-                <div id="controls-panel">
-                    <div id="main-actions">
-                        <button id="btn-spin">Gira (CTRL+G)</button>
-                        <button id="btn-buy-vowel">Compra Vocale €500 (CTRL+V)</button>
-                        <button id="btn-solve">Soluzione (CTRL+S)</button>
-                        <button id="btn-read-letters" onclick="readRevealedLetters()">Leggi Lettere (CTRL+L)</button>
-                        <button id="btn-read-structure" onclick="readBoardStructure()">Info Tabellone (CTRL+I)</button>
-                    </div>
+        <div style="position:relative; width:250px; margin:10px auto;">
+            <div id="wheel-pointer"></div>
+            <div id="wheel-container"></div>
+        </div>
 
-                    <div id="letter-input-area" class="hidden">
-                        <input type="text" id="letter-input" maxlength="1" placeholder="Lettera">
-                        <button id="btn-confirm-letter">Conferma</button>
-                    </div>
+        <div id="status-message" aria-hidden="true">In attesa...</div>
 
-                    <div id="solve-input-area" class="hidden">
-                        <input type="text" id="solve-input" placeholder="La frase è...">
-                        <button id="btn-confirm-solve">Conferma</button>
-                        <button id="btn-cancel-solve">Annulla</button>
-                    </div>
-
-                    <div id="extra-decision-area" class="hidden">
-                         <button id="btn-use-jolly">Usa Jolly</button>
-                        <button id="btn-skip-turn">Passa</button>
-                    </div>
-                </div>
+        <div id="controls-panel" style="width:100%; max-width:500px;">
+            <div id="main-actions">
+                <button id="btn-spin">Gira (CTRL+G)</button>
+                <button id="btn-buy-vowel">Vocale €500 (CTRL+V)</button>
+                <button id="btn-solve">Soluzione (CTRL+S)</button>
+                <button onclick="readRevealedLetters()">Lettere (CTRL+L)</button>
+                <button onclick="readBoardStructure()">Info (CTRL+I)</button>
+            </div>
+            <div id="letter-input-area" class="hidden">
+                <input id="letter-input" type="text" maxlength="1" placeholder="Lettera">
+                <button id="btn-confirm-letter">Conferma</button>
+            </div>
+            <div id="solve-input-area" class="hidden">
+                <input id="solve-input" type="text" placeholder="Frase...">
+                <button id="btn-confirm-solve">Conferma</button>
+                <button onclick="setControls('main')">Annulla</button>
+            </div>
+            <div id="extra-decision-area" class="hidden">
+                <button id="btn-use-jolly">Usa Jolly</button>
+                <button id="btn-skip-turn">Passa</button>
             </div>
         </div>
     </div>
 
-    <script>
-        // --- CONFIGURAZIONE ---
-        const SUPABASE_URL = 'https://azcwkpdjbysnivknnino.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Y3drcGRqYnlzbml2a25uaW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MzAwNDksImV4cCI6MjA3OTIwNjA0OX0.R8wkMJEmsP8cTVUUOcWtD4Rrg_ZhuOE-PYBJ56eGqMU';
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+<script>
+    // --- CONFIGURAZIONE ---
+    const SUPABASE_URL = 'https://azcwkpdjbysnivknnino.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Y3drcGRqYnlzbml2a25uaW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MzAwNDksImV4cCI6MjA3OTIwNjA0OX0.R8wkMJEmsP8cTVUUOcWtD4Rrg_ZhuOE-PYBJ56eGqMU';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        // Valori Standard (Senza round speciali)
-        const wheelValues = [100, 200, 300, 400, 500, 1000, 1500, 2000, 'BANCAROTTA', 'PASSA', 'MISTERO', 500];
+    const wheelValues = [100, 200, 300, 400, 500, 1000, 1500, 2000, 'BANCAROTTA', 'PASSA', 'MISTERO', 500];
+    const nato = {'A':'Ancona','B':'Bologna','C':'Como','D':'Domodossola','E':'Empoli','F':'Firenze','G':'Genova','H':'Hotel','I':'Imola','J':'Jolly','K':'Kappa','L':'Livorno','M':'Milano','N':'Napoli','O':'Otranto','P':'Palermo','Q':'Quadro','R':'Roma','S':'Savona','T':'Torino','U':'Udine','V':'Venezia','W':'Washington','X':'Xilofono','Y':'Yogurt','Z':'Zara'};
+    
+    let myPlayerId, myRoomId, myIndex, myName, roomState = {}, curSol = "", curSolDisp = "", rot = 0, focusIdx = -1, lastTimestamp = "";
 
-        const natoAlphabet = {
-            'A': 'Ancona', 'B': 'Bologna', 'C': 'Como', 'D': 'Domodossola', 'E': 'Empoli',
-            'F': 'Firenze', 'G': 'Genova', 'H': 'Hotel', 'I': 'Imola', 'J': 'Jolly',
-            'K': 'Kappa', 'L': 'Livorno', 'M': 'Milano', 'N': 'Napoli', 'O': 'Otranto',
-            'P': 'Palermo', 'Q': 'Quadro', 'R': 'Roma', 'S': 'Savona', 'T': 'Torino',
-            'U': 'Udine', 'V': 'Venezia', 'W': 'Washington', 'X': 'Xilofono', 'Y': 'Yogurt', 'Z': 'Zara',
-            'À': 'A accentata', 'È': 'E accentata', 'Ì': 'I accentata', 'Ò': 'O accentata', 'Ù': 'U accentata'
-        };
+    // --- AUDIO & VOCE ---
+    function speak(text) {
+        const el = document.getElementById('sr-announcer');
+        el.textContent = ''; 
+        setTimeout(() => { el.textContent = text; }, 50);
+        // Aggiorna anche testo visivo
+        document.getElementById('status-message').textContent = text;
+    }
 
-        let myPlayerId = null, myRoomId = null, myPlayerIndex = -1, currentRoomState = {}; 
-        let currentSolution = "", currentSolutionDisplay = "", currentRotation = 0, boardFocusIndex = -1;
-
-        const announcer = document.getElementById('sr-announcer');
-
-        function playSound(id) {
-            const audio = document.getElementById(id);
-            if(audio) { audio.currentTime = 0; audio.play().catch(()=>{}); }
+    function playSound(id, times = 1) {
+        let count = 0;
+        const audio = document.getElementById(id);
+        if(!audio) return;
+        
+        function playLoop() {
+            if(count >= times) return;
+            audio.currentTime = 0;
+            audio.play().catch(()=>{});
+            count++;
+            setTimeout(playLoop, 800); // Pausa tra i suoni
         }
-        function announce(text) { announcer.textContent = ''; setTimeout(() => { announcer.textContent = text; }, 100); }
-        function normalizeString(str) { return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase(); }
-        function getNato(char) { return natoAlphabet[char] || char; }
+        playLoop();
+    }
 
-        // --- CREAZIONE E ACCESSO ---
-        async function createRoom() {
-            const name = document.getElementById('player-name-input').value.trim();
-            const customCode = document.getElementById('create-room-code').value.trim().toUpperCase();
-            
-            if(!name || !customCode) return announce("Inserisci il tuo nome e il nome della stanza.");
-            
-            // Controlla se esiste già
-            const { data: existing } = await supabase.from('stanze').select('id').eq('codice', customCode).single();
-            if(existing) return announce("Questo nome stanza è già in uso. Scegline un altro.");
-
-            await ensurePhrasesExist();
-            const { data: frasi } = await supabase.from('frasi').select('*');
-            const randomFrase = frasi[Math.floor(Math.random() * frasi.length)];
-
-            // Crea Stanza con codice personalizzato
-            const { data: room, error } = await supabase.from('stanze').insert([{ 
-                codice: customCode, stato: 'attesa', frase_corrente_id: randomFrase.id, id_giocatore_corrente: 0 
-            }]).select().single();
-
-            if(error) return announce("Errore creazione. Riprova.");
-
-            const { data: player } = await supabase.from('giocatori').insert([{ 
-                stanza_id: room.id, nome: name, indice: 0, is_host: true 
-            }]).select().single();
-
-            announce(`Stanza ${customCode} creata. Sei il Giocatore 1.`);
-            enterGame(room, player, 0, randomFrase.soluzione, randomFrase.categoria);
-        }
-
-        async function joinRoom() {
-            const name = document.getElementById('player-name-input').value.trim();
-            const code = document.getElementById('join-room-code').value.trim().toUpperCase();
-            if(!name || !code) return announce("Inserisci nome e codice stanza.");
-
-            const { data: room, error } = await supabase.from('stanze').select('*, frasi(*)').eq('codice', code).single();
-            if(error || !room) return announce("Stanza non trovata.");
-
-            const { count } = await supabase.from('giocatori').select('*', { count: 'exact', head: true }).eq('stanza_id', room.id);
-            if(count >= 3) return announce("Stanza piena.");
-
-            const { data: player } = await supabase.from('giocatori').insert([{ 
-                stanza_id: room.id, nome: name, indice: count, is_host: false 
-            }]).select().single();
-
-            announce(`Sei entrato nella stanza ${code}. Sei il Giocatore ${count + 1}.`);
-            enterGame(room, player, count, room.frasi.soluzione, room.frasi.categoria);
-        }
-
-        function enterGame(room, player, index, solution, category) {
-            myRoomId = room.id; myPlayerId = player.id; myPlayerIndex = index;
-            currentSolutionDisplay = solution.toUpperCase(); currentSolution = normalizeString(solution);
-            
-            document.getElementById('setup-overlay').classList.add('hidden');
-            document.getElementById('game-container').classList.remove('hidden');
-            document.getElementById('room-code-display').textContent = room.codice;
-            document.getElementById('category-display').textContent = category;
-
-            buildWheel();
-            setupRealtimeSubscription();
-            updateGameState(room);
-            refreshPlayers();
-        }
-
-        // --- LOGICA GIOCO CLASSICA ---
-        function spinWheel() {
-            playSound('snd-spin'); announce("La ruota gira..."); setControls('none');
-            
-            const randIdx = Math.floor(Math.random() * wheelValues.length);
-            const val = wheelValues[randIdx];
-
-            doVisualSpin(randIdx, async () => {
-                if(typeof val === 'number') {
-                    sessionStorage.setItem('spinValue', val);
-                    announce(`È uscito ${val}. Scegli una consonante.`);
-                    setControls('consonant');
-                } else if (val === 'BANCAROTTA') {
-                    playSound('snd-buzz'); handleBankrupt();
-                } else if (val === 'PASSA') {
-                    announce("Passa il turno."); passTurn();
-                } else if (val === 'MISTERO') {
-                    handleMystery();
-                }
-            });
-        }
-
-        async function confirmLetter() {
-            const input = document.getElementById('letter-input');
-            let letter = input.value.toUpperCase().trim();
-            input.value = '';
-
-            if(!letter.match(/[A-Z]/)) { announce("Lettera non valida"); return; }
-            const oldLetters = currentRoomState.lettere_chiamate || [];
-            if(oldLetters.includes(letter)) { announce("Già chiamata!"); return; }
-
-            let count = 0;
-            let newRevealed = [...(currentRoomState.lettere_rivelate || [])];
-            let cleanSolution = normalizeString(currentSolutionDisplay).replace(/ /g, '');
-            
-            for(let i=0; i<cleanSolution.length; i++) {
-                if(cleanSolution[i] === letter) {
-                    count++;
-                    if(!newRevealed.includes(i)) newRevealed.push(i);
-                }
+    // --- LOBBY ---
+    async function fetchRooms() {
+        const list = document.getElementById('rooms-list'); list.innerHTML = '<li>Caricamento...</li>';
+        const { data: rooms } = await supabase.from('stanze').select('*, giocatori(count)').eq('stato', 'attesa').eq('is_private', false);
+        list.innerHTML = '';
+        if(!rooms || !rooms.length) { list.innerHTML = '<li>Nessuna stanza.</li>'; return; }
+        rooms.forEach(r => {
+            if(r.giocatori[0].count < 3) {
+                list.innerHTML += `<li class="room-item"><span class="room-info">${r.codice} (${r.giocatori[0].count}/3)</span><button style="width:auto" onclick="joinSpecificRoom('${r.codice}')">Entra</button></li>`;
             }
-
-            let spinVal = parseInt(sessionStorage.getItem('spinValue') || 0);
-            let isVowel = ['A','E','I','O','U'].includes(letter);
-            
-            if(isVowel) {
-                if((currentRoomState.montepremi_round||0) < 500) { announce("Soldi insufficienti per la vocale."); return; }
-            }
-
-            // Se consonante, guadagni. Se vocale, paghi.
-            let moneyToAdd = isVowel ? -500 : (spinVal * count);
-            let newMoney = (currentRoomState.montepremi_round || 0) + moneyToAdd;
-
-            if(count > 0) {
-                playSound('snd-ding');
-                announce(`Ci sono ${count} ${letter}. Totale ${newMoney} euro. Gira ancora.`);
-                await updateRoom({ lettere_chiamate: [...oldLetters, letter], lettere_rivelate: newRevealed, montepremi_round: newMoney });
-                setControls('main');
-            } else {
-                playSound('snd-buzz');
-                announce(`La lettera ${letter} non c'è.`);
-                await updateRoom({ lettere_chiamate: [...oldLetters, letter] });
-                passTurn();
-            }
-        }
-
-        // --- FUNZIONI SUPPORTO ---
-        async function handleMystery() {
-            announce("Mistero... vediamo cosa c'è sotto...");
-            const r = Math.random();
-            // Logica standard mistero: o vinci jolly/soldi o perdi tutto
-            let outcome = "";
-            if(r < 0.4) outcome = "BANCAROTTA";
-            else if (r < 0.7) outcome = "JOLLY";
-            else outcome = "RADDOPPIO"; // Raddoppia round
-
-            setTimeout(async () => {
-                if(outcome === "BANCAROTTA") { announce("Bancarotta!"); playSound('snd-buzz'); handleBankrupt(); }
-                else if (outcome === "JOLLY") {
-                    announce("Hai trovato un Jolly! Gira ancora.");
-                    const {data:me} = await supabase.from('giocatori').select('jolly').eq('id', myPlayerId).single();
-                    await supabase.from('giocatori').update({ jolly: (me.jolly||0)+1 }).eq('id', myPlayerId);
-                    setControls('main');
-                } else {
-                    let m = currentRoomState.montepremi_round || 0;
-                    m = (m === 0) ? 500 : m * 2;
-                    announce(`Raddoppio del montepremi a ${m} euro! Gira ancora.`);
-                    await updateRoom({ montepremi_round: m });
-                    setControls('main');
-                }
-            }, 2000);
-        }
-
-        async function handleBankrupt() {
-            const {data: me} = await supabase.from('giocatori').select('jolly').eq('id', myPlayerId).single();
-            if(me.jolly > 0) {
-                announce("Hai un Jolly! Premi Usa Jolly per salvarti o Passa per perdere tutto.");
-                document.getElementById('extra-decision-area').classList.remove('hidden');
-                document.getElementById('btn-use-jolly').focus();
-            } else {
-                announce("Bancarotta! Hai perso i soldi del round.");
-                await updateRoom({ montepremi_round: 0 });
-                passTurn();
-            }
-        }
-
-        async function passTurn() {
-            const { count } = await supabase.from('giocatori').select('*', { count: 'exact', head: true }).eq('stanza_id', myRoomId);
-            const next = (myPlayerIndex + 1) % count; 
-            await updateRoom({ id_giocatore_corrente: next });
-        }
-
-        async function checkSolve() {
-            const attempt = document.getElementById('solve-input').value.toUpperCase().trim();
-            if(normalizeString(attempt) === currentSolution) {
-                playSound('snd-ding');
-                const win = (currentRoomState.montepremi_round || 0) + 1000;
-                announce(`RISPOSTA ESATTA! ${currentSolutionDisplay}. Hai vinto ${win} euro totali.`);
-                const {data:me} = await supabase.from('giocatori').select('punteggio_totale').eq('id', myPlayerId).single();
-                await supabase.from('giocatori').update({ punteggio_totale: (me.punteggio_totale||0)+win }).eq('id', myPlayerId);
-                let all = Array.from({length:currentSolution.replace(/ /g,'').length},(_,i)=>i);
-                await updateRoom({ lettere_rivelate: all });
-            } else {
-                playSound('snd-buzz'); announce("Risposta sbagliata."); passTurn();
-            }
-        }
-
-        // --- ENGINE ---
-        function setupRealtimeSubscription() {
-            supabase.channel(`stanza:${myRoomId}`)
-                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'stanze', filter: `id=eq.${myRoomId}` }, 
-                payload => updateGameState(payload.new))
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'giocatori', filter: `stanza_id=eq.${myRoomId}` }, 
-                () => refreshPlayers())
-                .subscribe();
-        }
-
-        function updateGameState(state) {
-            currentRoomState = state;
-            renderBoard(state.lettere_rivelate || []);
-            const isMyTurn = (state.id_giocatore_corrente === myPlayerIndex);
-            document.getElementById('status-message').textContent = isMyTurn ? "È IL TUO TURNO" : `Turno di P${state.id_giocatore_corrente + 1}`;
-            document.querySelectorAll('.player-box').forEach((el, i) => el.classList.toggle('active', i === state.id_giocatore_corrente));
-            
-            if(isMyTurn && document.getElementById('letter-input-area').classList.contains('hidden') && document.getElementById('solve-input-area').classList.contains('hidden')) setControls('main');
-            else if(!isMyTurn) setControls('none');
-            
-            document.getElementById('used-letters-display').textContent = "Uscite: " + (state.lettere_chiamate||[]).join("-");
-        }
-
-        async function refreshPlayers() {
-            const { data: players } = await supabase.from('giocatori').select('*').eq('stanza_id', myRoomId).order('indice');
-            players.forEach(p => {
-                const box = document.getElementById(`player-${p.indice}`);
-                if(box) {
-                    box.querySelector('.player-name').textContent = p.nome + (p.id === myPlayerId ? " (TU)" : "");
-                    box.querySelector('.player-score').textContent = `€${p.punteggio_totale}`;
-                    box.querySelector('.player-jolly').textContent = `J:${p.jolly}`;
-                }
-            });
-        }
-
-        // Accessibilità e Rendering
-        function readBoardStructure() {
-            const words = currentSolutionDisplay.split(' ');
-            let msg = `Tabellone: ${words.length} parole. `;
-            words.forEach((w, i) => { msg += `Parola ${i+1} ha ${w.length} lettere. `; });
-            msg += `Scoperte ${(currentRoomState.lettere_rivelate||[]).length}.`;
-            announce(msg);
-        }
-        function readRevealedLetters() {
-            const rev = currentRoomState.lettere_rivelate || [];
-            if(rev.length === 0) { announce("Nessuna lettera visibile."); return; }
-            let chars = new Set();
-            rev.forEach(idx => { let char = currentSolutionDisplay.replace(/ /g, '')[idx]; if(char) chars.add(char); });
-            let sorted = Array.from(chars).sort();
-            announce("Presenti: " + sorted.map(c => `${c} ${getNato(c)}`).join(". "));
-        }
-        function renderBoard(revealedIndices) {
-            const board = document.getElementById('game-board'); board.innerHTML = '';
-            const rawWords = currentSolutionDisplay.split(' '); let absIndex = 0;
-            rawWords.forEach((wordStr, wordIdx) => {
-                const wDiv = document.createElement('div'); wDiv.className = 'word';
-                for(let i=0; i<wordStr.length; i++) {
-                    let char = wordStr[i]; const box = document.createElement('div');
-                    if(char.match(/[A-ZÀ-Ù]/i)) {
-                        box.className = 'letter-box'; box.tabIndex = -1;
-                        if(revealedIndices.includes(absIndex)) {
-                            box.classList.add('revealed'); box.innerHTML = `<span class="letter-content">${char}</span>`;
-                            box.setAttribute('aria-label', `${char}, ${getNato(char)}`);
-                        } else {
-                            box.setAttribute('aria-label', `Nascosta, lettera ${i+1} parola ${wordIdx+1}`);
-                        }
-                        absIndex++;
-                    } else {
-                        box.className = 'letter-box punct'; box.innerHTML = `<span class="letter-content">${char}</span>`; box.setAttribute('aria-label', char);
-                    }
-                    wDiv.appendChild(box);
-                }
-                board.appendChild(wDiv); board.appendChild(document.createElement('div')).className='letter-box space';
-            });
-            setupBoardNavigation();
-        }
-        function setupBoardNavigation() {
-            const board = document.getElementById('game-board');
-            board.onkeydown = (e) => {
-                const all = document.querySelectorAll('.letter-box:not(.space)');
-                if(all.length===0) return;
-                if(boardFocusIndex===-1) boardFocusIndex=0;
-                if(e.key==='ArrowRight') { e.preventDefault(); boardFocusIndex=(boardFocusIndex+1)%all.length; all[boardFocusIndex].focus(); }
-                if(e.key==='ArrowLeft') { e.preventDefault(); boardFocusIndex=(boardFocusIndex-1+all.length)%all.length; all[boardFocusIndex].focus(); }
-            };
-        }
-
-        function buildWheel() {
-            const c = document.getElementById('wheel-container'); c.innerHTML = '<div id="wheel-hub"></div>';
-            const arc = 360/wheelValues.length;
-            wheelValues.forEach((v, i) => {
-                const el=document.createElement('div'); el.className='wheel-wedge';
-                el.style.transform=`rotate(${i*arc}deg) skewY(-${90-arc}deg)`;
-                el.style.backgroundColor = v==='BANCAROTTA'?'black':(v==='MISTERO'?'indigo':(i%2?'#FF5733':'#33FF57'));
-                const t=document.createElement('div'); t.className='wedge-text';
-                t.style.transform=`skewY(${90-arc}deg) rotate(${arc/2}deg)`;
-                t.innerHTML=`<span>${typeof v==='number'?'€'+v:v}</span>`;
-                if(v==='BANCAROTTA') t.style.color='red'; if(v==='MISTERO') t.style.color='white';
-                el.appendChild(t); c.appendChild(el);
-            });
-        }
-        function doVisualSpin(idx, cb) {
-            const arc = 360/wheelValues.length;
-            currentRotation += (5*360) + (360-(idx*arc));
-            document.getElementById('wheel-container').style.transform = `rotate(${currentRotation}deg)`;
-            setTimeout(cb, 5500);
-        }
-        function setControls(m) {
-            ['main-actions','letter-input-area','solve-input-area','extra-decision-area'].forEach(id=>document.getElementById(id).classList.add('hidden'));
-            if(m==='main') { document.getElementById('main-actions').classList.remove('hidden'); document.getElementById('btn-spin').focus(); document.getElementById('btn-buy-vowel').disabled=(currentRoomState.montepremi_round||0)<500; }
-            if(m==='consonant'||m==='vowel') { document.getElementById('letter-input-area').classList.remove('hidden'); document.getElementById('letter-input').placeholder=m==='vowel'?"Vocale":"Consonante"; document.getElementById('letter-input').focus(); }
-            if(m==='solve') { document.getElementById('solve-input-area').classList.remove('hidden'); document.getElementById('solve-input').focus(); }
-        }
-        async function updateRoom(u) { await supabase.from('stanze').update(u).eq('id', myRoomId); }
-        async function ensurePhrasesExist() {
-            const { count } = await supabase.from('frasi').select('*', { count: 'exact', head: true });
-            if(count === 0) await supabase.from('frasi').insert([{categoria:'DEFAULT',soluzione:'PROVA'}]);
-        }
-
-        document.getElementById('btn-spin').onclick = spinWheel;
-        document.getElementById('btn-confirm-letter').onclick = confirmLetter;
-        document.getElementById('btn-buy-vowel').onclick = () => setControls('vowel');
-        document.getElementById('btn-solve').onclick = () => setControls('solve');
-        document.getElementById('btn-confirm-solve').onclick = checkSolve;
-        document.getElementById('btn-cancel-solve').onclick = () => setControls('main');
-        document.getElementById('btn-skip-turn').onclick = passTurn;
-        document.getElementById('btn-use-jolly').onclick = async () => {
-            const {data:me}=await supabase.from('giocatori').select('jolly').eq('id',myPlayerId).single();
-            if(me.jolly>0){ await supabase.from('giocatori').update({jolly:me.jolly-1}).eq('id',myPlayerId); setControls('main'); }
-        };
-
-        window.addEventListener('keydown', (e) => {
-            if(document.activeElement.tagName === 'INPUT') return;
-            if(e.ctrlKey && e.key.toLowerCase()==='g') { e.preventDefault(); document.getElementById('btn-spin').click(); }
-            if(e.ctrlKey && e.key.toLowerCase()==='v') { e.preventDefault(); document.getElementById('btn-buy-vowel').click(); }
-            if(e.ctrlKey && e.key.toLowerCase()==='s') { e.preventDefault(); document.getElementById('btn-solve').click(); }
-            if(e.ctrlKey && e.key.toLowerCase()==='l') { e.preventDefault(); readRevealedLetters(); }
-            if(e.ctrlKey && e.key.toLowerCase()==='i') { e.preventDefault(); readBoardStructure(); }
         });
-    </script>
+        speak("Lista aggiornata.");
+    }
+    fetchRooms(); // Auto load
+
+    async function createRoom() {
+        const name = document.getElementById('player-name-input').value.trim();
+        const code = document.getElementById('create-room-name').value.trim().toUpperCase();
+        const isPriv = document.getElementById('is-private-check').checked;
+        if(!name || !code) return speak("Inserisci nomi.");
+
+        const { data: ex } = await supabase.from('stanze').select('id').eq('codice', code).single();
+        if(ex) return speak("Nome stanza già usato.");
+
+        await checkPhrases();
+        const { data: f } = await supabase.from('frasi').select('*');
+        const rF = f[Math.floor(Math.random()*f.length)];
+
+        const { data: room } = await supabase.from('stanze').insert([{
+            codice: code, stato: 'attesa', is_private: isPriv, frase_corrente_id: rF.id
+        }]).select().single();
+
+        const { data: p } = await supabase.from('giocatori').insert([{ stanza_id: room.id, nome: name, indice: 0, is_host: true }]).select().single();
+        enterGame(room, p, 0, rF);
+    }
+
+    async function joinSpecificRoom(code) {
+        const name = document.getElementById('player-name-input').value.trim();
+        if(!name) return speak("Metti il tuo nome.");
+        const { data: room } = await supabase.from('stanze').select('*, frasi(*)').eq('codice', code).single();
+        if(!room) return speak("Stanza non trovata.");
+        const { count } = await supabase.from('giocatori').select('*', { count: 'exact', head: true }).eq('stanza_id', room.id);
+        if(count >= 3) return speak("Stanza piena.");
+        const { data: p } = await supabase.from('giocatori').insert([{ stanza_id: room.id, nome: name, indice: count, is_host: false }]).select().single();
+        enterGame(room, p, count, room.frasi);
+    }
+    async function joinPrivate() { joinSpecificRoom(document.getElementById('private-room-code').value.trim().toUpperCase()); }
+
+    function enterGame(room, player, idx, frase) {
+        myRoomId = room.id; myPlayerId = player.id; myIndex = idx; myName = player.nome;
+        curSolDisp = frase.soluzione.toUpperCase(); curSol = normalize(frase.soluzione);
+        
+        document.getElementById('setup-overlay').classList.add('hidden');
+        document.getElementById('game-container').classList.remove('hidden');
+        document.getElementById('room-code-display').textContent = room.codice;
+        document.getElementById('category-display').textContent = frase.categoria;
+        
+        buildWheel(); setupRealtime(); handleUpdate(room);
+        speak(`Entrato. Sei il Giocatore ${idx+1}.`);
+    }
+
+    // --- MOTORE DI GIOCO ---
+    
+    // Azione Generica che invia messaggio e suono a tutti
+    async function broadcast(action, msg, updates = {}) {
+        await supabase.from('stanze').update({
+            ...updates,
+            ultima_azione: action,
+            ultimo_messaggio: msg,
+            azione_timestamp: Date.now().toString()
+        }).eq('id', myRoomId);
+    }
+
+    function spin() {
+        setControls('none');
+        const v = wheelValues[Math.floor(Math.random()*wheelValues.length)];
+        doVisualSpin(v); // Animazione locale immediata
+        
+        setTimeout(async () => {
+            if(typeof v === 'number') {
+                sessionStorage.setItem('sv', v);
+                // Messaggio chiaro: CHI gira e COSA esce
+                await broadcast('spin', `${myName} gira... Esce ${v}.`, {});
+                if(myIndex === roomState.id_giocatore_corrente) setControls('consonant');
+            } else if (v === 'BANCAROTTA') {
+                bankrupt();
+            } else if (v === 'PASSA') {
+                pass("Passa il turno.");
+            } else if (v === 'MISTERO') {
+                mystery();
+            }
+        }, 4000);
+    }
+
+    async function confirmLetter() {
+        const inp = document.getElementById('letter-input');
+        const l = inp.value.toUpperCase().trim();
+        inp.value='';
+        if(!l.match(/[A-Z]/)) return speak("Lettera non valida");
+        if((roomState.lettere_chiamate||[]).includes(l)) return speak("Già detta");
+
+        let count=0, rev=[...(roomState.lettere_rivelate||[])];
+        let clean = curSolDisp.replace(/ /g, '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+        for(let i=0; i<clean.length; i++) if(clean[i]===l) { count++; if(!rev.includes(i)) rev.push(i); }
+
+        let sv = parseInt(sessionStorage.getItem('sv')||0);
+        let isV = ['A','E','I','O','U'].includes(l);
+        if(isV && (roomState.montepremi_round||0)<500) return speak("Soldi insufficienti");
+        
+        let money = (roomState.montepremi_round||0) + (isV ? -500 : (sv*count));
+
+        if(count > 0) {
+            // HIT: Manda 'hit-N' così suona N volte
+            await broadcast(`hit-${count}`, `${myName} chiama ${l}.`, {
+                lettere_chiamate:[...(roomState.lettere_chiamate||[]),l], lettere_rivelate:rev, montepremi_round:money
+            });
+            setControls('main');
+        } else {
+            // MISS: Suono errore e passa
+            await broadcast('miss', `${myName} chiama ${l}. Non c'è.`, {
+                lettere_chiamate:[...(roomState.lettere_chiamate||[]),l]
+            });
+            setTimeout(pass, 1500);
+        }
+    }
+
+    async function solve() {
+        const txt = document.getElementById('solve-input').value.toUpperCase().trim();
+        if(normalize(txt) === curSol) {
+            const w = (roomState.montepremi_round||0)+1000;
+            const {data:me}=await supabase.from('giocatori').select('punteggio_totale').eq('id',myPlayerId).single();
+            await supabase.from('giocatori').update({punteggio_totale:(me.punteggio_totale||0)+w}).eq('id',myPlayerId);
+            
+            await broadcast('hit-5', `VITTORIA! ${myName} indovina: ${curSolDisp}.`, {
+                lettere_rivelate: Array.from({length: curSol.length}, (_, i) => i)
+            });
+        } else {
+            await broadcast('miss', `${myName} sbaglia soluzione.`);
+            setTimeout(pass, 1500);
+        }
+    }
+
+    async function bankrupt() {
+        const {data:me}=await supabase.from('giocatori').select('jolly').eq('id',myPlayerId).single();
+        if(me.jolly>0) { 
+            speak("Hai Jolly. Usalo?"); 
+            document.getElementById('extra-decision-area').classList.remove('hidden'); 
+            document.getElementById('btn-use-jolly').focus(); 
+        } else { 
+            await broadcast('miss', "Bancarotta!", {montepremi_round:0});
+            setTimeout(pass, 1500);
+        }
+    }
+    async function mystery() {
+        speak("Mistero...");
+        setTimeout(async()=>{
+            if(Math.random()<0.5) { await broadcast('miss', "Mistero: Bancarotta!", {montepremi_round:0}); setTimeout(pass,1500); }
+            else { 
+                const {data:me}=await supabase.from('giocatori').select('jolly').eq('id',myPlayerId).single();
+                await supabase.from('giocatori').update({jolly:(me.jolly||0)+1}).eq('id',myPlayerId);
+                await broadcast('hit-1', "Mistero: Jolly!", {}); setControls('main'); 
+            }
+        }, 1500);
+    }
+    async function pass() {
+        const { count } = await supabase.from('giocatori').select('*', { count: 'exact', head: true }).eq('stanza_id', myRoomId);
+        const next = (myIndex+1)%count;
+        await supabase.from('stanze').update({id_giocatore_corrente: next}).eq('id', myRoomId);
+    }
+
+    // --- REALTIME ---
+    function setupRealtime() {
+        supabase.channel(`room:${myRoomId}`)
+            .on('postgres_changes', {event:'UPDATE', schema:'public', table:'stanze', filter:`id=eq.${myRoomId}`}, p=>handleUpdate(p.new))
+            .on('postgres_changes', {event:'*', schema:'public', table:'giocatori', filter:`stanza_id=eq.${myRoomId}`}, ()=>refreshPlayers())
+            .subscribe();
+    }
+
+    function handleUpdate(s) {
+        roomState=s; renderBoard();
+        
+        // Eventi Audio/Messaggi
+        if(s.azione_timestamp !== lastTimestamp) {
+            lastTimestamp = s.azione_timestamp;
+            if(s.ultimo_messaggio) speak(s.ultimo_messaggio);
+            
+            if(s.ultima_azione === 'spin') playSound('snd-spin');
+            if(s.ultima_azione === 'miss') playSound('snd-miss');
+            if(s.ultima_azione && s.ultima_azione.startsWith('hit-')) {
+                const count = parseInt(s.ultima_azione.split('-')[1]);
+                playSound('snd-hit', count);
+            }
+        }
+
+        // Turni e Controlli
+        const myTurn = s.id_giocatore_corrente === myIndex;
+        document.querySelectorAll('.player-box').forEach((e,i)=>e.classList.toggle('active', i===s.id_giocatore_corrente));
+        
+        if(myTurn) {
+            const visible = !document.getElementById('letter-input-area').classList.contains('hidden') || 
+                            !document.getElementById('solve-input-area').classList.contains('hidden') ||
+                            !document.getElementById('extra-decision-area').classList.contains('hidden');
+            if(!visible) setControls('main');
+        } else {
+            setControls('none');
+        }
+        document.getElementById('used-letters-display').textContent = "Uscite: " + (s.lettere_chiamate||[]).join("-");
+    }
+
+    async function refreshPlayers() {
+        const { data: ps } = await supabase.from('giocatori').select('*').eq('stanza_id', myRoomId).order('indice');
+        for(let i=0; i<3; i++) { 
+            const el = document.getElementById(`player-${i}`); 
+            if(el) el.style.display='none'; // Reset
+        }
+        ps.forEach(p => {
+            const el = document.getElementById(`player-${p.indice}`);
+            if(el) {
+                el.style.display = 'block';
+                const isMe = p.id === myPlayerId;
+                // Visivo
+                el.querySelector('.p-name').textContent = p.nome.toUpperCase() + (isMe ? " (TU)" : "");
+                el.querySelector('.p-score').textContent = '€ ' + p.punteggio_totale;
+                el.querySelector('.p-jolly').textContent = '🃏 ' + p.jolly;
+                
+                // AUDIO CLEAN FIX: Aria-label pulita per NVDA
+                let audioLabel = `${p.nome}: ${p.punteggio_totale} Euro, ${p.jolly} Jolly.`;
+                if(el.classList.contains('active')) audioLabel += " (È il suo turno)";
+                el.setAttribute('aria-label', audioLabel);
+            }
+        });
+    }
+
+    // --- RENDER UTILS ---
+    function renderBoard() {
+        const b = document.getElementById('game-board'); b.innerHTML='';
+        let abs=0;
+        curSolDisp.split(' ').forEach(w => {
+            const wd=document.createElement('div'); wd.className='word';
+            for(let c of w) {
+                const bx=document.createElement('div');
+                if(c.match(/[A-ZÀ-Ù]/)) {
+                    bx.className='letter-box'; bx.tabIndex=-1;
+                    if((roomState.lettere_rivelate||[]).includes(abs)) {
+                        bx.classList.add('revealed'); bx.textContent=c; bx.setAttribute('aria-label', `${c}, ${nato[c]||c}`);
+                    } else { bx.setAttribute('aria-label', 'Nascosta'); }
+                    abs++;
+                } else { bx.className='letter-box punct'; bx.textContent=c; bx.setAttribute('aria-label', c); }
+                wd.appendChild(bx);
+            }
+            b.appendChild(wd);
+        });
+        // Frecce
+        b.onkeydown = (e) => {
+            const all = document.querySelectorAll('.letter-box:not(.space)');
+            if(e.key==='ArrowRight') { e.preventDefault(); focusIdx=(focusIdx+1)%all.length; all[focusIdx].focus(); }
+            if(e.key==='ArrowLeft') { e.preventDefault(); focusIdx=(focusIdx-1+all.length)%all.length; all[focusIdx].focus(); }
+        };
+    }
+    function setControls(m) {
+        ['main-actions','letter-input-area','solve-input-area','extra-decision-area'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+        if(m==='main') { document.getElementById('main-actions').classList.remove('hidden'); document.getElementById('btn-spin').focus(); }
+        if(m==='consonant'||m==='vowel') { document.getElementById('letter-input-area').classList.remove('hidden'); document.getElementById('letter-input').placeholder=m==='vowel'?"Vocale":"Consonante"; document.getElementById('letter-input').focus(); }
+        if(m==='solve') { document.getElementById('solve-input-area').classList.remove('hidden'); document.getElementById('solve-input').focus(); }
+    }
+    function buildWheel() {
+        const c = document.getElementById('wheel-container'); c.innerHTML = '';
+        const arc = 360/wheelValues.length;
+        wheelValues.forEach((v, i) => {
+            const el=document.createElement('div'); el.className='wheel-wedge';
+            el.style.transform=`rotate(${i*arc}deg) skewY(-${90-arc}deg)`;
+            el.style.backgroundColor = v==='BANCAROTTA'?'black':(v==='MISTERO'?'indigo':(i%2?'#FF5733':'#33FF57'));
+            const t=document.createElement('div'); t.className='wedge-text';
+            t.style.transform=`skewY(${90-arc}deg) rotate(${arc/2}deg)`;
+            t.innerHTML=`<span>${typeof v==='number'?'€'+v:v}</span>`;
+            if(v==='BANCAROTTA') t.style.color='red'; if(v==='MISTERO') t.style.color='white';
+            el.appendChild(t); c.appendChild(el);
+        });
+    }
+    function doVisualSpin(val) {
+        let idx = wheelValues.indexOf(val); rot += (5*360) + (360-(idx*(360/wheelValues.length)));
+        document.getElementById('wheel-container').style.transform = `rotate(${rot}deg)`;
+    }
+    function normalize(s){ return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase(); }
+    async function checkPhrases() {
+        const {count} = await supabase.from('frasi').select('*', {count:'exact', head:true});
+        if(count===0) await supabase.from('frasi').insert([{categoria:'TEST',soluzione:'PROVA'}]);
+    }
+
+    // LISTENERS
+    document.getElementById('btn-spin').onclick=spin;
+    document.getElementById('btn-confirm-letter').onclick=confirmLetter;
+    document.getElementById('btn-buy-vowel').onclick=()=>setControls('vowel');
+    document.getElementById('btn-solve').onclick=()=>setControls('solve');
+    document.getElementById('btn-confirm-solve').onclick=solve;
+    document.getElementById('btn-skip-turn').onclick=pass;
+    document.getElementById('btn-use-jolly').onclick=async()=>{
+        const{data:me}=await supabase.from('giocatori').select('jolly').eq('id',myPlayerId).single();
+        if(me.jolly>0){await supabase.from('giocatori').update({jolly:me.jolly-1}).eq('id',myPlayerId); setControls('main');}
+    };
+    window.addEventListener('keydown', e => {
+        if(e.key === 'Enter') {
+            if(document.activeElement.id === 'letter-input') document.getElementById('btn-confirm-letter').click();
+            if(document.activeElement.id === 'solve-input') document.getElementById('btn-confirm-solve').click();
+            if(document.activeElement.id === 'player-name-input') fetchRooms();
+        }
+        if(document.activeElement.tagName==='INPUT') return;
+        if(e.ctrlKey && e.key.toLowerCase()==='g') {e.preventDefault(); document.getElementById('btn-spin').click();}
+        if(e.ctrlKey && e.key.toLowerCase()==='v') {e.preventDefault(); document.getElementById('btn-buy-vowel').click();}
+        if(e.ctrlKey && e.key.toLowerCase()==='s') {e.preventDefault(); document.getElementById('btn-solve').click();}
+        if(e.ctrlKey && e.key.toLowerCase()==='l') {e.preventDefault(); window.readRevealedLetters();}
+        if(e.ctrlKey && e.key.toLowerCase()==='i') {e.preventDefault(); window.readBoardStructure();}
+    });
+    window.readRevealedLetters = () => {
+        const rev = roomState.lettere_rivelate||[]; if(!rev.length) return speak("Nessuna lettera.");
+        let s = new Set(); rev.forEach(i => s.add(curSolDisp.replace(/ /g,'')[i]));
+        speak("Presenti: "+Array.from(s).sort().map(c=>`${c} ${nato[c]||''}`).join('. '));
+    };
+    window.readBoardStructure = () => {
+        speak(`Tabellone: ${curSolDisp.split(' ').length} parole. Scoperte ${(roomState.lettere_rivelate||[]).length}.`);
+    };
+</script>
 </body>
 </html>

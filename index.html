@@ -61,7 +61,6 @@
       font-size: 0.9rem;
       opacity: 0.85;
     }
-    /* Solo per screen reader, invisibile visivamente */
     .sr-only {
       position: absolute;
       width: 1px;
@@ -101,7 +100,8 @@
       </p>
 
       <div id="status" aria-live="polite"></div>
-      <!-- Area annunci breve per NVDA, separata da tutto il resto -->
+
+      <!-- Area annunci SOLO per screen reader -->
       <div
         id="sr-updates"
         class="sr-only"
@@ -172,9 +172,6 @@
     let currentState = null;
     let realtimeChannel = null;
 
-    // Contatore log già annunciati a questo client
-    let lastAnnouncedLogCount = 0;
-
     // Ruota di TEST
     const TEST_WHEEL_SEGMENTS = [
       { type: "money", value: 100, label: "+100 punti" },
@@ -190,9 +187,8 @@
     }
 
     function announceForScreenReader(text) {
-      // forza un cambio (NVDA a volte ignora se è uguale)
+      // forza un cambio per far reagire NVDA
       srUpdatesEl.textContent = "";
-      // piccolo trucco per assicurare l'aggiornamento
       setTimeout(() => {
         srUpdatesEl.textContent = text;
       }, 10);
@@ -219,7 +215,6 @@
       if (typeof state.lastSpin !== "string") state.lastSpin = "Nessuna";
       if (!Array.isArray(state.log)) state.log = [];
 
-      // garantisci un punteggio per ogni giocatore
       state.players.forEach((name) => {
         if (typeof state.scores[name] !== "number") {
           state.scores[name] = 0;
@@ -245,7 +240,7 @@
       }
     }
 
-    function renderState(options = { announceFromLog: true }) {
+    function renderState() {
       if (!currentState) {
         currentRoomLabel.textContent = "Nessuna stanza ancora collegata.";
         playersList.innerHTML = "";
@@ -256,7 +251,6 @@
         spinWheelBtn.disabled = true;
         addPointsBtn.disabled = true;
         nextTurnBtn.disabled = true;
-        lastAnnouncedLogCount = 0;
         return;
       }
 
@@ -300,20 +294,13 @@
       // Ultima casella
       lastSpinLabel.textContent = currentState.lastSpin || "Nessuna";
 
-      // Log visivo (non aria-live)
+      // Log visivo
       logList.innerHTML = "";
       currentState.log.forEach((entry) => {
         const li = document.createElement("li");
         li.textContent = entry;
         logList.appendChild(li);
       });
-
-      // Annuncia SOLO l'ultima riga nuova del log
-      if (options.announceFromLog && currentState.log.length > lastAnnouncedLogCount) {
-        const lastEntry = currentState.log[currentState.log.length - 1];
-        announceForScreenReader(lastEntry);
-        lastAnnouncedLogCount = currentState.log.length;
-      }
 
       const inRoom = !!currentRoomId && !!currentPlayerName;
       const hasPlayers = currentState.players.length > 0;
@@ -342,7 +329,7 @@
       return data;
     }
 
-    async function salvaStato(roomId, newState, options = { silent: false }) {
+    async function salvaStato(roomId, newState) {
       newState = ensureStateShape(newState);
 
       const { error } = await supabase
@@ -363,7 +350,7 @@
         realtimeChannel.send({
           type: "broadcast",
           event: "state",
-          payload: { silent: !!options.silent }
+          payload: {}
         });
       }
 
@@ -408,16 +395,13 @@
       }
 
       currentRoomId = roomId;
-      lastAnnouncedLogCount = 0;
+      currentState = initialState;
       attivaRealtimePerStanza(roomId);
-
-      const data = await caricaStanza(roomId);
-      currentState = data?.state || initialState;
 
       setStatus("Stanza " + roomId + " creata. Ora sei collegata.");
       announceForScreenReader("Stanza " + roomId + " creata. Sei il primo giocatore.");
       roomCodeInput.value = roomId;
-      renderState({ announceFromLog: false });
+      renderState();
     }
 
     async function entraInStanzaEsistente() {
@@ -439,9 +423,6 @@
       if (!data) return;
 
       currentRoomId = roomId;
-      lastAnnouncedLogCount = 0;
-      attivaRealtimePerStanza(roomId);
-
       let state = data.state || {};
       state = ensureStateShape(state);
 
@@ -459,6 +440,8 @@
       if (!ok) return;
 
       currentState = state;
+      attivaRealtimePerStanza(roomId);
+
       setStatus("Sei entrata nella stanza " + roomId + ".");
       if (joinedNow) {
         announceForScreenReader(
@@ -467,7 +450,7 @@
       } else {
         announceForScreenReader("Sei rientrata nella stanza " + roomId + ".");
       }
-      renderState({ announceFromLog: false });
+      renderState();
     }
 
     function attivaRealtimePerStanza(roomId) {
@@ -480,29 +463,36 @@
         .channel("room-" + roomId, {
           config: {
             broadcast: {
-              self: true,
+              self: false, // NON inviare gli eventi a chi li ha originati
             },
           },
         })
-        .on("broadcast", { event: "state" }, async (payload) => {
-          console.log("Broadcast realtime", payload);
+        .on("broadcast", { event: "state" }, async (_payload) => {
           if (!currentRoomId) return;
+
+          const oldState = currentState ? JSON.parse(JSON.stringify(currentState)) : null;
 
           const data = await caricaStanza(currentRoomId);
           if (data && data.state) {
-            const previousLogLength = currentState?.log?.length || 0;
-            currentState = data.state;
+            currentState = ensureStateShape(data.state);
 
-            // se è un aggiornamento dagli altri, annuncia l'ultima riga del log
-            const announce = !payload?.payload?.silent;
-            if (announce && currentState.log && currentState.log.length > previousLogLength) {
-              lastAnnouncedLogCount = previousLogLength;
-              renderState({ announceFromLog: true });
-            } else {
-              renderState({ announceFromLog: false });
+            // Confronta vecchio e nuovo log e annuncia SOLO l'ultima riga nuova
+            const oldLen =
+              oldState && Array.isArray(oldState.log) ? oldState.log.length : 0;
+            const newLen =
+              currentState && Array.isArray(currentState.log)
+                ? currentState.log.length
+                : 0;
+
+            if (newLen > oldLen && currentState.log && currentState.log[newLen - 1]) {
+              const lastEntry = currentState.log[newLen - 1];
+              announceForScreenReader(lastEntry);
             }
 
-            setStatus("Stato aggiornato in tempo reale dalla stanza " + currentRoomId + ".");
+            renderState();
+            setStatus(
+              "Stato aggiornato in tempo reale dalla stanza " + currentRoomId + "."
+            );
           }
         })
         .subscribe((status) => {
@@ -524,10 +514,11 @@
       currentState.lastSpin = "Bonus manuale +100 punti a " + currentPlayerName;
       const ok = await salvaStato(currentRoomId, currentState);
       if (!ok) return;
+      // ANNUNCIO locale immediato
       announceForScreenReader(
         currentPlayerName + " ora ha " + currentState.scores[currentPlayerName] + " punti."
       );
-      renderState({ announceFromLog: false });
+      renderState();
     }
 
     async function passaAlProssimoTurno() {
@@ -548,8 +539,9 @@
       );
       const ok = await salvaStato(currentRoomId, currentState);
       if (!ok) return;
+      // ANNUNCIO locale immediato
       announceForScreenReader("Ora è il turno di " + newName + ".");
-      renderState({ announceFromLog: false });
+      renderState();
     }
 
     async function giraRuotaTest() {
@@ -609,7 +601,7 @@
 
       const ok = await salvaStato(currentRoomId, currentState);
       if (!ok) return;
-      renderState({ announceFromLog: false });
+      renderState();
     }
 
     // === EVENTI UI ===

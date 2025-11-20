@@ -105,7 +105,7 @@
       <div
         id="sr-updates"
         class="sr-only"
-        role="status"
+        role="alert"
         aria-live="assertive"
         aria-atomic="true"
       ></div>
@@ -177,8 +177,8 @@
       { type: "money", value: 100, label: "+100 punti" },
       { type: "money", value: 200, label: "+200 punti" },
       { type: "money", value: 300, label: "+300 punti" },
-      { type: "bankrupt", label: "Perdi tutto (punteggio azzerato)" },
-      { type: "loseTurn", label: "Perdi il turno (passa al prossimo giocatore)" }
+      { type: "bankrupt", label: "Perdi tutto, punteggio azzerato" },
+      { type: "loseTurn", label: "Perdi il turno, passa al prossimo" }
     ];
 
     function setStatus(text) {
@@ -453,6 +453,54 @@
       renderState();
     }
 
+    function descriviDifferenze(oldState, newState) {
+      if (!newState) return "";
+
+      oldState = ensureStateShape(oldState || {});
+      newState = ensureStateShape(newState);
+
+      let parti = [];
+
+      // Cambio turno
+      const oldTurnName =
+        oldState.players && oldState.players.length > 0
+          ? oldState.players[oldState.currentPlayerIndex] || null
+          : null;
+      const newTurnName =
+        newState.players && newState.players.length > 0
+          ? newState.players[newState.currentPlayerIndex] || null
+          : null;
+
+      if (newTurnName && newTurnName !== oldTurnName) {
+        parti.push("Ora è il turno di " + newTurnName + ".");
+      }
+
+      // Cambi punteggio
+      newState.players.forEach((name) => {
+        const oldScore =
+          typeof oldState.scores[name] === "number" ? oldState.scores[name] : 0;
+        const newScore =
+          typeof newState.scores[name] === "number" ? newState.scores[name] : 0;
+        if (newScore !== oldScore) {
+          parti.push(name + " ora ha " + newScore + " punti.");
+        }
+      });
+
+      // Nuovo giocatore
+      newState.players.forEach((name) => {
+        if (!oldState.players.includes(name)) {
+          parti.push(name + " è entrato nella stanza.");
+        }
+      });
+
+      // Ultima casella ruota
+      if (newState.lastSpin && newState.lastSpin !== oldState.lastSpin) {
+        parti.push("Ultimo risultato ruota: " + newState.lastSpin + ".");
+      }
+
+      return parti.join(" ");
+    }
+
     function attivaRealtimePerStanza(roomId) {
       if (realtimeChannel) {
         realtimeChannel.unsubscribe();
@@ -470,29 +518,25 @@
         .on("broadcast", { event: "state" }, async (_payload) => {
           if (!currentRoomId) return;
 
-          const oldState = currentState ? JSON.parse(JSON.stringify(currentState)) : null;
+          const oldState = currentState
+            ? JSON.parse(JSON.stringify(currentState))
+            : null;
 
           const data = await caricaStanza(currentRoomId);
           if (data && data.state) {
-            currentState = ensureStateShape(data.state);
+            const newState = ensureStateShape(data.state);
+            const messaggio = descriviDifferenze(oldState, newState);
 
-            // Confronta vecchio e nuovo log e annuncia SOLO l'ultima riga nuova
-            const oldLen =
-              oldState && Array.isArray(oldState.log) ? oldState.log.length : 0;
-            const newLen =
-              currentState && Array.isArray(currentState.log)
-                ? currentState.log.length
-                : 0;
-
-            if (newLen > oldLen && currentState.log && currentState.log[newLen - 1]) {
-              const lastEntry = currentState.log[newLen - 1];
-              announceForScreenReader(lastEntry);
-            }
-
+            currentState = newState;
             renderState();
+
             setStatus(
               "Stato aggiornato in tempo reale dalla stanza " + currentRoomId + "."
             );
+
+            if (messaggio) {
+              announceForScreenReader(messaggio);
+            }
           }
         })
         .subscribe((status) => {

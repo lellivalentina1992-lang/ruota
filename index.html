@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ruota Multiplayer – Test Supabase</title>
+  <title>Ruota Multiplayer – Collegamento stanze</title>
   <style>
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -132,7 +132,7 @@
     const createRoomBtn = document.getElementById("createRoomBtn");
     const joinRoomBtn = document.getElementById("joinRoomBtn");
     const statusEl = document.getElementById("status");
-    const currentRoomLabel = document.getElementById("currentRoomLabel");
+    const currentRoomLabel = documentElement = document.getElementById("currentRoomLabel");
     const playersList = document.getElementById("playersList");
     const sharedCounterEl = document.getElementById("sharedCounter");
     const incCounterBtn = document.getElementById("incCounterBtn");
@@ -140,7 +140,7 @@
     let currentRoomId = null;
     let currentPlayerName = null;
     let currentState = null;
-    let subscription = null;
+    let realtimeChannel = null;
 
     function setStatus(text) {
       console.log(text);
@@ -219,6 +219,16 @@
         setStatus("Errore nel salvare lo stato: " + error.message);
         return false;
       }
+
+      // Dopo aver salvato, manda un broadcast in tempo reale
+      if (realtimeChannel) {
+        realtimeChannel.send({
+          type: "broadcast",
+          event: "state",
+          payload: newState,
+        });
+      }
+
       return true;
     }
 
@@ -286,38 +296,41 @@
         state.players.push(currentPlayerName);
         const ok = await salvaStato(roomId, state);
         if (!ok) return;
+        // currentState verrà aggiornato via broadcast
+        currentState = state;
+      } else {
+        currentState = state;
       }
 
       currentRoomId = roomId;
-      currentState = state;
       setStatus("Sei entrata nella stanza " + roomId + ".");
       attivaRealtimePerStanza(roomId);
       renderState();
     }
 
     function attivaRealtimePerStanza(roomId) {
-      if (subscription) {
-        subscription.unsubscribe();
-        subscription = null;
+      if (realtimeChannel) {
+        realtimeChannel.unsubscribe();
+        realtimeChannel = null;
       }
 
-      subscription = supabase
-        .channel("room-" + roomId)
-        .on(
-          "postgres_changes",
-          {
-            event: "UPDATE",
-            schema: "public",
-            table: "rooms",
-            filter: "id=eq." + roomId,
+      // Usa i broadcast Realtime, non le modifiche Postgres, così non devi configurare niente nella dashboard
+      realtimeChannel = supabase
+        .channel("room-" + roomId, {
+          config: {
+            broadcast: {
+              self: true, // ricevi anche i tuoi aggiornamenti
+            },
           },
-          (payload) => {
-            console.log("UPDATE realtime", payload);
-            currentState = payload.new.state;
+        })
+        .on("broadcast", { event: "state" }, (payload) => {
+          console.log("Broadcast realtime", payload);
+          if (payload && payload.payload) {
+            currentState = payload.payload;
             renderState();
-            setStatus("Stato aggiornato dalla stanza " + roomId + ".");
+            setStatus("Stato aggiornato in tempo reale dalla stanza " + roomId + ".");
           }
-        )
+        })
         .subscribe((status) => {
           console.log("Stato canale realtime:", status);
         });
@@ -329,7 +342,7 @@
       currentState.counter += 1;
       const ok = await salvaStato(currentRoomId, currentState);
       if (!ok) return;
-      // Il render vero avverrà via evento realtime; questo è solo un fallback
+      // Il render vero avverrà comunque via broadcast; questo è solo un fallback locale
       renderState();
     }
 

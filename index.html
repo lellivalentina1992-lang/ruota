@@ -61,6 +61,7 @@
       font-size: 0.9rem;
       opacity: 0.85;
     }
+    /* Solo per screen reader, invisibile visivamente */
     .sr-only {
       position: absolute;
       width: 1px;
@@ -100,7 +101,14 @@
       </p>
 
       <div id="status" aria-live="polite"></div>
-      <div id="sr-updates" class="sr-only" aria-live="polite"></div>
+      <!-- Area annunci breve per NVDA, separata da tutto il resto -->
+      <div
+        id="sr-updates"
+        class="sr-only"
+        role="status"
+        aria-live="assertive"
+        aria-atomic="true"
+      ></div>
     </section>
 
     <section aria-labelledby="sec-room">
@@ -135,12 +143,14 @@
   </main>
 
   <script>
+    // === CONFIGURAZIONE SUPABASE ===
     const SUPABASE_URL = "https://azcwkpdjbysnivknnino.supabase.co";
     const SUPABASE_ANON_KEY =
       "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Y3drcGRqYnlzbml2a25uaW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MzAwNDksImV4cCI6MjA3OTIwNjA0OX0.R8wkMJEmsP8cTVUUOcWtD4Rrg_ZhuOE-PYBJ56eGqMU";
 
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+    // === RIFERIMENTI DOM ===
     const playerNameInput = document.getElementById("playerName");
     const roomCodeInput = document.getElementById("roomCode");
     const createRoomBtn = document.getElementById("createRoomBtn");
@@ -161,8 +171,11 @@
     let currentPlayerName = null;
     let currentState = null;
     let realtimeChannel = null;
+
+    // Contatore log già annunciati a questo client
     let lastAnnouncedLogCount = 0;
 
+    // Ruota di TEST
     const TEST_WHEEL_SEGMENTS = [
       { type: "money", value: 100, label: "+100 punti" },
       { type: "money", value: 200, label: "+200 punti" },
@@ -177,7 +190,12 @@
     }
 
     function announceForScreenReader(text) {
-      srUpdatesEl.textContent = text;
+      // forza un cambio (NVDA a volte ignora se è uguale)
+      srUpdatesEl.textContent = "";
+      // piccolo trucco per assicurare l'aggiornamento
+      setTimeout(() => {
+        srUpdatesEl.textContent = text;
+      }, 10);
     }
 
     function normalizzaCodiceRoom(raw) {
@@ -201,6 +219,7 @@
       if (typeof state.lastSpin !== "string") state.lastSpin = "Nessuna";
       if (!Array.isArray(state.log)) state.log = [];
 
+      // garantisci un punteggio per ogni giocatore
       state.players.forEach((name) => {
         if (typeof state.scores[name] !== "number") {
           state.scores[name] = 0;
@@ -221,12 +240,12 @@
 
     function appendLogEntry(state, text) {
       state.log.push(text);
-      if (state.log.length > 10) {
-        state.log = state.log.slice(state.log.length - 10);
+      if (state.log.length > 20) {
+        state.log = state.log.slice(state.log.length - 20);
       }
     }
 
-    function renderState() {
+    function renderState(options = { announceFromLog: true }) {
       if (!currentState) {
         currentRoomLabel.textContent = "Nessuna stanza ancora collegata.";
         playersList.innerHTML = "";
@@ -246,6 +265,7 @@
       currentRoomLabel.textContent =
         "Stanza " + currentRoomId + " – giocatore: " + currentPlayerName;
 
+      // Giocatori
       playersList.innerHTML = "";
       currentState.players.forEach((name) => {
         const li = document.createElement("li");
@@ -253,6 +273,7 @@
         playersList.appendChild(li);
       });
 
+      // Turno
       let currentTurnName = "–";
       if (
         currentState.players.length > 0 &&
@@ -264,6 +285,7 @@
       }
       currentTurnLabel.textContent = currentTurnName;
 
+      // Punteggi
       scoresList.innerHTML = "";
       currentState.players.forEach((name) => {
         const li = document.createElement("li");
@@ -275,8 +297,10 @@
         scoresList.appendChild(li);
       });
 
+      // Ultima casella
       lastSpinLabel.textContent = currentState.lastSpin || "Nessuna";
 
+      // Log visivo (non aria-live)
       logList.innerHTML = "";
       currentState.log.forEach((entry) => {
         const li = document.createElement("li");
@@ -284,7 +308,8 @@
         logList.appendChild(li);
       });
 
-      if (currentState.log.length > lastAnnouncedLogCount) {
+      // Annuncia SOLO l'ultima riga nuova del log
+      if (options.announceFromLog && currentState.log.length > lastAnnouncedLogCount) {
         const lastEntry = currentState.log[currentState.log.length - 1];
         announceForScreenReader(lastEntry);
         lastAnnouncedLogCount = currentState.log.length;
@@ -317,7 +342,7 @@
       return data;
     }
 
-    async function salvaStato(roomId, newState) {
+    async function salvaStato(roomId, newState, options = { silent: false }) {
       newState = ensureStateShape(newState);
 
       const { error } = await supabase
@@ -338,7 +363,7 @@
         realtimeChannel.send({
           type: "broadcast",
           event: "state",
-          payload: newState,
+          payload: { silent: !!options.silent }
         });
       }
 
@@ -392,7 +417,7 @@
       setStatus("Stanza " + roomId + " creata. Ora sei collegata.");
       announceForScreenReader("Stanza " + roomId + " creata. Sei il primo giocatore.");
       roomCodeInput.value = roomId;
-      renderState();
+      renderState({ announceFromLog: false });
     }
 
     async function entraInStanzaEsistente() {
@@ -420,9 +445,11 @@
       let state = data.state || {};
       state = ensureStateShape(state);
 
+      let joinedNow = false;
       if (!state.players.includes(currentPlayerName)) {
         state.players.push(currentPlayerName);
         appendLogEntry(state, currentPlayerName + " è entrato nella stanza.");
+        joinedNow = true;
       }
       if (typeof state.scores[currentPlayerName] !== "number") {
         state.scores[currentPlayerName] = 0;
@@ -433,8 +460,14 @@
 
       currentState = state;
       setStatus("Sei entrata nella stanza " + roomId + ".");
-      announceForScreenReader("Sei entrata nella stanza " + roomId + ".");
-      renderState();
+      if (joinedNow) {
+        announceForScreenReader(
+          "Sei entrata nella stanza " + roomId + " con altri giocatori già presenti."
+        );
+      } else {
+        announceForScreenReader("Sei rientrata nella stanza " + roomId + ".");
+      }
+      renderState({ announceFromLog: false });
     }
 
     function attivaRealtimePerStanza(roomId) {
@@ -457,11 +490,19 @@
 
           const data = await caricaStanza(currentRoomId);
           if (data && data.state) {
+            const previousLogLength = currentState?.log?.length || 0;
             currentState = data.state;
-            renderState();
-            setStatus(
-              "Stato aggiornato in tempo reale dalla stanza " + currentRoomId + "."
-            );
+
+            // se è un aggiornamento dagli altri, annuncia l'ultima riga del log
+            const announce = !payload?.payload?.silent;
+            if (announce && currentState.log && currentState.log.length > previousLogLength) {
+              lastAnnouncedLogCount = previousLogLength;
+              renderState({ announceFromLog: true });
+            } else {
+              renderState({ announceFromLog: false });
+            }
+
+            setStatus("Stato aggiornato in tempo reale dalla stanza " + currentRoomId + ".");
           }
         })
         .subscribe((status) => {
@@ -486,7 +527,7 @@
       announceForScreenReader(
         currentPlayerName + " ora ha " + currentState.scores[currentPlayerName] + " punti."
       );
-      renderState();
+      renderState({ announceFromLog: false });
     }
 
     async function passaAlProssimoTurno() {
@@ -508,7 +549,7 @@
       const ok = await salvaStato(currentRoomId, currentState);
       if (!ok) return;
       announceForScreenReader("Ora è il turno di " + newName + ".");
-      renderState();
+      renderState({ announceFromLog: false });
     }
 
     async function giraRuotaTest() {
@@ -547,7 +588,7 @@
         currentState.scores[currentName] = 0;
         logEntry += " Il punteggio di " + currentName + " torna a 0.";
         announceForScreenReader(
-          seg.label + " Il punteggio di " + currentName + " torna a zero."
+          seg.label + ". Il punteggio di " + currentName + " torna a zero."
         );
       } else if (seg.type === "loseTurn") {
         currentState.currentPlayerIndex =
@@ -557,7 +598,7 @@
           "Giocatore sconosciuto";
         logEntry += " Il turno passa a " + newName + ".";
         announceForScreenReader(
-          seg.label + " Ora è il turno di " + newName + "."
+          seg.label + ". Ora è il turno di " + newName + "."
         );
       } else {
         announceForScreenReader(seg.label);
@@ -568,9 +609,10 @@
 
       const ok = await salvaStato(currentRoomId, currentState);
       if (!ok) return;
-      renderState();
+      renderState({ announceFromLog: false });
     }
 
+    // === EVENTI UI ===
     createRoomBtn.addEventListener("click", () => {
       creaNuovaStanza();
     });

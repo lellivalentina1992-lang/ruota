@@ -220,7 +220,7 @@
         return false;
       }
 
-      // Dopo aver salvato, manda un broadcast in tempo reale
+      // Dopo aver salvato, manda un broadcast in tempo reale (se il canale è attivo su questo client)
       if (realtimeChannel) {
         realtimeChannel.send({
           type: "broadcast",
@@ -264,6 +264,8 @@
       }
 
       currentRoomId = roomId;
+      // Attiva subito il canale realtime per la stanza appena creata
+      attivaRealtimePerStanza(roomId);
 
       // ricarica stato dal DB per avere quello reale
       const data = await caricaStanza(roomId);
@@ -271,7 +273,6 @@
 
       setStatus("Stanza " + roomId + " creata. Ora sei collegata.");
       roomCodeInput.value = roomId;
-      attivaRealtimePerStanza(roomId);
       renderState();
     }
 
@@ -290,10 +291,15 @@
       }
       currentPlayerName = rawName;
 
+      // 1. Verifica che la stanza esista
       const data = await caricaStanza(roomId);
       if (!data) return;
 
-      // aggiorna elenco giocatori se non presente
+      // 2. Imposta stanza corrente e attiva SUB realtime PRIMA di aggiornare i giocatori
+      currentRoomId = roomId;
+      attivaRealtimePerStanza(roomId);
+
+      // 3. Aggiorna elenco giocatori se non presente
       const state = data.state || {};
       if (!Array.isArray(state.players)) state.players = [];
       if (!state.players.includes(currentPlayerName)) {
@@ -305,9 +311,7 @@
         currentState = state;
       }
 
-      currentRoomId = roomId;
       setStatus("Sei entrata nella stanza " + roomId + ".");
-      attivaRealtimePerStanza(roomId);
       renderState();
     }
 

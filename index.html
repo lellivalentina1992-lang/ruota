@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ruota Multiplayer – Collegamento stanze</title>
+  <title>Ruota Multiplayer – Turni, Punteggi & Ruota (test)</title>
   <style>
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -70,10 +70,11 @@
 </head>
 <body>
   <main>
-    <h1>Ruota Multiplayer – Collegamento stanze</h1>
+    <h1>Ruota Multiplayer – Turni, Punteggi & Ruota (test)</h1>
     <p>
-      Questa è una prima versione di <strong>test multiplayer</strong> con Supabase.
-      Serve per verificare che due giocatori, da case diverse, vedano lo stesso stato in tempo reale.
+      Ora testiamo una logica più vicina al gioco vero: <strong>turni</strong>,
+      <strong>punteggi</strong> e una <strong>ruota di prova</strong> con caselle
+      tipo “+200 punti”, “Perdi tutto”, “Perdi il turno”, sincronizzate tra tutti.
     </p>
 
     <section aria-labelledby="sec-conn">
@@ -90,7 +91,7 @@
 
       <p class="small">
         Suggerimento: apri questa pagina da due dispositivi diversi, usa lo stesso codice stanza
-        e verifica che tutto ciò che cambia nella stanza si aggiorna per entrambi.
+        e verifica che turni, punteggi e risultato della ruota siano uguali per tutti.
       </p>
 
       <div id="status" aria-live="polite"></div>
@@ -103,17 +104,29 @@
       <h3>Giocatori collegati</h3>
       <ul id="playersList" aria-live="polite"></ul>
 
-      <h3>Stato condiviso di test</h3>
+      <h3>Turno corrente</h3>
       <p>
-        Contatore condiviso nella stanza:
-        <strong id="sharedCounter">–</strong>
+        Sta giocando: <strong id="currentTurnLabel">–</strong>
       </p>
-      <button id="incCounterBtn" disabled>Incrementa contatore condiviso</button>
+
+      <h3>Tabellone punteggi (test)</h3>
+      <ul id="scoresList" aria-live="polite"></ul>
+
+      <h3>Ultima casella ruota (test)</h3>
+      <p id="lastSpinLabel" aria-live="polite">–</p>
+
+      <h3>Azioni di prova (simulano il gioco)</h3>
+      <button id="spinWheelBtn" disabled>Gira la ruota (test)</button>
+      <button id="addPointsBtn" disabled>Aggiungi 100 punti a me (test)</button>
+      <button id="nextTurnBtn" disabled>Passa il turno al prossimo giocatore</button>
+
+      <h3>Log eventi (test)</h3>
+      <ul id="logList" aria-live="polite"></ul>
 
       <p class="small">
-        Se il contatore aumenta su tutti i dispositivi collegati alla stessa stanza, significa che
-        il realtime Supabase funziona. In seguito, al posto del contatore, ci sarà lo stato completo
-        della Ruota (punteggi, turni, caselle, frase, ecc.).
+        Questi pulsanti servono solo per testare la sincronizzazione:
+        nella versione finale verranno sostituiti dalle azioni vere della Ruota
+        (gira la ruota, indovina consonante, compra vocale, ecc.).
       </p>
     </section>
   </main>
@@ -134,13 +147,27 @@
     const statusEl = document.getElementById("status");
     const currentRoomLabel = document.getElementById("currentRoomLabel");
     const playersList = document.getElementById("playersList");
-    const sharedCounterEl = document.getElementById("sharedCounter");
-    const incCounterBtn = document.getElementById("incCounterBtn");
+    const currentTurnLabel = document.getElementById("currentTurnLabel");
+    const scoresList = document.getElementById("scoresList");
+    const lastSpinLabel = document.getElementById("lastSpinLabel");
+    const logList = document.getElementById("logList");
+    const spinWheelBtn = document.getElementById("spinWheelBtn");
+    const addPointsBtn = document.getElementById("addPointsBtn");
+    const nextTurnBtn = document.getElementById("nextTurnBtn");
 
     let currentRoomId = null;
     let currentPlayerName = null;
     let currentState = null;
     let realtimeChannel = null;
+
+    // Ruota di TEST: semplificata, per provare punteggi e turni
+    const TEST_WHEEL_SEGMENTS = [
+      { type: "money", value: 100, label: "+100 punti" },
+      { type: "money", value: 200, label: "+200 punti" },
+      { type: "money", value: 300, label: "+300 punti" },
+      { type: "bankrupt", label: "Perdi tutto (punteggio azzerato)" },
+      { type: "loseTurn", label: "Perdi il turno (passa al prossimo giocatore)" }
+    ];
 
     function setStatus(text) {
       console.log(text);
@@ -160,30 +187,108 @@
       return out;
     }
 
+    function ensureStateShape(state) {
+      if (!state || typeof state !== "object") state = {};
+      if (!Array.isArray(state.players)) state.players = [];
+      if (typeof state.currentPlayerIndex !== "number") state.currentPlayerIndex = 0;
+      if (!state.scores || typeof state.scores !== "object") state.scores = {};
+      if (typeof state.lastSpin !== "string") state.lastSpin = "Nessuna";
+
+      if (!Array.isArray(state.log)) state.log = [];
+
+      // Garantisce che ogni giocatore abbia una voce in scores
+      state.players.forEach((name) => {
+        if (typeof state.scores[name] !== "number") {
+          state.scores[name] = 0;
+        }
+      });
+
+      // Normalizza currentPlayerIndex se fuori range
+      if (state.players.length === 0) {
+        state.currentPlayerIndex = 0;
+      } else if (
+        state.currentPlayerIndex < 0 ||
+        state.currentPlayerIndex >= state.players.length
+      ) {
+        state.currentPlayerIndex = 0;
+      }
+
+      return state;
+    }
+
+    function appendLogEntry(state, text) {
+      state.log.push(text);
+      // Limitiamo il log alle ultime 10 righe per non farlo crescere all'infinito
+      if (state.log.length > 10) {
+        state.log = state.log.slice(state.log.length - 10);
+      }
+    }
+
     function renderState() {
       if (!currentState) {
         currentRoomLabel.textContent = "Nessuna stanza ancora collegata.";
         playersList.innerHTML = "";
-        sharedCounterEl.textContent = "–";
-        incCounterBtn.disabled = true;
+        scoresList.innerHTML = "";
+        currentTurnLabel.textContent = "–";
+        lastSpinLabel.textContent = "–";
+        logList.innerHTML = "";
+        spinWheelBtn.disabled = true;
+        addPointsBtn.disabled = true;
+        nextTurnBtn.disabled = true;
         return;
       }
+
+      // Rimodella lo stato se mancano campi (utile per vecchie stanze)
+      currentState = ensureStateShape(currentState);
 
       currentRoomLabel.textContent = "Stanza " + currentRoomId + " – giocatore: " + currentPlayerName;
 
       // Giocatori
       playersList.innerHTML = "";
-      const players = Array.isArray(currentState.players) ? currentState.players : [];
-      players.forEach((name) => {
+      currentState.players.forEach((name) => {
         const li = document.createElement("li");
         li.textContent = name;
         playersList.appendChild(li);
       });
 
-      // Contatore condiviso
-      const counter = typeof currentState.counter === "number" ? currentState.counter : 0;
-      sharedCounterEl.textContent = String(counter);
-      incCounterBtn.disabled = false;
+      // Turno corrente
+      let currentTurnName = "–";
+      if (
+        currentState.players.length > 0 &&
+        typeof currentState.currentPlayerIndex === "number" &&
+        currentState.currentPlayerIndex >= 0 &&
+        currentState.currentPlayerIndex < currentState.players.length
+      ) {
+        currentTurnName = currentState.players[currentState.currentPlayerIndex];
+      }
+      currentTurnLabel.textContent = currentTurnName;
+
+      // Punteggi
+      scoresList.innerHTML = "";
+      currentState.players.forEach((name) => {
+        const li = document.createElement("li");
+        const score = typeof currentState.scores[name] === "number" ? currentState.scores[name] : 0;
+        li.textContent = name + ": " + score + " punti";
+        scoresList.appendChild(li);
+      });
+
+      // Ultima casella ruota
+      lastSpinLabel.textContent = currentState.lastSpin || "Nessuna";
+
+      // Log eventi
+      logList.innerHTML = "";
+      currentState.log.forEach((entry) => {
+        const li = document.createElement("li");
+        li.textContent = entry;
+        logList.appendChild(li);
+      });
+
+      // Abilita pulsanti solo se sei dentro una stanza
+      const inRoom = !!currentRoomId && !!currentPlayerName;
+      const hasPlayers = currentState.players.length > 0;
+      spinWheelBtn.disabled = !inRoom || !hasPlayers;
+      addPointsBtn.disabled = !inRoom;
+      nextTurnBtn.disabled = !inRoom || !hasPlayers;
     }
 
     async function caricaStanza(roomId) {
@@ -206,6 +311,9 @@
     }
 
     async function salvaStato(roomId, newState) {
+      // Prima assicuriamoci che la struttura sia coerente
+      newState = ensureStateShape(newState);
+
       const { error } = await supabase
         .from("rooms")
         .update({
@@ -245,7 +353,10 @@
       const initialState = {
         createdAt: new Date().toISOString(),
         players: [currentPlayerName],
-        counter: 0,
+        currentPlayerIndex: 0,
+        scores: { [currentPlayerName]: 0 },
+        lastSpin: "Nessuna",
+        log: ["Stanza creata da " + currentPlayerName]
       };
 
       const { error } = await supabase.from("rooms").insert({
@@ -299,17 +410,22 @@
       currentRoomId = roomId;
       attivaRealtimePerStanza(roomId);
 
-      // 3. Aggiorna elenco giocatori se non presente
-      const state = data.state || {};
-      if (!Array.isArray(state.players)) state.players = [];
+      // 3. Aggiorna elenco giocatori e scores se non presente
+      let state = data.state || {};
+      state = ensureStateShape(state);
+
       if (!state.players.includes(currentPlayerName)) {
         state.players.push(currentPlayerName);
-        const ok = await salvaStato(roomId, state);
-        if (!ok) return;
-        currentState = state;
-      } else {
-        currentState = state;
+        appendLogEntry(state, currentPlayerName + " è entrato nella stanza.");
       }
+      if (typeof state.scores[currentPlayerName] !== "number") {
+        state.scores[currentPlayerName] = 0;
+      }
+
+      const ok = await salvaStato(roomId, state);
+      if (!ok) return;
+
+      currentState = state;
 
       setStatus("Sei entrata nella stanza " + roomId + ".");
       renderState();
@@ -347,13 +463,78 @@
         });
     }
 
-    async function incrementaContatore() {
-      if (!currentRoomId || !currentState) return;
-      if (typeof currentState.counter !== "number") currentState.counter = 0;
-      currentState.counter += 1;
+    async function aggiungiPuntiAlGiocatoreCorrente() {
+      if (!currentRoomId || !currentPlayerName || !currentState) return;
+      currentState = ensureStateShape(currentState);
+      if (typeof currentState.scores[currentPlayerName] !== "number") {
+        currentState.scores[currentPlayerName] = 0;
+      }
+      currentState.scores[currentPlayerName] += 100;
+      appendLogEntry(
+        currentState,
+        currentPlayerName + " riceve +100 punti (test manuale)."
+      );
+      currentState.lastSpin = "Bonus manuale +100 punti a " + currentPlayerName;
       const ok = await salvaStato(currentRoomId, currentState);
       if (!ok) return;
-      // il render definitivo arriva via broadcast, questo è un fallback
+      renderState();
+    }
+
+    async function passaAlProssimoTurno() {
+      if (!currentRoomId || !currentState) return;
+      currentState = ensureStateShape(currentState);
+      if (currentState.players.length === 0) return;
+      const prevName =
+        currentState.players[currentState.currentPlayerIndex] || "Giocatore sconosciuto";
+      currentState.currentPlayerIndex =
+        (currentState.currentPlayerIndex + 1) % currentState.players.length;
+      const newName =
+        currentState.players[currentState.currentPlayerIndex] || "Giocatore sconosciuto";
+      appendLogEntry(
+        currentState,
+        "Il turno passa da " + prevName + " a " + newName + "."
+      );
+      const ok = await salvaStato(currentRoomId, currentState);
+      if (!ok) return;
+      renderState();
+    }
+
+    async function giraRuotaTest() {
+      if (!currentRoomId || !currentState) return;
+      currentState = ensureStateShape(currentState);
+      if (currentState.players.length === 0) return;
+
+      const currentName =
+        currentState.players[currentState.currentPlayerIndex] || currentPlayerName || "Giocatore";
+
+      // Estrai una casella casuale dalla ruota di test
+      const seg = TEST_WHEEL_SEGMENTS[Math.floor(Math.random() * TEST_WHEEL_SEGMENTS.length)];
+
+      let logEntry = currentName + " gira la ruota: " + seg.label + ".";
+
+      if (seg.type === "money") {
+        if (typeof currentState.scores[currentName] !== "number") {
+          currentState.scores[currentName] = 0;
+        }
+        currentState.scores[currentName] += seg.value;
+        logEntry += " Nuovo punteggio: " + currentState.scores[currentName] + " punti.";
+      } else if (seg.type === "bankrupt") {
+        currentState.scores[currentName] = 0;
+        logEntry += " Il punteggio di " + currentName + " torna a 0.";
+      } else if (seg.type === "loseTurn") {
+        // Passa direttamente il turno al prossimo
+        currentState.currentPlayerIndex =
+          (currentState.currentPlayerIndex + 1) % currentState.players.length;
+        const newName =
+          currentState.players[currentState.currentPlayerIndex] || "Giocatore sconosciuto";
+        logEntry += " Il turno passa a " + newName + ".";
+      }
+
+      currentState.lastSpin = seg.label;
+      appendLogEntry(currentState, logEntry);
+
+      const ok = await salvaStato(currentRoomId, currentState);
+      if (!ok) return;
       renderState();
     }
 
@@ -366,8 +547,16 @@
       entraInStanzaEsistente();
     });
 
-    incCounterBtn.addEventListener("click", () => {
-      incrementaContatore();
+    addPointsBtn.addEventListener("click", () => {
+      aggiungiPuntiAlGiocatoreCorrente();
+    });
+
+    nextTurnBtn.addEventListener("click", () => {
+      passaAlProssimoTurno();
+    });
+
+    spinWheelBtn.addEventListener("click", () => {
+      giraRuotaTest();
     });
 
     // Messaggio iniziale

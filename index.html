@@ -132,7 +132,7 @@
     const createRoomBtn = document.getElementById("createRoomBtn");
     const joinRoomBtn = document.getElementById("joinRoomBtn");
     const statusEl = document.getElementById("status");
-    const currentRoomLabel = documentElement = document.getElementById("currentRoomLabel");
+    const currentRoomLabel = document.getElementById("currentRoomLabel");
     const playersList = document.getElementById("playersList");
     const sharedCounterEl = document.getElementById("sharedCounter");
     const incCounterBtn = document.getElementById("incCounterBtn");
@@ -264,7 +264,11 @@
       }
 
       currentRoomId = roomId;
-      currentState = initialState;
+
+      // ricarica stato dal DB per avere quello reale
+      const data = await caricaStanza(roomId);
+      currentState = data?.state || initialState;
+
       setStatus("Stanza " + roomId + " creata. Ora sei collegata.");
       roomCodeInput.value = roomId;
       attivaRealtimePerStanza(roomId);
@@ -296,7 +300,6 @@
         state.players.push(currentPlayerName);
         const ok = await salvaStato(roomId, state);
         if (!ok) return;
-        // currentState verrà aggiornato via broadcast
         currentState = state;
       } else {
         currentState = state;
@@ -314,21 +317,25 @@
         realtimeChannel = null;
       }
 
-      // Usa i broadcast Realtime, non le modifiche Postgres, così non devi configurare niente nella dashboard
+      // Usa i broadcast Realtime, non le modifiche Postgres
       realtimeChannel = supabase
         .channel("room-" + roomId, {
           config: {
             broadcast: {
-              self: true, // ricevi anche i tuoi aggiornamenti
+              self: true,
             },
           },
         })
-        .on("broadcast", { event: "state" }, (payload) => {
+        .on("broadcast", { event: "state" }, async (payload) => {
           console.log("Broadcast realtime", payload);
-          if (payload && payload.payload) {
-            currentState = payload.payload;
+          if (!currentRoomId) return;
+
+          // ogni volta che arriva un broadcast, ricarichiamo lo stato dal DB
+          const data = await caricaStanza(currentRoomId);
+          if (data && data.state) {
+            currentState = data.state;
             renderState();
-            setStatus("Stato aggiornato in tempo reale dalla stanza " + roomId + ".");
+            setStatus("Stato aggiornato in tempo reale dalla stanza " + currentRoomId + ".");
           }
         })
         .subscribe((status) => {
@@ -342,7 +349,7 @@
       currentState.counter += 1;
       const ok = await salvaStato(currentRoomId, currentState);
       if (!ok) return;
-      // Il render vero avverrà comunque via broadcast; questo è solo un fallback locale
+      // il render definitivo arriva via broadcast, questo è un fallback
       renderState();
     }
 

@@ -1,0 +1,22 @@
+{
+    "name": "La Ruota della Fortuna",
+    "short_name": "Ruota",
+    "description": "Il gioco della Ruota della Fortuna.",
+    "start_url": ".",
+    "display": "fullscreen",
+    "background_color": "#002b4e",
+    "theme_color": "#002b4e",
+    "orientation": "landscape-primary",
+    "icons": [
+        {
+            "src": "icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

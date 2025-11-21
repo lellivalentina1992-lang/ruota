@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>La Ruota - Fixed Final</title>
+    <title>La Ruota - Final Stable</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -104,7 +104,7 @@
 <div id="game-container" class="hidden">
     <div style="display:flex; justify-content:space-between; padding:10px; background:#000;">
         <span>Stanza: <span id="room-code-display" style="color:yellow">---</span></span>
-        <button id="btn-close-room" class="hidden" onclick="closeRoom()" style="width:auto; background:red; padding:5px;">TERMINA</button>
+        <button id="btn-close-room" class="hidden" onclick="window.closeRoom()" style="width:auto; background:red; padding:5px;">TERMINA</button>
     </div>
     
     <div id="category-display" style="font-size:2em; color:var(--gold); font-weight:bold; margin-top:10px;">---</div>
@@ -140,66 +140,63 @@
             <button onclick="setControls('main')">ANNULLA</button>
         </div>
         <div id="extra-decision-area" class="hidden">
-            <button onclick="useJolly()">USA JOLLY</button>
-            <button onclick="pass()">NON USARE</button>
+            <button id="btn-use-jolly" onclick="useJolly()">USA JOLLY</button>
+            <button onclick="dontUseJolly()">NON USARE</button>
         </div>
     </div>
 </div>
 
 <script>
-    // --- 1. CONFIGURAZIONE INIZIALE ---
+    // 1. CONFIGURAZIONE E VARIABILI GLOBALI
     const SUPABASE_URL = 'https://azcwkpdjbysnivknnino.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Y3drcGRqYnlzbml2a25uaW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MzAwNDksImV4cCI6MjA3OTIwNjA0OX0.R8wkMJEmsP8cTVUUOcWtD4Rrg_ZhuOE-PYBJ56eGqMU';
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    const wheelValues = [100, 200, 300, 400, 500, 1000, 1500, 2000, 'BANCAROTTA', 'PASSA', 'MISTERO', 500];
+    const wheelValues = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 2000, 3000, 'JOLLY', 'BANCAROTTA', 'PASSA', 'MISTERO'];
     const nato = {'A':'Ancona','B':'Bologna','C':'Como','D':'Domodossola','E':'Empoli','F':'Firenze','G':'Genova','H':'Hotel','I':'Imola','J':'Jolly','K':'Kappa','L':'Livorno','M':'Milano','N':'Napoli','O':'Otranto','P':'Palermo','Q':'Quadro','R':'Roma','S':'Savona','T':'Torino','U':'Udine','V':'Venezia','W':'Washington','X':'Xilofono','Y':'Yogurt','Z':'Zara','À':'A accentata','È':'E accentata','Ì':'I accentata','Ò':'O accentata','Ù':'U accentata'};
     
     let myId, myRoomId, myIndex, myName, roomState = {}, curSol = "", curSolDisp = "";
     let knownPlayers = []; let allPlayersList = [];
 
-    // --- 2. FUNZIONI DI UTITLITÀ (DEFINITE PRIMA DELL'USO) ---
-    
-    function normalize(s) {
+    // 2. FUNZIONI GLOBALI (DEFINITE SUBITO PER EVITARE REFERENCE ERROR)
+
+    window.normalize = function(s) {
         if(!s) return "";
         return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
     }
 
-    async function ensurePhrases() {
+    window.ensurePhrases = async function() {
         const {count} = await supabase.from('frasi').select('*', {count:'exact', head:true});
         if(count === 0) await supabase.from('frasi').insert([{categoria:'TEST',soluzione:'PROVA'}]);
     }
 
-    function speak(text) {
+    window.speak = function(text) {
         const el = document.getElementById('sr-announcer'); 
         el.textContent = ''; 
         setTimeout(() => { el.textContent = text; }, 50);
         document.getElementById('status-message').textContent = text;
     }
-    
-    function playSound(id, times=1) {
-        stopSound('snd-spin');
+
+    window.stopSound = function(id) {
         const audio = document.getElementById(id); 
-        if(!audio) { console.warn("Audio non trovato:", id); return; }
-        
+        if(audio) { audio.pause(); audio.currentTime = 0; }
+    }
+    
+    window.playSound = function(id, times=1) {
+        window.stopSound('snd-spin');
+        const audio = document.getElementById(id); 
+        if(!audio) { console.warn("Audio mancante:", id); return; }
         let c=0; 
         function loop(){ 
             if(c<times){ 
                 audio.currentTime=0; 
-                audio.play().catch(e => console.log("Err Audio", e)); 
+                audio.play().catch(e => {}); 
                 c++; 
                 setTimeout(loop, 500); 
             } 
         } 
         loop();
     }
-    
-    function stopSound(id) {
-        const audio = document.getElementById(id); 
-        if(audio) { audio.pause(); audio.currentTime = 0; }
-    }
-
-    // --- 3. FUNZIONI UI E SETUP (DEFINITE QUI) ---
 
     window.buildWheel = function() {
         const c = document.getElementById('wheel-container'); 
@@ -209,7 +206,7 @@
             const d = document.createElement('div'); 
             d.className = 'wheel-wedge';
             d.style.transform = `rotate(${i*arc}deg)`; 
-            d.style.backgroundColor = v==='BANCAROTTA'?'black':(v==='MISTERO'?'indigo':(i%2?'#666':'#888'));
+            d.style.backgroundColor = v==='BANCAROTTA'?'black':(v==='MISTERO'?'indigo':(v==='JOLLY'?'darkgreen':(i%2?'#666':'#888')));
             d.innerHTML = `<span style="display:none;">${v}</span>`;
             c.appendChild(d);
         });
@@ -226,15 +223,13 @@
     }
 
     window.closeRoom = async function() {
-        if(!confirm("Chiudere?")) return;
+        if(!confirm("Chiudere la partita?")) return;
         await supabase.from('stanze').update({stato:'chiusa'}).eq('id', myRoomId);
         await supabase.from('stanze').delete().eq('id', myRoomId);
         location.reload();
     }
 
-    // --- 4. FUNZIONI ISPETTORE E LETTURA ---
-
-    window.openInspector = () => {
+    window.openInspector = function() {
         const words = curSolDisp.split(' ');
         let absIndex = 0;
         let html = "";
@@ -252,85 +247,88 @@
         document.getElementById('inspector-content').innerHTML = html;
         document.getElementById('inspector-overlay').classList.remove('hidden');
         setTimeout(() => document.getElementById('inspector-content').focus(), 100);
-        speak("Mappa frase aperta.");
-    };
-    window.closeInspector = () => {
-        document.getElementById('inspector-overlay').classList.add('hidden');
-        document.getElementById('btn-spin').focus();
-        speak("Chiuso.");
+        window.speak("Mappa frase aperta.");
     };
 
-    window.readRevealedLetters = () => {
+    window.closeInspector = function() {
+        document.getElementById('inspector-overlay').classList.add('hidden');
+        document.getElementById('btn-spin').focus();
+        window.speak("Chiuso.");
+    };
+
+    window.readRevealedLetters = function() {
         const rev = roomState.lettere_rivelate || [];
-        if (!rev.length) return speak("Nessuna lettera presente.");
+        if (!rev.length) return window.speak("Nessuna lettera presente.");
         let s = new Set(); rev.forEach(i => { let char = curSolDisp.replace(/ /g,'')[i]; s.add(char); });
         let sorted = Array.from(s).sort();
         let msg = "Lettere presenti: ";
         sorted.forEach(c => { let spelling = nato[c] ? `di ${nato[c]}` : c; msg += `${c}, ${spelling}. ... `; });
-        speak(msg);
+        window.speak(msg);
     };
 
-    window.checkTurn = () => {
-        if (!roomState || allPlayersList.length === 0) return speak("Dati turno non disponibili.");
+    window.checkTurn = function() {
+        if (!roomState || allPlayersList.length === 0) return window.speak("Dati turno non disponibili.");
         const currentPlayer = allPlayersList.find(p => p.indice === roomState.id_giocatore_corrente);
         if (currentPlayer) {
             const name = currentPlayer.id === myId ? "TE" : currentPlayer.nome.toUpperCase();
-            speak(`TOCCA A ${name}.`);
-        } else { speak("Errore turno."); }
+            window.speak(`TOCCA A ${name}.`);
+        } else { window.speak("Errore turno."); }
     };
+
+    // --- LOGICA GIOCO ---
 
     function isMyTurn() { return roomState && roomState.id_giocatore_corrente === myIndex; }
 
-    // --- 5. LOBBY ---
+    async function fetchRooms() {
+        const list = document.getElementById('rooms-list'); list.innerHTML = '<li>Caricamento...</li>';
+        const { data: rooms } = await supabase.from('stanze').select('*, giocatori(count)').eq('stato', 'attesa').eq('is_private', false);
+        list.innerHTML = '';
+        if(rooms && rooms.length > 0) {
+            rooms.forEach(r => {
+                list.innerHTML += `<li style="margin-bottom:5px;"><b>${r.codice}</b> (${r.giocatori[0].count}/3) <button style="width:auto; padding:5px;" onclick="joinSpecificRoom('${r.codice}')">ENTRA</button></li>`;
+            });
+            window.speak("Lista aggiornata.");
+        } else { list.innerHTML = '<li>Nessuna stanza pubblica.</li>'; }
+    }
+    fetchRooms();
+
     async function getOrCreatePlayer(roomId, name, isHost=false) {
         const { data: existing } = await supabase.from('giocatori').select('*').eq('stanza_id', roomId).ilike('nome', name).single();
-        if(existing) { speak("Bentornato " + existing.nome); return existing; }
+        if(existing) { window.speak("Bentornato " + existing.nome); return existing; }
         const { count } = await supabase.from('giocatori').select('*', { count: 'exact', head: true }).eq('stanza_id', roomId);
         if(count >= 3) return null;
         const { data: newPlayer } = await supabase.from('giocatori').insert([{ stanza_id: roomId, nome: name, indice: count, is_host: isHost }]).select().single();
         return newPlayer;
     }
 
-    async function fetchRooms() {
-        const list = document.getElementById('rooms-list'); list.innerHTML = '<li>Caricamento...</li>';
-        const { data: rooms } = await supabase.from('stanze').select('*, giocatori(count)').eq('stato', 'attesa').eq('is_private', false);
-        list.innerHTML = '';
-        if(!rooms || !rooms.length) { list.innerHTML = '<li>Nessuna stanza pubblica.</li>'; return; }
-        rooms.forEach(r => {
-            list.innerHTML += `<li style="margin-bottom:5px;"><b>${r.codice}</b> (${r.giocatori[0].count}/3) <button style="width:auto; padding:5px;" onclick="joinSpecificRoom('${r.codice}')">ENTRA</button></li>`;
-        });
-        speak("Lista aggiornata.");
-    }
-    fetchRooms();
-
     async function createRoom() {
         const name = document.getElementById('player-name-input').value.trim();
         const code = document.getElementById('create-room-name').value.trim().toUpperCase();
         const isPriv = document.getElementById('is-private-check').checked;
-        if(!name || !code) return speak("Dati mancanti.");
+        if(!name || !code) return window.speak("Dati mancanti.");
         
         const { data: ex } = await supabase.from('stanze').select('id').eq('codice', code).single();
         if(ex) {
             const p = await getOrCreatePlayer(ex.id, name, true);
             if(p) return enterGameWithRecovery(ex.id, p);
-            return speak("Nome occupato.");
+            return window.speak("Nome occupato.");
         }
 
-        await ensurePhrases();
+        await window.ensurePhrases();
         const { data: f } = await supabase.from('frasi').select('*');
         const rF = f[Math.floor(Math.random()*f.length)];
         const { data: room } = await supabase.from('stanze').insert([{ codice: code, stato: 'attesa', is_private: isPriv, frase_corrente_id: rF.id }]).select().single();
         const p = await getOrCreatePlayer(room.id, name, true);
-        enterGame(room.id, p, 0, rF);
+        enterGame(room.id, p, 0);
     }
 
     async function joinSpecificRoom(code) {
         const name = document.getElementById('player-name-input').value.trim();
-        if(!name) return speak("Inserisci nome.");
+        if(!name) return window.speak("Inserisci nome.");
         const { data: room } = await supabase.from('stanze').select('id').eq('codice', code).single();
-        if(!room) return speak("Stanza non trovata.");
+        if(!room) return window.speak("Stanza non trovata.");
         const p = await getOrCreatePlayer(room.id, name, false);
-        if(!p) return speak("Stanza piena.");
+        if(!p) return window.speak("Stanza piena.");
         enterGameWithRecovery(room.id, p);
     }
     async function joinPrivate() { joinSpecificRoom(document.getElementById('private-room-code').value.toUpperCase()); }
@@ -339,7 +337,7 @@
         let { data: room } = await supabase.from('stanze').select('*, frasi(*)').eq('id', roomId).single();
         
         if(!room.frasi) {
-            await ensurePhrases();
+            await window.ensurePhrases();
             const { data: f } = await supabase.from('frasi').select('*');
             const newF = f[Math.floor(Math.random()*f.length)];
             await supabase.from('stanze').update({ frase_corrente_id: newF.id }).eq('id', roomId);
@@ -351,7 +349,7 @@
 
     function enterGame(roomId, player, idx, frase) {
         if(frase) {
-            curSolDisp = frase.soluzione.toUpperCase(); curSol = normalize(frase.soluzione);
+            curSolDisp = frase.soluzione.toUpperCase(); curSol = window.normalize(frase.soluzione);
             document.getElementById('category-display').textContent = frase.categoria;
         }
         myRoomId = roomId; myId = player.id; myIndex = idx; myName = player.nome;
@@ -361,17 +359,17 @@
         if(player.is_host) document.getElementById('btn-close-room').classList.remove('hidden');
         
         knownPlayers = [player.nome];
-        buildWheel(); setupRealtime(); handleUpdate({frase_corrente_id: frase ? frase.id : null}); refreshPlayers();
+        window.buildWheel(); setupRealtime(); handleUpdate({frase_corrente_id: frase ? frase.id : null}); refreshPlayers();
     }
 
-    // --- 6. MOTORE GIOCO ---
+    // --- ENGINE & ACTIONS ---
     async function broadcast(action, msg, updates = {}) {
         await supabase.from('stanze').update({ ...updates, ultima_azione: action, ultimo_messaggio: msg, azione_timestamp: Date.now().toString() }).eq('id', myRoomId);
     }
 
-    function spin() {
-        if(!isMyTurn()) return speak("Non tocca a te.");
-        setControls('none');
+    window.spin = function() {
+        if(!isMyTurn()) return window.speak("Non tocca a te.");
+        window.setControls('none');
         const v = wheelValues[Math.floor(Math.random()*wheelValues.length)];
         doVisualSpin(v);
         broadcast('spin_start', '', {}); 
@@ -380,7 +378,9 @@
             if(typeof v === 'number') {
                 sessionStorage.setItem('sv', v);
                 await broadcast('spin_result', `${myName} ottiene ${v}.`, {});
-                if(isMyTurn()) setControls('consonant');
+                if(isMyTurn()) window.setControls('consonant');
+            } else if (v === 'JOLLY') {
+                await jollyWedge();
             } else if (v === 'BANCAROTTA') {
                 bankrupt();
             } else if (v === 'PASSA') {
@@ -391,24 +391,35 @@
         }, 5500);
     }
 
+    async function jollyWedge() {
+        if(!isMyTurn()) return;
+        const { data: me } = await supabase.from('giocatori').select('jolly').eq('id', myId).single();
+        await supabase.from('giocatori').update({ jolly: (me?.jolly || 0) + 1 }).eq('id', myId);
+        await broadcast('hit-1', `${myName} ottiene un Jolly dalla ruota!`, {});
+        window.setControls('main');
+    }
+
     async function mystery() {
         if(!isMyTurn()) return;
-        speak("Mistero...");
-        setTimeout(async()=>{
-            if(Math.random() < 0.5) { await broadcast('miss', "Mistero: BANCAROTTA!", {montepremi_round:0}); setTimeout(pass, 1500); }
-            else { 
-                const {data:me}=await supabase.from('giocatori').select('jolly').eq('id',myId).single();
-                await supabase.from('giocatori').update({jolly:(me.jolly||0)+1}).eq('id',myId);
-                await broadcast('hit-1', "Mistero: Jolly!", {}); setControls('main'); 
+        window.speak("Mistero...");
+        setTimeout(async () => {
+            if (Math.random() < 0.5) {
+                await broadcast('miss', "Mistero: BANCAROTTA!", { montepremi_round: 0 });
+                setTimeout(pass, 1500);
+            } else {
+                const { data: me } = await supabase.from('giocatori').select('jolly').eq('id', myId).single();
+                await supabase.from('giocatori').update({ jolly: (me?.jolly || 0) + 1 }).eq('id', myId);
+                await broadcast('hit-1', "Mistero: Jolly!", {});
+                window.setControls('main');
             }
         }, 1500);
     }
 
-    async function confirmLetter() {
-        if(!isMyTurn()) return speak("Non tocca a te.");
+    window.confirmLetter = async function() {
+        if(!isMyTurn()) return window.speak("Non tocca a te.");
         const l = document.getElementById('letter-input').value.toUpperCase().trim();
         document.getElementById('letter-input').value='';
-        if(!l.match(/[A-Z]/)) return speak("Non valido.");
+        if(!l.match(/[A-Z]/)) return window.speak("Non valido.");
         if((roomState.lettere_chiamate||[]).includes(l)) {
             await broadcast('miss', `${myName} chiama ${l}: già uscita!`, {});
             setTimeout(pass, 1500);
@@ -426,25 +437,25 @@
 
         let sv = parseInt(sessionStorage.getItem('sv')||0);
         let isV = ['A','E','I','O','U'].includes(l);
-        if(isV && (roomState.montepremi_round||0) < 500) return speak("Soldi insufficienti.");
+        if(isV && (roomState.montepremi_round||0) < 500) return window.speak("Soldi insufficienti.");
 
         let money = (roomState.montepremi_round||0) + (isV ? -500 : (sv*count));
 
         if(count > 0) {
             await broadcast(`hit-${count}`, `${myName}: ${count} ${l}.`, { lettere_chiamate:[...(roomState.lettere_chiamate||[]),l], lettere_rivelate:rev, montepremi_round:money });
-            setControls('main');
+            window.setControls('main');
         } else {
             await broadcast('miss', `${myName}: ${l} non c'è.`, { lettere_chiamate:[...(roomState.lettere_chiamate||[]),l] });
             setTimeout(pass, 1500);
         }
     }
 
-    async function solve() {
-        if(!isMyTurn()) return speak("Non tocca a te.");
+    window.solve = async function() {
+        if(!isMyTurn()) return window.speak("Non tocca a te.");
         const txt = document.getElementById('solve-input').value.toUpperCase().trim();
-        setControls('main'); 
+        window.setControls('main'); 
 
-        if(normalize(txt) === curSol) {
+        if(window.normalize(txt) === curSol) {
             const w = (roomState.montepremi_round||0)+1000;
             const {data:me}=await supabase.from('giocatori').select('punteggio_totale').eq('id',myId).single();
             await supabase.from('giocatori').update({punteggio_totale:(me.punteggio_totale||0)+w}).eq('id',myId);
@@ -458,7 +469,6 @@
 
     async function startNewRound() {
         if(myIndex !== roomState.id_giocatore_corrente) return; 
-        
         const prevWinnerIdx = roomState.vincitore_precedente_idx;
         const consec = roomState.vittorie_consecutive || 0;
         let newConsec = 1;
@@ -487,7 +497,7 @@
         }).eq('id', myRoomId);
     }
 
-    async function pass() {
+    window.pass = async function() {
         const { data: players } = await supabase.from('giocatori').select('indice').eq('stanza_id', myRoomId).order('indice');
         let currArrIdx = players.findIndex(p => p.indice === myIndex);
         let nextArrIdx = (currArrIdx + 1) % players.length;
@@ -495,23 +505,42 @@
     }
 
     async function bankrupt() {
-        if(!isMyTurn()) return;
-        const {data:me}=await supabase.from('giocatori').select('jolly').eq('id',myId).single();
-        if(me.jolly>0) {
-             speak("Hai Jolly. Usalo?");
-             document.getElementById('extra-decision-area').classList.remove('hidden');
-             document.getElementById('btn-use-jolly').focus();
+        if (!isMyTurn()) return;
+        const { data: me } = await supabase.from('giocatori').select('jolly').eq('id', myId).single();
+        if (me && me.jolly > 0) {
+            window.speak("Hai un Jolly. Vuoi usarlo?");
+            const area = document.getElementById('extra-decision-area');
+            area.classList.remove('hidden');
+            document.getElementById('btn-use-jolly').focus();
         } else {
-             await broadcast('miss', "Bancarotta!", {montepremi_round:0}); setTimeout(pass, 1500);
+            await broadcast('miss', "Bancarotta!", { montepremi_round: 0 });
+            setTimeout(window.pass, 1500);
         }
     }
-    async function useJolly() {
-        if(!isMyTurn()) return;
-        const{data:me}=await supabase.from('giocatori').select('jolly').eq('id',myId).single();
-        if(me.jolly>0){await supabase.from('giocatori').update({jolly:me.jolly-1}).eq('id',myId); setControls('main');}
+    
+    window.useJolly = async function() {
+        if (!isMyTurn()) return;
+        const { data: me } = await supabase.from('giocatori').select('jolly').eq('id', myId).single();
+        if (me && me.jolly > 0) {
+            await supabase.from('giocatori').update({ jolly: me.jolly - 1 }).eq('id', myId);
+            document.getElementById('extra-decision-area').classList.add('hidden');
+            await broadcast('hit-1', `${myName} usa il Jolly e salva il montepremi!`, {});
+            window.setControls('main');
+        } else {
+            document.getElementById('extra-decision-area').classList.add('hidden');
+            await broadcast('miss', "Bancarotta!", { montepremi_round: 0 });
+            setTimeout(window.pass, 1500);
+        }
+    };
+
+    window.dontUseJolly = async function() {
+        if (!isMyTurn()) return;
+        document.getElementById('extra-decision-area').classList.add('hidden');
+        await broadcast('miss', "Bancarotta!", { montepremi_round: 0 });
+        setTimeout(window.pass, 1500);
     }
 
-    // --- 7. REALTIME HANDLING ---
+    // --- REALTIME ---
     let lastTs = "";
     function setupRealtime() {
         supabase.channel(`room:${myRoomId}`)
@@ -522,11 +551,12 @@
             if(status === 'CLOSED' || status === 'CHANNEL_ERROR') document.getElementById('connection-alert').style.display = 'block';
         });
     }
-    function handleUpdate(s) {
+    
+    async function handleUpdate(s) {
         if(roomState.frase_corrente_id && s.frase_corrente_id !== roomState.frase_corrente_id) {
             const {data:f} = await supabase.from('frasi').select('*').eq('id', s.frase_corrente_id).single();
             if(f) {
-                curSolDisp = f.soluzione.toUpperCase(); curSol = normalize(f.soluzione);
+                curSolDisp = f.soluzione.toUpperCase(); curSol = window.normalize(f.soluzione);
                 document.getElementById('category-display').textContent = f.categoria;
             }
         }
@@ -541,16 +571,16 @@
                 const a = document.getElementById('snd-spin'); a.currentTime=0; a.play().catch(()=>{});
             }
             else if(s.ultima_azione === 'spin_result') {
-                stopSound('snd-spin'); speak(s.ultimo_messaggio);
+                window.stopSound('snd-spin'); window.speak(s.ultimo_messaggio);
             }
             else if(s.ultima_azione === 'miss') {
-                stopSound('snd-spin'); playSound('snd-miss'); speak(s.ultimo_messaggio);
+                window.stopSound('snd-spin'); window.playSound('snd-miss'); window.speak(s.ultimo_messaggio);
             }
             else if(s.ultima_azione && s.ultima_azione.startsWith('hit-')) {
-                stopSound('snd-spin'); playSound('snd-hit', parseInt(s.ultima_azione.split('-')[1])); speak(s.ultimo_messaggio);
+                window.stopSound('snd-spin'); window.playSound('snd-hit', parseInt(s.ultima_azione.split('-')[1])); window.speak(s.ultimo_messaggio);
             }
             else if(s.ultima_azione === 'ding') {
-                stopSound('snd-spin'); playSound('snd-ding'); speak(s.ultimo_messaggio);
+                window.stopSound('snd-spin'); window.playSound('snd-ding'); window.speak(s.ultimo_messaggio);
             }
         }
         
@@ -563,10 +593,10 @@
             const menus = ['letter-input-area','solve-input-area','extra-decision-area'];
             const open = menus.some(id => !document.getElementById(id).classList.contains('hidden'));
             document.querySelectorAll('#main-actions button').forEach(b => b.disabled = false);
-            if(!open) setControls('main');
+            if(!open) window.setControls('main');
         } else { 
             document.querySelectorAll('#main-actions button').forEach(b => b.disabled = true);
-            setControls('none'); 
+            window.setControls('none'); 
         }
         
         let used = (s.lettere_chiamate||[]); used.sort();
@@ -581,8 +611,8 @@
         if(knownPlayers.length > 0 && ps.length > knownPlayers.length) {
             const newP = ps.find(p => !knownPlayers.includes(p.nome));
             if(newP) {
-                speak(`ATTENZIONE: È ENTRATO ${newP.nome.toUpperCase()}!`);
-                playSound('snd-ding');
+                window.speak(`ATTENZIONE: È ENTRATO ${newP.nome.toUpperCase()}!`);
+                window.playSound('snd-ding');
             }
         }
         knownPlayers = ps.map(p => p.nome);
@@ -669,10 +699,23 @@
             if(e.ctrlKey) {
                 let currWordIdx = parseInt(current.dataset.wordIdx || 0);
                 let nextWordBox = boxes.find(b => parseInt(b.dataset.wordIdx) > currWordIdx);
-                if(nextWordBox) nextWordBox.focus();
+                if(nextWordBox) {
+                    nextWordBox.focus();
+                    let wEl = nextWordBox.parentElement;
+                    let len = wEl.children.length;
+                    let content = "";
+                    for(let child of wEl.children) {
+                        if(child.classList.contains('revealed') || child.classList.contains('punct')) content += child.textContent;
+                        else content += "-";
+                    }
+                    window.speak(`Parola ${nextWordBox.dataset.wordIdx}, ${len} lettere: ${content}`);
+                }
             } else {
-                if(idx < boxes.length - 1) boxes[idx+1].focus();
-                else speak("Fine tabellone");
+                if(idx < boxes.length - 1) {
+                    let nextBox = boxes[idx+1];
+                    if(nextBox.dataset.wordIdx !== current.dataset.wordIdx) window.speak(`Parola ${nextBox.dataset.wordIdx}`);
+                    nextBox.focus();
+                } else window.speak("Fine tabellone");
             }
         }
         else if(e.key === 'ArrowLeft') {
@@ -682,19 +725,32 @@
                 let prevWordBoxes = boxes.filter(b => parseInt(b.dataset.wordIdx) < currWordIdx);
                 if(prevWordBoxes.length > 0) {
                     let targetBox = boxes.find(b => b.dataset.wordIdx === prevWordBoxes[prevWordBoxes.length-1].dataset.wordIdx);
-                    if(targetBox) targetBox.focus();
+                    if(targetBox) {
+                        targetBox.focus();
+                        let wEl = targetBox.parentElement;
+                        let len = wEl.children.length;
+                        let content = "";
+                        for(let child of wEl.children) {
+                            if(child.classList.contains('revealed') || child.classList.contains('punct')) content += child.textContent;
+                            else content += "-";
+                        }
+                        window.speak(`Parola ${targetBox.dataset.wordIdx}, ${len} lettere: ${content}`);
+                    }
                 }
             } else {
-                if(idx > 0) boxes[idx-1].focus();
-                else speak("Inizio tabellone");
+                if(idx > 0) {
+                    let prevBox = boxes[idx-1];
+                    if(prevBox.dataset.wordIdx !== current.dataset.wordIdx) window.speak(`Parola ${prevBox.dataset.wordIdx}`);
+                    prevBox.focus();
+                } else window.speak("Inizio tabellone");
             }
         }
     });
 
     window.addEventListener('keydown', e => {
         if(e.key === 'Enter') {
-             if(document.activeElement.id==='letter-input') confirmLetter();
-             if(document.activeElement.id==='solve-input') solve();
+             if(document.activeElement.id==='letter-input') window.confirmLetter();
+             if(document.activeElement.id==='solve-input') window.solve();
         }
         if(e.key === 'Escape') { 
             e.preventDefault();
@@ -702,7 +758,7 @@
                 window.closeInspector();
                 return;
             }
-            setControls('main');
+            window.setControls('main');
             document.getElementById('letter-input').value = '';
             document.getElementById('solve-input').value = '';
         }

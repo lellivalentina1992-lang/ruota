@@ -617,6 +617,11 @@
 
     <div class="col" aria-label="Azioni di gioco e punteggi">
         <h2>3. AZIONI E PUNTEGGI</h2>
+
+        <div id="host-actions" style="margin-bottom:6px;">
+            <button id="btn-new-round" onclick="startNewRound()" disabled>Nuovo round (solo host)</button>
+        </div>
+
         <div id="turn-info"></div>
         <div id="main-actions">
             <button id="btn-spin" onclick="spin()">Gira (CTRL+G)</button>
@@ -932,6 +937,34 @@
         return roomState.id_giocatore_corrente === myIndex;
     }
 
+    function updateHostControls() {
+        const btn = document.getElementById('btn-new-round');
+        if (!btn) return;
+        if (!roomState || !myRoomId || myIndex !== 0) {
+            btn.disabled = true;
+        } else {
+            btn.disabled = false;
+        }
+    }
+
+    function afterJoin(name, code, isHost) {
+        const nameInput = document.getElementById('player-name');
+        const codeInput = document.getElementById('room-code');
+        const createBtn = document.getElementById('btn-create');
+        const joinBtn = document.getElementById('btn-join');
+        const extraInfo = document.getElementById('room-extra-info');
+
+        nameInput.value = name;
+        codeInput.value = code;
+        nameInput.disabled = true;
+        codeInput.disabled = true;
+        createBtn.disabled = true;
+        joinBtn.disabled = true;
+
+        extraInfo.textContent = `Stanza attiva: ${code}. Tu sei ${name}${isHost ? ' (host)' : ''}.`;
+        document.getElementById('connection-status').textContent = 'Connesso alla stanza.';
+    }
+
     async function broadcast(action, msg, extra = {}) {
         if (!myRoomId) return;
         await supabase.from('stanze').update({
@@ -984,6 +1017,7 @@
             myId = player.id;
             myIndex = player.indice;
             setStatusMessage(`Stanza ${code} creata. Sei l'host (indice 0).`);
+            afterJoin(name, code, true);
 
         } else {
             const { data: room, error } = await supabase.from('stanze')
@@ -1021,6 +1055,7 @@
             myId = player.id;
             myIndex = player.indice;
             setStatusMessage(`Sei entrato nella stanza ${code} con indice ${myIndex}.`);
+            afterJoin(name, code, false);
         }
 
         roomState = {};
@@ -1029,6 +1064,7 @@
         await refreshPlayers();
         updateRoomInfoText();
         setConnectionStatus(true);
+        updateHostControls();
     }
 
     function subscribeToChanges() {
@@ -1073,6 +1109,7 @@
         }
         renderPlayers(players || []);
         setTurnInfo();
+        updateHostControls();
     }
 
     async function handleRoomUpdate(s) {
@@ -1122,6 +1159,7 @@
 
         setTurnInfo();
         updateRoomInfoText();
+        updateHostControls();
     }
 
     async function startNewRound() {
@@ -1254,8 +1292,6 @@
             setStatusMessage('Non è il tuo turno, non puoi andare in bancarotta.');
             return;
         }
-
-        const meKey = 'punteggio_totale';
 
         const { data: me, error } = await supabase.from('giocatori').select('*').eq('id', myId).single();
         if (error || !me) {
@@ -1611,6 +1647,7 @@
         drawWheel();
         setStatusMessage('Immetti nome e codice stanza per iniziare.');
         setControls('main');
+        updateHostControls();
     });
 </script>
 </body>

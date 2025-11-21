@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>La Ruota - Multiplayer Online</title>
+    <title>La Ruota – Stanza online</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -21,6 +21,7 @@
             margin: 5px 0 10px;
             font-size: 1.5rem;
         }
+
         h2 {
             margin: 10px 0 8px;
             font-size: 1.1rem;
@@ -43,6 +44,7 @@
             padding: 8px;
             text-align: left;
         }
+
         .panel h2 {
             text-align: center;
         }
@@ -73,6 +75,7 @@
             font-weight: bold;
             color: #000;
         }
+
         button:disabled {
             background-color: #666;
             cursor: not-allowed;
@@ -83,6 +86,7 @@
             margin-top: 5px;
             font-size: 0.9rem;
         }
+
         #players-list ul {
             margin: 0;
             padding-left: 18px;
@@ -166,23 +170,16 @@
         }
 
         #status-message {
-            font-size: 1.4em;
+            font-size: 1.2em;
             color: var(--gold);
             margin: 15px 0;
             font-weight: bold;
             min-height: 1.5em;
         }
 
-        #letter-input-area, #solve-input-area {
+        #letter-input-area,
+        #solve-input-area {
             margin-top: 5px;
-        }
-
-        #letter-input-area.hidden, #solve-input-area.hidden {
-            display: none;
-        }
-
-        #letter-input-area label, #solve-input-area label {
-            margin-top: 0;
         }
 
         #scores-table {
@@ -191,14 +188,17 @@
             border-collapse: collapse;
             font-size: 0.9rem;
         }
+
         #scores-table th, #scores-table td {
             border: 1px solid #005;
             padding: 4px;
             text-align: center;
         }
+
         #scores-table th {
             background-color: #001a33;
         }
+
         #scores-table tr.highlight {
             background-color: #004488;
         }
@@ -222,6 +222,7 @@
             font-size: 0.85rem;
             line-height: 1.3;
         }
+
         #controls p {
             margin: 4px 0;
         }
@@ -230,9 +231,11 @@
             display: flex;
             gap: 5px;
         }
+
         .inline-inputs input {
             flex: 1;
         }
+
         .inline-inputs button {
             flex: 0 0 45%;
         }
@@ -244,6 +247,7 @@
             padding: 5px;
             font-size: 0.85rem;
         }
+
         #logs p {
             margin: 2px 0;
         }
@@ -276,23 +280,6 @@
             font-size: 0.9rem;
         }
 
-        #shortcuts {
-            margin-top: 6px;
-        }
-
-        #shortcuts span {
-            display: inline-block;
-            margin-right: 8px;
-            margin-bottom: 3px;
-        }
-
-        #shortcuts kbd {
-            background: #222;
-            border-radius: 3px;
-            padding: 1px 4px;
-            font-size: 0.8rem;
-        }
-
         #tabellone-aria {
             margin-top: 6px;
             text-align: left;
@@ -308,8 +295,6 @@
         }
 
         #debug-inspector {
-            display: none;
-            margin-top: 6px;
             background: #001122;
             padding: 5px;
             border-radius: 6px;
@@ -344,10 +329,16 @@
             padding-bottom: 4px;
         }
 
+        .visually-hidden,
+        .hidden-section[hidden] {
+            display: none !important;
+        }
+
         @media (max-width: 900px) {
             .grid {
                 grid-template-columns: 1fr;
             }
+
             #players-and-controls {
                 grid-template-rows: auto auto;
             }
@@ -356,7 +347,7 @@
 </head>
 <body>
 <div class="container">
-    <div id="connection-alert">CONNESSIONE PERSA. Riprova a ricaricare la pagina se il gioco non risponde.</div>
+    <div id="connection-alert">CONNESSIONE PERSA. Ricarica la pagina se il gioco non risponde.</div>
 
     <div id="top-row-wrapper" aria-hidden="true">
         <div id="top-left-box">
@@ -422,23 +413,32 @@
 
             <div id="status-message" aria-live="polite">Immetti i dati della stanza per iniziare.</div>
 
-            <div id="letter-input-area" class="hidden">
+            <!-- INPUT CONSONANTE: nascosto all'avvio -->
+            <div id="letter-input-area"
+                 class="hidden-section"
+                 hidden
+                 aria-hidden="true">
                 <label for="letter-input">Consonante da proporre:</label>
                 <input id="letter-input" type="text" maxlength="1" autocomplete="off" aria-label="Inserisci una consonante">
                 <button id="letter-confirm-btn">INVIA CONSONANTE</button>
                 <p class="small-note">Usa una sola lettera. Niente vocali in questa fase.</p>
             </div>
 
-            <div id="solve-input-area" class="hidden">
+            <!-- INPUT SOLUZIONE: nascosto all'avvio -->
+            <div id="solve-input-area"
+                 class="hidden-section"
+                 hidden
+                 aria-hidden="true">
                 <label for="solve-input">Prova a risolvere la frase:</label>
                 <textarea id="solve-input" rows="2" autocomplete="off"></textarea>
                 <button id="solve-confirm-btn">PROPONI SOLUZIONE</button>
             </div>
         </section>
 
-        <!-- COLONNA 3: PUNTEGGI, CONTROLLI, LOG -->
+        <!-- COLONNA 3: PUNTEGGI, COMANDI, LOG -->
         <section class="panel" aria-label="Punteggi e comandi da tastiera">
             <h2>3. PUNTEGGI E COMANDI</h2>
+
             <table id="scores-table" aria-label="Tabella dei punteggi">
                 <thead>
                 <tr>
@@ -459,10 +459,10 @@
                     <p><kbd>F2</kbd> Legge stato generale (stanza, turno, valore ruota).</p>
                     <p><kbd>F3</kbd> Legge il tabellone attuale.</p>
                     <p><kbd>G</kbd> Gira la ruota (se è il tuo turno).</p>
-                    <p><kbd>L</kbd> Letter: inserisci una consonante.</p>
-                    <p><kbd>S</kbd> Solve: prova a risolvere la frase.</p>
+                    <p><kbd>L</kbd> Letter: apre l’inserimento consonante.</p>
+                    <p><kbd>S</kbd> Solve: apre l’inserimento soluzione.</p>
                     <p><kbd>J</kbd> Usa il jolly (se disponibile).</p>
-                    <p><kbd>I</kbd> Ispettore tabellone interno (per debug).</p>
+                    <p><kbd>I</kbd> Mostra/nasconde l’ispettore interno (debug).</p>
                     <p><kbd>Invio</kbd> Conferma la lettera o la soluzione quando il campo è aperto.</p>
                 </div>
 
@@ -476,7 +476,12 @@
                 <button onclick="readBoardWithPositions()">Leggi tabellone con posizioni</button>
             </div>
 
-            <div id="debug-inspector" aria-label="Stato interno per debug">
+            <!-- ISPETTORE DEBUG: completamente nascosto all’avvio -->
+            <div id="debug-inspector"
+                 class="hidden-section"
+                 hidden
+                 aria-hidden="true"
+                 aria-label="Stato interno per debug">
                 <strong>Inspector interno (debug):</strong>
                 <pre id="debug-content"></pre>
             </div>
@@ -503,7 +508,7 @@
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Y3drcGRqYnlzbml2a25uaW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MzAwNDksImV4cCI6MjA3OTIwNjA0OX0.R8wkMJEmsP8cTVUUOcWtD4Rrg_ZhuOE-PYBJ56eGqMU';
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // RUOTA: valori che possono uscire
+    // RUOTA
     const wheelValues = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 2000, 3000, 4000, 5000, 'JOLLY', 'BANCAROTTA', 'MISTERO'];
     const wheelColors = ['#FF0000', '#FFA500', '#FFFF00', '#008000', '#00FFFF', '#0000FF', '#800080', '#FF1493', '#00FF7F', '#1E90FF', '#FFD700', '#DC143C', '#4B0082', '#FF8C00', '#FFFFFF', '#000000', '#808080'];
 
@@ -539,6 +544,21 @@
 
     function speak(text) {
         logMessage(text);
+    }
+
+    // Helper accessibilità: mostra/nasconde sezioni
+    function setSectionVisible(id, visible) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (visible) {
+            el.hidden = false;
+            el.setAttribute('aria-hidden', 'false');
+            el.classList.remove('hidden-section');
+        } else {
+            el.hidden = true;
+            el.setAttribute('aria-hidden', 'true');
+            el.classList.add('hidden-section');
+        }
     }
 
     async function createRoomState(roomCode) {
@@ -806,12 +826,16 @@
         updateDebugInspector();
         if (roomState && roomState.valore_ruota !== null) {
             document.getElementById('wheel-value').textContent = 'Valore: ' + roomState.valore_ruota;
+        } else {
+            document.getElementById('wheel-value').textContent = 'Valore: —';
         }
     }
 
     function updateDebugInspector() {
+        const dbgContainer = document.getElementById('debug-inspector');
         const dbg = document.getElementById('debug-content');
-        if (!dbg) return;
+        if (!dbgContainer || !dbg) return;
+        if (dbgContainer.hidden) return; // aggiorna solo se visibile
         dbg.textContent = JSON.stringify({
             roomState,
             players,
@@ -995,10 +1019,9 @@
         spinning = true;
         enableSpinIfNeeded();
 
-        const audio = sndSpin;
-        if (audio) {
-            audio.currentTime = 0;
-            audio.play().catch(() => {});
+        if (sndSpin) {
+            sndSpin.currentTime = 0;
+            sndSpin.play().catch(() => {});
         }
 
         const totalSlices = wheelValues.length;
@@ -1053,20 +1076,22 @@
     }
 
     function openLetterInput() {
-        document.getElementById('letter-input-area').classList.remove('hidden');
-        document.getElementById('solve-input-area').classList.add('hidden');
-        document.getElementById('letter-input').focus();
+        setSectionVisible('letter-input-area', true);
+        setSectionVisible('solve-input-area', false);
+        const inp = document.getElementById('letter-input');
+        if (inp) inp.focus();
     }
 
     function openSolveInput() {
-        document.getElementById('solve-input-area').classList.remove('hidden');
-        document.getElementById('letter-input-area').classList.add('hidden');
-        document.getElementById('solve-input').focus();
+        setSectionVisible('solve-input-area', true);
+        setSectionVisible('letter-input-area', false);
+        const ta = document.getElementById('solve-input');
+        if (ta) ta.focus();
     }
 
     function closeInputs() {
-        document.getElementById('letter-input-area').classList.add('hidden');
-        document.getElementById('solve-input-area').classList.add('hidden');
+        setSectionVisible('letter-input-area', false);
+        setSectionVisible('solve-input-area', false);
     }
 
     async function confirmLetter() {
@@ -1080,8 +1105,9 @@
             return;
         }
 
-        const input = (document.getElementById('letter-input').value || '').trim().toUpperCase();
-        document.getElementById('letter-input').value = '';
+        const inputEl = document.getElementById('letter-input');
+        const input = (inputEl.value || '').trim().toUpperCase();
+        inputEl.value = '';
 
         if (!input || input.length !== 1 || 'AEIOU'.includes(input)) {
             setStatus('Inserisci una sola consonante.');
@@ -1099,8 +1125,10 @@
 
         if (indices.length === 0) {
             setStatus(`La consonante ${input} non è presente. Cambio turno.`);
-            sndMiss.currentTime = 0;
-            sndMiss.play().catch(() => {});
+            if (sndMiss) {
+                sndMiss.currentTime = 0;
+                sndMiss.play().catch(() => {});
+            }
             await changeTurn();
             closeInputs();
             return;
@@ -1114,8 +1142,10 @@
         }
         scores[currentPlayerId].roundScore += gained;
 
-        sndHit.currentTime = 0;
-        sndHit.play().catch(() => {});
+        if (sndHit) {
+            sndHit.currentTime = 0;
+            sndHit.play().catch(() => {});
+        }
 
         const { error } = await supabase
             .from('stanze')
@@ -1145,8 +1175,9 @@
             return;
         }
 
-        const proposal = (document.getElementById('solve-input').value || '').trim().toUpperCase();
-        document.getElementById('solve-input').value = '';
+        const ta = document.getElementById('solve-input');
+        const proposal = (ta.value || '').trim().toUpperCase();
+        ta.value = '';
         if (!proposal) {
             setStatus('Inserisci una proposta di soluzione.');
             return;
@@ -1234,11 +1265,11 @@
 
     async function handleMistero() {
         const eventiMistero = [
-            { tipo: 'raddoppia', prob: 0.25 },
-            { tipo: 'perdi_tutto', prob: 0.20 },
+            { tipo: 'raddoppia',      prob: 0.25 },
+            { tipo: 'perdi_tutto',    prob: 0.20 },
             { tipo: 'lettera_gratis', prob: 0.25 },
-            { tipo: 'vocale_gratis', prob: 0.15 },
-            { tipo: 'passa_turno', prob: 0.15 }
+            { tipo: 'vocale_gratis',  prob: 0.15 },
+            { tipo: 'passa_turno',    prob: 0.15 }
         ];
 
         let rnd = Math.random();
@@ -1270,7 +1301,7 @@
                 openLetterInput();
                 break;
             case 'vocale_gratis':
-                setStatus('Mistero: puoi proporre una vocale gratis (non implementato qui, considerala bonus narrativo).');
+                setStatus('Mistero: puoi proporre una vocale gratis (non implementato, consideralo bonus narrativo).');
                 break;
             case 'passa_turno':
                 setStatus('Mistero: passi il turno.');
@@ -1323,30 +1354,22 @@
     function openInspector() {
         const dbg = document.getElementById('debug-inspector');
         if (!dbg) return;
-        dbg.style.display = dbg.style.display === 'none' || dbg.style.display === '' ? 'block' : 'none';
-        updateDebugInspector();
+        const nowHidden = !dbg.hidden;
+        setSectionVisible('debug-inspector', nowHidden ? false : true);
+        if (!nowHidden) {
+            updateDebugInspector();
+        }
     }
 
-    window.confirmLetter = confirmLetter;
-    window.confirmSolve = confirmSolve;
+    // Esporto per i bottoni inline
     window.readBoardSimple = readBoardSimple;
     window.readBoardWithPositions = readBoardWithPositions;
 
-    document.getElementById('create-room-btn').addEventListener('click', () => {
-        handleCreateRoom();
-    });
-    document.getElementById('join-room-btn').addEventListener('click', () => {
-        handleJoinRoom();
-    });
-    document.getElementById('spin-button').addEventListener('click', () => {
-        spinWheel();
-    });
-    document.getElementById('letter-confirm-btn').addEventListener('click', () => {
-        confirmLetter();
-    });
-    document.getElementById('solve-confirm-btn').addEventListener('click', () => {
-        confirmSolve();
-    });
+    document.getElementById('create-room-btn').addEventListener('click', handleCreateRoom);
+    document.getElementById('join-room-btn').addEventListener('click', handleJoinRoom);
+    document.getElementById('spin-button').addEventListener('click', spinWheel);
+    document.getElementById('letter-confirm-btn').addEventListener('click', confirmLetter);
+    document.getElementById('solve-confirm-btn').addEventListener('click', confirmSolve);
 
     document.addEventListener('keydown', (e) => {
         if (e.key === 'F2') {
@@ -1389,10 +1412,10 @@
         }
 
         if (e.key === 'Enter') {
-            const letterArea = !document.getElementById('letter-input-area').classList.contains('hidden');
-            const solveArea = !document.getElementById('solve-input-area').classList.contains('hidden');
-            if (letterArea) window.confirmLetter();
-            if (solveArea) window.confirmSolve();
+            const letterAreaVisible = !document.getElementById('letter-input-area').hidden;
+            const solveAreaVisible = !document.getElementById('solve-input-area').hidden;
+            if (letterAreaVisible) confirmLetter();
+            if (solveAreaVisible) confirmSolve();
         }
     });
 

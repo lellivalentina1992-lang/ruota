@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>La Ruota - Audio Fix</title>
+    <title>La Ruota - Fixed Final</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -60,10 +60,10 @@
 <body>
 
 <div id="sr-announcer" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
-
 <audio id="snd-spin" src="ruota.wav"></audio>
 <audio id="snd-hit" src="lettera presente.wav"></audio>
 <audio id="snd-miss" src="lettera assente.wav"></audio>
+<audio id="snd-ding" src="ding.mp3"></audio>
 
 <div id="connection-alert">CONNESSIONE PERSA...</div>
 
@@ -147,6 +147,7 @@
 </div>
 
 <script>
+    // --- 1. CONFIGURAZIONE INIZIALE ---
     const SUPABASE_URL = 'https://azcwkpdjbysnivknnino.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Y3drcGRqYnlzbml2a25uaW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MzAwNDksImV4cCI6MjA3OTIwNjA0OX0.R8wkMJEmsP8cTVUUOcWtD4Rrg_ZhuOE-PYBJ56eGqMU';
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -157,7 +158,8 @@
     let myId, myRoomId, myIndex, myName, roomState = {}, curSol = "", curSolDisp = "";
     let knownPlayers = []; let allPlayersList = [];
 
-    // --- FUNZIONI BASE (Messe qui per evitare errori di caricamento) ---
+    // --- 2. FUNZIONI DI UTITLITÀ (DEFINITE PRIMA DELL'USO) ---
+    
     function normalize(s) {
         if(!s) return "";
         return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
@@ -197,7 +199,41 @@
         if(audio) { audio.pause(); audio.currentTime = 0; }
     }
 
-    // --- ISPETTORE (CTRL+I) ---
+    // --- 3. FUNZIONI UI E SETUP (DEFINITE QUI) ---
+
+    window.buildWheel = function() {
+        const c = document.getElementById('wheel-container'); 
+        c.innerHTML = ''; 
+        const arc = 360/wheelValues.length;
+        wheelValues.forEach((v, i) => {
+            const d = document.createElement('div'); 
+            d.className = 'wheel-wedge';
+            d.style.transform = `rotate(${i*arc}deg)`; 
+            d.style.backgroundColor = v==='BANCAROTTA'?'black':(v==='MISTERO'?'indigo':(i%2?'#666':'#888'));
+            d.innerHTML = `<span style="display:none;">${v}</span>`;
+            c.appendChild(d);
+        });
+    }
+
+    window.setControls = function(m) {
+        ['main-actions','letter-input-area','solve-input-area','extra-decision-area'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+        if(m==='main') { document.getElementById('main-actions').classList.remove('hidden'); document.getElementById('btn-spin').focus(); }
+        if(m==='consonant'||m==='vowel') { 
+            document.getElementById('letter-input-area').classList.remove('hidden'); 
+            const inp = document.getElementById('letter-input'); inp.placeholder = m==='vowel'?"VOCALE":"CONSONANTE"; inp.focus(); 
+        }
+        if(m==='solve') { document.getElementById('solve-input-area').classList.remove('hidden'); document.getElementById('solve-input').focus(); }
+    }
+
+    window.closeRoom = async function() {
+        if(!confirm("Chiudere?")) return;
+        await supabase.from('stanze').update({stato:'chiusa'}).eq('id', myRoomId);
+        await supabase.from('stanze').delete().eq('id', myRoomId);
+        location.reload();
+    }
+
+    // --- 4. FUNZIONI ISPETTORE E LETTURA ---
+
     window.openInspector = () => {
         const words = curSolDisp.split(' ');
         let absIndex = 0;
@@ -224,7 +260,6 @@
         speak("Chiuso.");
     };
 
-    // --- UTILS LETTURA ---
     window.readRevealedLetters = () => {
         const rev = roomState.lettere_rivelate || [];
         if (!rev.length) return speak("Nessuna lettera presente.");
@@ -246,7 +281,7 @@
 
     function isMyTurn() { return roomState && roomState.id_giocatore_corrente === myIndex; }
 
-    // --- LOBBY ---
+    // --- 5. LOBBY ---
     async function getOrCreatePlayer(roomId, name, isHost=false) {
         const { data: existing } = await supabase.from('giocatori').select('*').eq('stanza_id', roomId).ilike('nome', name).single();
         if(existing) { speak("Bentornato " + existing.nome); return existing; }
@@ -260,12 +295,11 @@
         const list = document.getElementById('rooms-list'); list.innerHTML = '<li>Caricamento...</li>';
         const { data: rooms } = await supabase.from('stanze').select('*, giocatori(count)').eq('stato', 'attesa').eq('is_private', false);
         list.innerHTML = '';
-        if(rooms && rooms.length > 0) {
-            rooms.forEach(r => {
-                list.innerHTML += `<li style="margin-bottom:5px;"><b>${r.codice}</b> (${r.giocatori[0].count}/3) <button style="width:auto; padding:5px;" onclick="joinSpecificRoom('${r.codice}')">ENTRA</button></li>`;
-            });
-            speak("Lista aggiornata.");
-        } else { list.innerHTML = '<li>Nessuna stanza pubblica.</li>'; }
+        if(!rooms || !rooms.length) { list.innerHTML = '<li>Nessuna stanza pubblica.</li>'; return; }
+        rooms.forEach(r => {
+            list.innerHTML += `<li style="margin-bottom:5px;"><b>${r.codice}</b> (${r.giocatori[0].count}/3) <button style="width:auto; padding:5px;" onclick="joinSpecificRoom('${r.codice}')">ENTRA</button></li>`;
+        });
+        speak("Lista aggiornata.");
     }
     fetchRooms();
 
@@ -287,7 +321,7 @@
         const rF = f[Math.floor(Math.random()*f.length)];
         const { data: room } = await supabase.from('stanze').insert([{ codice: code, stato: 'attesa', is_private: isPriv, frase_corrente_id: rF.id }]).select().single();
         const p = await getOrCreatePlayer(room.id, name, true);
-        enterGame(room.id, p, 0);
+        enterGame(room.id, p, 0, rF);
     }
 
     async function joinSpecificRoom(code) {
@@ -316,26 +350,21 @@
     }
 
     function enterGame(roomId, player, idx, frase) {
-        // Recupera la frase se non passata (es. primo caricamento)
-        if(!frase) {
-             // logica gestita da handleUpdate
-        } else {
+        if(frase) {
             curSolDisp = frase.soluzione.toUpperCase(); curSol = normalize(frase.soluzione);
             document.getElementById('category-display').textContent = frase.categoria;
         }
-
         myRoomId = roomId; myId = player.id; myIndex = idx; myName = player.nome;
         document.getElementById('setup-overlay').classList.add('hidden');
         document.getElementById('game-container').classList.remove('hidden');
         
-        // Show host button
         if(player.is_host) document.getElementById('btn-close-room').classList.remove('hidden');
         
         knownPlayers = [player.nome];
         buildWheel(); setupRealtime(); handleUpdate({frase_corrente_id: frase ? frase.id : null}); refreshPlayers();
     }
 
-    // --- ENGINE ---
+    // --- 6. MOTORE GIOCO ---
     async function broadcast(action, msg, updates = {}) {
         await supabase.from('stanze').update({ ...updates, ultima_azione: action, ultimo_messaggio: msg, azione_timestamp: Date.now().toString() }).eq('id', myRoomId);
     }
@@ -402,11 +431,9 @@
         let money = (roomState.montepremi_round||0) + (isV ? -500 : (sv*count));
 
         if(count > 0) {
-            // USA snd-hit (lettera presente.wav)
             await broadcast(`hit-${count}`, `${myName}: ${count} ${l}.`, { lettere_chiamate:[...(roomState.lettere_chiamate||[]),l], lettere_rivelate:rev, montepremi_round:money });
             setControls('main');
         } else {
-            // USA snd-miss (lettera assente.wav)
             await broadcast('miss', `${myName}: ${l} non c'è.`, { lettere_chiamate:[...(roomState.lettere_chiamate||[]),l] });
             setTimeout(pass, 1500);
         }
@@ -422,10 +449,7 @@
             const {data:me}=await supabase.from('giocatori').select('punteggio_totale').eq('id',myId).single();
             await supabase.from('giocatori').update({punteggio_totale:(me.punteggio_totale||0)+w}).eq('id',myId);
             let allIndices = []; let c = 0; for(let char of curSolDisp) if(char !== ' ') { allIndices.push(c); c++; }
-            
-            // USA snd-hit (o ding se preferisci vittoria diversa, ma hit va bene)
-            await broadcast('ding', `VITTORIA! ${myName} indovina: ${curSolDisp}`, {lettere_rivelate: allIndices});
-            
+            await broadcast('hit-5', `VITTORIA! ${myName} indovina: ${curSolDisp}`, {lettere_rivelate: allIndices});
             setTimeout(() => { startNewRound(); }, 8000); 
         } else {
             await broadcast('miss', `${myName} sbaglia soluzione.`); setTimeout(pass, 1500);
@@ -487,7 +511,7 @@
         if(me.jolly>0){await supabase.from('giocatori').update({jolly:me.jolly-1}).eq('id',myId); setControls('main');}
     }
 
-    // --- REALTIME ---
+    // --- 7. REALTIME HANDLING ---
     let lastTs = "";
     function setupRealtime() {
         supabase.channel(`room:${myRoomId}`)
@@ -498,15 +522,12 @@
             if(status === 'CLOSED' || status === 'CHANNEL_ERROR') document.getElementById('connection-alert').style.display = 'block';
         });
     }
-    
-    async function handleUpdate(s) {
-        // SE LA FRASE È CAMBIATA, RICARICALA
-        if(s.frase_corrente_id && (!roomState.frase_corrente_id || s.frase_corrente_id !== roomState.frase_corrente_id)) {
+    function handleUpdate(s) {
+        if(roomState.frase_corrente_id && s.frase_corrente_id !== roomState.frase_corrente_id) {
             const {data:f} = await supabase.from('frasi').select('*').eq('id', s.frase_corrente_id).single();
             if(f) {
                 curSolDisp = f.soluzione.toUpperCase(); curSol = normalize(f.soluzione);
                 document.getElementById('category-display').textContent = f.categoria;
-                document.getElementById('room-code-display').textContent = s.codice;
             }
         }
         
@@ -550,7 +571,6 @@
         
         let used = (s.lettere_chiamate||[]); used.sort();
         document.getElementById('used-letters-display').textContent = "Uscite: " + used.join("-");
-        
         refreshPlayers();
     }
 
@@ -593,6 +613,11 @@
             el.setAttribute('aria-label', txt); el.setAttribute('role', 'region'); el.tabIndex = 0;
             div.appendChild(el);
         });
+    }
+
+    function doVisualSpin(val) {
+        let idx = wheelValues.indexOf(val); let rot = 1440 + (360 - (idx*(360/wheelValues.length)));
+        document.getElementById('wheel-container').style.transform = `rotate(${rot}deg)`;
     }
 
     function renderBoard() {

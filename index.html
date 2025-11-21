@@ -2,17 +2,16 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>La Ruota - Word Count</title>
+    <title>La Ruota - Completa con Frasi</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        /* STILI BASE */
         :root { --bg: #02203C; --box: #004a91; --gold: #FFD700; --focus: #FF00FF; }
         body { margin: 0; padding: 10px; font-family: Arial, sans-serif; background-color: var(--bg); color: white; text-align: center; }
         .hidden { display: none !important; }
         .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
 
-        /* UI LOBBY */
+        /* LOBBY */
         #setup-overlay { max-width: 600px; margin: 0 auto; }
         .panel { background: var(--box); padding: 20px; border-radius: 10px; border: 2px solid var(--gold); margin-bottom: 20px; text-align: left; }
         input, button { width: 100%; padding: 12px; margin: 5px 0; font-size: 1.1em; border-radius: 5px; box-sizing: border-box; }
@@ -83,7 +82,6 @@
     </div>
     
     <div id="category-display" style="font-size:2em; color:var(--gold); font-weight:bold; margin-top:10px;">---</div>
-    
     <div id="word-count-display" style="font-size:1.3em; color:white; margin-bottom:15px; font-weight:bold;">---</div>
     
     <div id="game-board" tabindex="-1"></div>
@@ -139,14 +137,11 @@
     }
     
     function playSound(id, times=1) {
-        stopSound('snd-spin');
-        const audio = document.getElementById(id); if(!audio) return;
+        stopSound('snd-spin'); const audio = document.getElementById(id); if(!audio) return;
         let c=0; function l(){ if(c<times){ audio.currentTime=0; audio.play().catch(()=>{}); c++; setTimeout(l, 800); } } l();
     }
-    
     function stopSound(id) {
-        const audio = document.getElementById(id);
-        if(audio) { audio.pause(); audio.currentTime = 0; }
+        const audio = document.getElementById(id); if(audio) { audio.pause(); audio.currentTime = 0; }
     }
 
     // --- LOBBY ---
@@ -378,8 +373,15 @@
             const isMe = p.id === myId;
             const el = document.createElement('div');
             el.className = `player-box ${isMe?'me':''}`; el.dataset.idx = p.indice;
-            el.innerHTML = `<div style="font-weight:bold; border-bottom:1px solid #aaa;">${p.nome}</div><div>€${p.punteggio_totale}</div><div style="color:gold;">JOLLY: ${p.jolly}</div>`;
-            let txt = `${p.nome}: ${p.punteggio_totale} euro, ${p.jolly} jolly.`;
+            
+            // CALCOLO SOLDI VISIVI (TOTALE + ROUND ATTUALE)
+            let currentMoney = p.punteggio_totale;
+            if(p.indice === roomState.id_giocatore_corrente) {
+                currentMoney += (roomState.montepremi_round || 0);
+            }
+
+            el.innerHTML = `<div style="font-weight:bold; border-bottom:1px solid #aaa;">${p.nome}</div><div>€${currentMoney}</div><div style="color:gold;">JOLLY: ${p.jolly}</div>`;
+            let txt = `${p.nome}: ${currentMoney} euro, ${p.jolly} jolly.`;
             if(roomState.id_giocatore_corrente === p.indice) txt += " È il suo turno.";
             el.setAttribute('aria-label', txt); el.setAttribute('role', 'region'); el.tabIndex = 0;
             div.appendChild(el);
@@ -398,39 +400,34 @@
         const b = document.getElementById('game-board'); b.innerHTML='';
         let abs=0;
         let words = curSolDisp.split(' ');
-        
-        // AGGIORNAMENTO CONTEGGIO PAROLE
         document.getElementById('word-count-display').textContent = `${words.length} PAROLE`;
 
         words.forEach((w, wIdx) => {
             const wd=document.createElement('div'); wd.className='word';
             wd.dataset.wordIdx = wIdx + 1;
-            let lettersReadable = [];
             for(let i=0; i<w.length; i++) {
                 let c = w[i];
                 const bx=document.createElement('div');
                 bx.className='letter-box'; bx.tabIndex = -1; 
                 bx.dataset.wordIdx = wIdx + 1;
-                
-                // FIX ARIA-LABEL
                 let ariaText = "";
                 if(c.match(/[A-ZÀ-Ù]/)) {
                     if((roomState.lettere_rivelate||[]).includes(abs)) {
-                        bx.classList.add('revealed'); bx.textContent=c;
-                        ariaText = `${c}, ${nato[c]||c}`;
+                        bx.classList.add('revealed'); 
+                        bx.innerHTML = `<span aria-hidden="true">${c}</span>`; 
+                        ariaText = `${c}, ${i+1} di ${w.length}`; 
                     } else {
                         bx.textContent=''; 
-                        ariaText = "Nascosta";
+                        ariaText = `Nascosta, ${i+1} di ${w.length}`;
                     }
                     abs++;
                 } else {
-                    bx.className='letter-box punct'; bx.textContent=c;
-                    ariaText = c;
+                    bx.className='letter-box punct'; 
+                    bx.innerHTML = `<span aria-hidden="true">${c}</span>`;
+                    ariaText = `${c}, ${i+1} di ${w.length}`;
                 }
-                // FORMATO RICHIESTO: [Contenuto], [N] di [Tot], Parola [X]
-                ariaText += `, ${i+1} di ${w.length}, Parola ${wIdx+1}`;
+                ariaText += `, Parola ${wIdx+1}`;
                 bx.setAttribute('aria-label', ariaText);
-                
                 wd.appendChild(bx);
             }
             b.appendChild(wd);
@@ -460,8 +457,7 @@
                 let currWordIdx = parseInt(current.dataset.wordIdx || 99);
                 let prevWordBoxes = boxes.filter(b => parseInt(b.dataset.wordIdx) < currWordIdx);
                 if(prevWordBoxes.length > 0) {
-                    let targetWordIdx = prevWordBoxes[prevWordBoxes.length-1].dataset.wordIdx;
-                    let targetBox = boxes.find(b => b.dataset.wordIdx === targetWordIdx);
+                    let targetBox = boxes.find(b => b.dataset.wordIdx === prevWordBoxes[prevWordBoxes.length-1].dataset.wordIdx);
                     if(targetBox) targetBox.focus();
                 }
             } else {
@@ -542,6 +538,12 @@
         if(e.key === 'Enter') {
              if(document.activeElement.id==='letter-input') confirmLetter();
              if(document.activeElement.id==='solve-input') solve();
+        }
+        if(e.key === 'Escape') { 
+            e.preventDefault();
+            setControls('main');
+            document.getElementById('letter-input').value = '';
+            document.getElementById('solve-input').value = '';
         }
         if(inspectorMode) {
             if(e.key === 'ArrowDown') { e.preventDefault(); inspectorWordIndex++; inspectorCharIndex = -1; announceInspector(); return; }

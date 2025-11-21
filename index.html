@@ -2,211 +2,607 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>La Ruota - Final Stable</title>
+    <title>La Ruota - Multiplayer Online</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        /* STILI BASE */
         :root { --bg: #02203C; --box: #004a91; --gold: #FFD700; --focus: #FF00FF; }
-        body { margin: 0; padding: 10px; font-family: Arial, sans-serif; background-color: var(--bg); color: white; text-align: center; }
-        .hidden { display: none !important; }
-        .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
 
-        /* UI SETUP */
-        #setup-overlay { max-width: 600px; margin: 0 auto; }
-        .panel { background: #03335f; border-radius: 8px; padding: 10px; margin-bottom: 10px; text-align: left; }
-        .panel h2 { margin-top: 0; font-size: 1.1rem; }
-        label { display: block; margin-bottom: 6px; font-weight: bold; }
-        input[type="text"] { width: 100%; padding: 6px; border-radius: 4px; border: none; margin-bottom: 8px; }
-        button { padding: 8px 12px; margin: 4px; border-radius: 4px; border: none; cursor: pointer; background: var(--box); color: white; font-weight: bold; }
-        button:focus { outline: 2px solid var(--focus); outline-offset: 2px; }
-        #players-list { font-size: 0.9rem; }
-
-        /* LAYOUT GIOCO */
-        #game-container { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 8px; }
-        #top-row { display: flex; flex-wrap: wrap; gap: 10px; }
-        .col { flex: 1 1 300px; background: #03335f; border-radius: 8px; padding: 8px; }
-
-        #category-display { font-size: 1.1rem; margin-bottom: 4px; color: var(--gold); }
-        #board { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
-
-        .word-box { display: flex; margin: 2px; }
-        .letter-box { width: 26px; height: 32px; border-radius: 4px; background: #011322; border: 1px solid #0a4c8a; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.1rem; }
-        .letter-box.revealed { background: #0b7e3b; }
-        .letter-box.space { background: transparent; border: none; width: 12px; }
-
-        /* RUOTA */
-        #wheel-container { position: relative; width: 230px; height: 230px; margin: 0 auto; border-radius: 50%; border: 4px solid #fff; overflow: hidden; transition: transform 4s cubic-bezier(0.2, 0.8, 0.1, 1); }
-        .wheel-wedge { position: absolute; top: 0; right: 0; width: 50%; height: 50%; transform-origin: 0% 100%; border: 1px solid rgba(0,0,0,0.1); display:flex; align-items:flex-end; justify-content:center; font-size:0.8rem; padding-bottom:4px; }
-
-        #status-message { font-size: 1.4em; color: var(--gold); margin: 15px 0; font-weight: bold; min-height: 1.5em; }
-        #connection-alert { background: red; color: white; padding: 5px; display: none; }
-
-        /* OVERLAY MAPPA FRASE */
-        #inspector-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.95); z-index: 5000;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        body {
+            margin: 0;
+            padding: 10px;
+            font-family: Arial, sans-serif;
+            background-color: var(--bg);
+            color: white;
+            text-align: center;
         }
-        #inspector-box {
-            background:#02203C; padding:20px; border-radius:10px; max-width:700px; max-height:80vh; overflow:auto;
-        }
-        #inspector-content { font-size:1rem; line-height:1.4; }
 
+        h1 {
+            margin: 5px 0 10px;
+            font-size: 1.5rem;
+        }
+        h2 {
+            margin: 10px 0 8px;
+            font-size: 1.1rem;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1.1fr 1.2fr 0.9fr;
+            gap: 10px;
+        }
+
+        .panel {
+            background-color: #003366;
+            border-radius: 10px;
+            padding: 8px;
+            text-align: left;
+        }
+        .panel h2 {
+            text-align: center;
+        }
+
+        label {
+            display: block;
+            margin-top: 5px;
+            font-size: 0.9rem;
+        }
+
+        input, button, select, textarea {
+            width: 100%;
+            padding: 6px;
+            margin-top: 3px;
+            margin-bottom: 5px;
+            border-radius: 5px;
+            border: none;
+            font-size: 0.9rem;
+        }
+
+        input:focus, button:focus, select:focus, textarea:focus {
+            outline: 2px solid var(--focus);
+        }
+
+        button {
+            background-color: var(--gold);
+            cursor: pointer;
+            font-weight: bold;
+            color: #000;
+        }
+        button:disabled {
+            background-color: #666;
+            cursor: not-allowed;
+            color: #ccc;
+        }
+
+        #players-list {
+            margin-top: 5px;
+            font-size: 0.9rem;
+        }
+        #players-list ul {
+            margin: 0;
+            padding-left: 18px;
+        }
+
+        #board {
+            margin-top: 10px;
+            min-height: 120px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px;
+            justify-content: center;
+        }
+
+        .word {
+            display: flex;
+            gap: 3px;
+            margin-bottom: 5px;
+        }
+
+        .letter-box {
+            width: 26px;
+            height: 34px;
+            background-color: var(--box);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+
+        .letter-box.space {
+            background-color: transparent;
+        }
+
+        .letter-box.revealed {
+            background-color: #008000;
+        }
+
+        #category, #round-info {
+            text-align: center;
+            margin: 5px 0;
+            font-size: 0.95rem;
+        }
+
+        #current-player {
+            font-weight: bold;
+            margin-top: 5px;
+            font-size: 0.95rem;
+        }
+
+        #wheel-container {
+            margin-top: 8px;
+            text-align: center;
+        }
+
+        #wheel {
+            width: 200px;
+            height: 200px;
+            margin: 0 auto;
+            border-radius: 50%;
+            border: 3px solid var(--gold);
+            position: relative;
+            overflow: hidden;
+        }
+
+        #wheel-pointer {
+            width: 0;
+            height: 0;
+            border-left: 12px solid transparent;
+            border-right: 12px solid transparent;
+            border-bottom: 18px solid red;
+            margin: 0 auto 4px;
+        }
+
+        #wheel-value {
+            margin-top: 5px;
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+
+        #status-message {
+            font-size: 1.4em;
+            color: var(--gold);
+            margin: 15px 0;
+            font-weight: bold;
+            min-height: 1.5em;
+        }
+
+        #letter-input-area, #solve-input-area {
+            margin-top: 5px;
+        }
+
+        #letter-input-area.hidden, #solve-input-area.hidden {
+            display: none;
+        }
+
+        #letter-input-area label, #solve-input-area label {
+            margin-top: 0;
+        }
+
+        #scores-table {
+            width: 100%;
+            margin-top: 5px;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        #scores-table th, #scores-table td {
+            border: 1px solid #005;
+            padding: 4px;
+            text-align: center;
+        }
+        #scores-table th {
+            background-color: #001a33;
+        }
+        #scores-table tr.highlight {
+            background-color: #004488;
+        }
+
+        #connection-alert {
+            background-color: #990000;
+            color: #fff;
+            padding: 5px;
+            text-align: center;
+            display: none;
+            font-size: 0.9rem;
+        }
+
+        #players-and-controls {
+            display: grid;
+            grid-template-rows: auto auto;
+            gap: 6px;
+        }
+
+        #controls {
+            font-size: 0.85rem;
+            line-height: 1.3;
+        }
+        #controls p {
+            margin: 4px 0;
+        }
+
+        .inline-inputs {
+            display: flex;
+            gap: 5px;
+        }
+        .inline-inputs input {
+            flex: 1;
+        }
+        .inline-inputs button {
+            flex: 0 0 45%;
+        }
+
+        #logs {
+            background-color: #001a33;
+            height: 120px;
+            overflow-y: auto;
+            padding: 5px;
+            font-size: 0.85rem;
+        }
+        #logs p {
+            margin: 2px 0;
+        }
+
+        .small-note {
+            font-size: 0.8rem;
+            margin-top: 3px;
+        }
+
+        #top-row-wrapper {
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        #top-left-box {
+            text-align: left;
+            font-size: 0.8rem;
+        }
+
+        #top-right-box {
+            text-align: right;
+            font-size: 0.8rem;
+        }
+
+        #top-title {
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        #shortcuts {
+            margin-top: 6px;
+        }
+
+        #shortcuts span {
+            display: inline-block;
+            margin-right: 8px;
+            margin-bottom: 3px;
+        }
+
+        #shortcuts kbd {
+            background: #222;
+            border-radius: 3px;
+            padding: 1px 4px;
+            font-size: 0.8rem;
+        }
+
+        #tabellone-aria {
+            margin-top: 6px;
+            text-align: left;
+            font-size: 0.8rem;
+        }
+
+        #tabellone-aria button {
+            width: auto;
+            display: inline-block;
+            padding: 3px 6px;
+            margin: 2px 2px 0 0;
+            font-size: 0.8rem;
+        }
+
+        #debug-inspector {
+            display: none;
+            margin-top: 6px;
+            background: #001122;
+            padding: 5px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            max-height: 200px;
+            overflow: auto;
+        }
+
+        #debug-inspector pre {
+            white-space: pre-wrap;
+            margin: 0;
+        }
+
+        #footer-hints {
+            margin-top: 8px;
+            font-size: 0.8rem;
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        #footer-hints div {
+            flex: 1;
+            background: #001a33;
+            padding: 4px 6px;
+            border-radius: 6px;
+            border: 1px solid rgba(0,0,0,0.1);
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            font-size: 0.8rem;
+            padding-bottom: 4px;
+        }
+
+        @media (max-width: 900px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            #players-and-controls {
+                grid-template-rows: auto auto;
+            }
+        }
     </style>
 </head>
 <body>
+<div class="container">
+    <div id="connection-alert">CONNESSIONE PERSA. Riprova a ricaricare la pagina se il gioco non risponde.</div>
 
-<div id="sr-announcer" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
-<audio id="snd-spin" src="ruota.wav"></audio>
-<audio id="snd-hit" src="lettera presente.wav"></audio>
-<audio id="snd-miss" src="lettera assente.wav"></audio>
-<audio id="snd-ding" src="ding.mp3"></audio>
-
-<div id="connection-alert">CONNESSIONE PERSA...</div>
-
-<div id="inspector-overlay" class="hidden" role="dialog" aria-label="Mappa Frase">
-    <div id="inspector-box">
-        <h2 style="text-align:center; margin-top:0;">MAPPA FRASE</h2>
-        <div id="inspector-content" tabindex="0" role="document"></div>
-        <div style="text-align:center; margin-top:20px;">
-            <button onclick="closeInspector()" style="width:auto;">CHIUDI (ESC)</button>
+    <div id="top-row-wrapper" aria-hidden="true">
+        <div id="top-left-box">
+            <div id="top-title">LA RUOTA DELLA FORTUNA – MULTIPLAYER</div>
+            <div>Stanza condivisa online, turni automatici, punteggi sincronizzati.</div>
         </div>
-    </div>
-</div>
-
-<div id="setup-overlay">
-    <h1>LA RUOTA ONLINE</h1>
-    <div class="panel">
-        <label>1. IL TUO NOME:</label>
-        <input id="player-name" type="text" maxlength="20" placeholder="Es. Anna" />
-    </div>
-    <div class="panel">
-        <h2>2. STANZA ONLINE REALTIME</h2>
-        <label>Il codice stanza (es. ABC123):</label>
-        <input id="room-code" type="text" maxlength="12" placeholder="Codice stanza" />
-        <button id="btn-create-room">Crea nuova stanza</button>
-        <button id="btn-join-room">Entra in stanza esistente</button>
-        <p style="font-size:0.9rem; margin-top:6px;">
-            Suggerimento: apri questa pagina da due dispositivi diversi,<br>
-            usa lo stesso codice stanza e verifica che ruota, punteggi e frase cambiano per tutti.
-        </p>
-        <div id="players-list" aria-live="polite"></div>
-    </div>
-</div>
-
-<div id="game-container" class="hidden" aria-live="polite">
-    <div id="top-row">
-        <div class="col" id="col-board">
-            <div id="category-display"></div>
-            <div id="board" aria-label="Tabellone frase" role="group"></div>
-            <button id="btn-inspector" onclick="openInspector()" style="margin-top:5px; width:auto;">Mappa frase (CTRL+I)</button>
-        </div>
-        <div class="col" id="col-wheel">
-            <div id="wheel-container" aria-label="Ruota dei premi" role="img"></div>
-            <div id="status-message"></div>
-        </div>
-        <div class="col" id="col-players">
-            <h2>Giocatori</h2>
-            <div id="players-panel"></div>
-            <button onclick="closeRoom()" id="btn-close-room">Chiudi partita</button>
+        <div id="top-right-box">
+            <div><strong>F2</strong> = Leggi stato / aiuto</div>
+            <div><strong>F3</strong> = Leggi tabellone</div>
         </div>
     </div>
 
-    <div class="col">
-        <div id="turn-info"></div>
-        <div id="main-actions">
-            <button id="btn-spin" onclick="spin()">Gira (CTRL+G)</button>
-            <button id="btn-buy-vowel" onclick="setControls('vowel')">Vocale €500 (CTRL+V)</button>
-            <button id="btn-solve" onclick="setControls('solve')">Risolvi (CTRL+S)</button>
+    <h1 id="page-title">La Ruota – Stanza online</h1>
+
+    <div class="grid" aria-describedby="page-description">
+        <!-- COLONNA 1: DATI GIOCATORE E STANZA -->
+        <section class="panel" aria-label="Dati giocatore e stanza">
+            <h2>1. DATI GIOCATORE E STANZA</h2>
+            <p id="page-description">
+                Inserisci il tuo nome, scegli un codice di stanza e premi
+                <strong>Crea nuova stanza</strong> oppure <strong>Entra in stanza esistente</strong>.
+            </p>
+
+            <label for="player-name">Il tuo nome (come apparirà agli altri):</label>
+            <input id="player-name" type="text" maxlength="20" autocomplete="off" placeholder="Es. Valentina">
+
+            <label for="room-code">Codice stanza (es. ABC123):</label>
+            <input id="room-code" type="text" maxlength="10" autocomplete="off" placeholder="Codice stanza">
+
+            <div class="inline-inputs" aria-label="Pulsanti per creare o entrare in una stanza">
+                <button id="create-room-btn">CREA NUOVA STANZA</button>
+                <button id="join-room-btn">ENTRA IN STANZA ESISTENTE</button>
+            </div>
+
+            <p class="small-note">
+                Suggerimento: apri questa pagina da due dispositivi diversi, usa lo stesso codice stanza
+                e verifica che ruota, punteggi e frase cambiano per tutti.
+            </p>
+
+            <div id="players-list" aria-live="polite" aria-atomic="true">
+                <strong>Giocatori collegati:</strong>
+                <ul id="players-ul">
+                    <li>Nessuno collegato</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- COLONNA 2: TABELLONE E RUOTA -->
+        <section class="panel" aria-label="Tabellone e ruota">
+            <h2>2. TABELLONE FRASE E LETTERE</h2>
+            <div id="category" aria-live="polite">CATEGORIA: —</div>
+            <div id="round-info" aria-live="polite">Round non avviato</div>
+            <div id="current-player" aria-live="polite"></div>
+
+            <div id="board" aria-label="Tabellone della frase"></div>
+
+            <div id="wheel-container" aria-label="Ruota dei punteggi">
+                <div id="wheel-pointer"></div>
+                <div id="wheel"></div>
+                <button id="spin-button" disabled>GIRA LA RUOTA</button>
+                <div id="wheel-value" aria-live="polite">Valore: —</div>
+            </div>
+
+            <div id="status-message" aria-live="polite">Immetti i dati della stanza per iniziare.</div>
+
+            <div id="letter-input-area" class="hidden">
+                <label for="letter-input">Consonante da proporre:</label>
+                <input id="letter-input" type="text" maxlength="1" autocomplete="off" aria-label="Inserisci una consonante">
+                <button id="letter-confirm-btn">INVIA CONSONANTE</button>
+                <p class="small-note">Usa una sola lettera. Niente vocali in questa fase.</p>
+            </div>
+
+            <div id="solve-input-area" class="hidden">
+                <label for="solve-input">Prova a risolvere la frase:</label>
+                <textarea id="solve-input" rows="2" autocomplete="off"></textarea>
+                <button id="solve-confirm-btn">PROPONI SOLUZIONE</button>
+            </div>
+        </section>
+
+        <!-- COLONNA 3: PUNTEGGI, CONTROLLI, LOG -->
+        <section class="panel" aria-label="Punteggi e comandi da tastiera">
+            <h2>3. PUNTEGGI E COMANDI</h2>
+            <table id="scores-table" aria-label="Tabella dei punteggi">
+                <thead>
+                <tr>
+                    <th>Giocatore</th>
+                    <th>Punteggio round</th>
+                    <th>Punteggio totale</th>
+                    <th>Jolly</th>
+                </tr>
+                </thead>
+                <tbody id="scores-body">
+                <tr><td colspan="4">Nessun giocatore ancora.</td></tr>
+                </tbody>
+            </table>
+
+            <div id="players-and-controls">
+                <div id="controls" aria-label="Comandi da tastiera">
+                    <p><strong>COMANDI:</strong></p>
+                    <p><kbd>F2</kbd> Legge stato generale (stanza, turno, valore ruota).</p>
+                    <p><kbd>F3</kbd> Legge il tabellone attuale.</p>
+                    <p><kbd>G</kbd> Gira la ruota (se è il tuo turno).</p>
+                    <p><kbd>L</kbd> Letter: inserisci una consonante.</p>
+                    <p><kbd>S</kbd> Solve: prova a risolvere la frase.</p>
+                    <p><kbd>J</kbd> Usa il jolly (se disponibile).</p>
+                    <p><kbd>I</kbd> Ispettore tabellone interno (per debug).</p>
+                    <p><kbd>Invio</kbd> Conferma la lettera o la soluzione quando il campo è aperto.</p>
+                </div>
+
+                <div id="logs" aria-label="Log degli eventi di gioco" aria-live="polite">
+                    <p>Log di gioco:</p>
+                </div>
+            </div>
+
+            <div id="tabellone-aria" aria-label="Accesso rapido al tabellone">
+                <button onclick="readBoardSimple()">Leggi tabellone (semplificato)</button>
+                <button onclick="readBoardWithPositions()">Leggi tabellone con posizioni</button>
+            </div>
+
+            <div id="debug-inspector" aria-label="Stato interno per debug">
+                <strong>Inspector interno (debug):</strong>
+                <pre id="debug-content"></pre>
+            </div>
+        </section>
+    </div>
+
+    <div id="footer-hints">
+        <div>
+            Dopo aver creato o raggiunto la stanza, il primo giocatore potrà avviare il round e girare la ruota.
         </div>
-        <div id="letter-input-area" class="hidden">
-            <label id="letter-label">Lettera:</label>
-            <input id="letter-input" type="text" maxlength="1" />
-            <button onclick="confirmLetter()">Conferma (INVIO)</button>
-            <button onclick="setControls('main')">Annulla (ESC)</button>
-        </div>
-        <div id="solve-input-area" class="hidden">
-            <label>Soluzione completa:</label>
-            <input id="solve-input" type="text" />
-            <button onclick="confirmSolve()">Conferma soluzione (INVIO)</button>
-            <button onclick="setControls('main')">Annulla (ESC)</button>
-        </div>
-        <div id="jolly-decision-area" class="hidden">
-            <button onclick="useJolly()">USA JOLLY</button>
-            <button onclick="pass()">NON USARE</button>
+        <div>
+            Il tabellone e i punteggi sono sincronizzati tra tutti i dispositivi collegati alla stessa stanza.
         </div>
     </div>
+
+    <audio id="snd-spin" src="ruota.wav"></audio>
+    <audio id="snd-hit" src="lettera presente.wav"></audio>
+    <audio id="snd-miss" src="lettera assente.wav"></audio>
 </div>
 
 <script>
-    //
     // CONFIGURAZIONE SUPABASE
-    //
-    const SUPABASE_URL = '***METTI QUI LA TUA URL SUPABASE***';
-    const SUPABASE_KEY = '***METTI QUI LA TUA ANON PUBLIC KEY***';
+    const SUPABASE_URL = 'https://azcwkpdjbysnivknnino.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Y3drcGRqYnlzbml2a25uaW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MzAwNDksImV4cCI6MjA3OTIwNjA0OX0.R8wkMJEmsP8cTVUUOcWtD4Rrg_ZhuOE-PYBJ56eGqMU';
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // Valori ruota aggiornati: 100–1000, 2000, 3000 + speciali
-    const wheelValues = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 2000, 3000, 'BANCAROTTA', 'PASSA', 'MISTERO'];
+    // RUOTA: valori che possono uscire
+    const wheelValues = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 2000, 3000, 4000, 5000, 'JOLLY', 'BANCAROTTA', 'MISTERO'];
+    const wheelColors = ['#FF0000', '#FFA500', '#FFFF00', '#008000', '#00FFFF', '#0000FF', '#800080', '#FF1493', '#00FF7F', '#1E90FF', '#FFD700', '#DC143C', '#4B0082', '#FF8C00', '#FFFFFF', '#000000', '#808080'];
 
-    const nato = {'A':'Ancona','B':'Bologna','C':'Como','D':'Domodossola','E':'Empoli','F':'Firenze','G':'Genova','H':'Hotel','I':'Imola','J':'Jolly','K':'Kappa','L':'Livorno','M':'Milano','N':'Napoli','O':'Otranto','P':'Palermo','Q':'Quadro','R':'Roma','S':'Savona','T':'Torino','U':'Udine','V':'Venezia','W':'Washington','X':'Xilofono','Y':'Yogurt','Z':'Zara','À':'A accentata','È':'E accentata','É':'E accentata','Ì':'I accentata','Ò':'O accentata','Ù':'U accentata'};
+    let currentPlayerId = null;
+    let currentRoomCode = null;
+    let isRoomOwner = false;
+    let roomState = null;
+    let players = [];
+    let scores = {};
+    let spinning = false;
+    let currentWheelValue = null;
 
-    let myId, myRoomId, myIndex, myName, roomState = {}, curSol = "", curSolDisp = "";
-    let lastTs = null;
+    const sndSpin = document.getElementById('snd-spin');
+    const sndHit = document.getElementById('snd-hit');
+    const sndMiss = document.getElementById('snd-miss');
+    const connectionAlert = document.getElementById('connection-alert');
+
+    function showConnectionAlert(show) {
+        connectionAlert.style.display = show ? 'block' : 'none';
+    }
+
+    function logMessage(msg) {
+        const logs = document.getElementById('logs');
+        const p = document.createElement('p');
+        p.textContent = msg;
+        logs.appendChild(p);
+        logs.scrollTop = logs.scrollHeight;
+    }
+
+    function setStatus(msg) {
+        document.getElementById('status-message').textContent = msg;
+    }
 
     function speak(text) {
-        const el = document.getElementById('sr-announcer');
-        el.textContent = text;
-    }
-    window.speak = speak;
-
-    window.normalize = function (str) {
-        if (!str) return "";
-        return str
-            .toUpperCase()
-            .replace(/[ÁÀÂÃÄ]/g, "A")
-            .replace(/[ÉÈÊË]/g, "E")
-            .replace(/[ÍÌÎÏ]/g, "I")
-            .replace(/[ÓÒÔÕÖ]/g, "O")
-            .replace(/[ÚÙÛÜ]/g, "U")
-            .replace(/[^A-ZÀ-Ù\s]/g, "")
-            .replace(/\s+/g, " ")
-            .trim();
-    };
-
-    function renderWheel() {
-        const c = document.getElementById('wheel-container'); 
-        c.innerHTML = ''; 
-        const arc = 360/wheelValues.length;
-        wheelValues.forEach((v, i) => {
-            const d = document.createElement('div'); 
-            d.className = 'wheel-wedge';
-            d.style.transform = `rotate(${i*arc}deg)`; 
-            d.style.background = (i%2===0) ? '#0a74c4' : '#0c98b8';
-            d.textContent = typeof v === 'number' ? v : v;
-            c.appendChild(d);
-        });
+        logMessage(text);
     }
 
-    function doVisualSpin(val) {
-        let idx = wheelValues.indexOf(val); 
-        let rot = 1440 + (360 - (idx*(360/wheelValues.length)));
-        document.getElementById('wheel-container').style.transform = `rotate(${rot}deg)`;
+    async function createRoomState(roomCode) {
+        const initialState = {
+            stanza: roomCode,
+            categoria: 'BOZZA',
+            frase: 'CIAO MONDO',
+            lettere_rivelate: [],
+            turno_giocatore_id: null,
+            valore_ruota: null,
+            round_attivo: false,
+            created_at: new Date().toISOString()
+        };
+        const { error } = await supabase.from('stanze').insert(initialState);
+        if (error) {
+            console.error('Errore creazione stanza:', error);
+            setStatus('Errore nel creare la stanza.');
+            speak('Errore nel creare la stanza.');
+            return false;
+        }
+        return true;
+    }
+
+    async function fetchRoomState(roomCode) {
+        const { data, error } = await supabase
+            .from('stanze')
+            .select('*')
+            .eq('stanza', roomCode)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        if (error) {
+            console.error('Errore caricamento stanza:', error);
+            return null;
+        }
+        return data;
+    }
+
+    function normalizzaFrase(frase) {
+        return frase
+            .replace(/[àáâãä]/gi, 'A')
+            .replace(/[èéêë]/gi, 'E')
+            .replace(/[ìíîï]/gi, 'I')
+            .replace(/[òóôõö]/gi, 'O')
+            .replace(/[ùúûü]/gi, 'U')
+            .replace(/[^A-Z0-9 ]/gi, '')
+            .toUpperCase();
     }
 
     function renderBoard() {
-        const b = document.getElementById('board');
-        b.innerHTML = '';
-        if (!curSolDisp) return;
-        const words = curSolDisp.split(' ');
+        const board = document.getElementById('board');
+        board.innerHTML = '';
+        if (!roomState || !roomState.frase) return;
+
+        const raw = roomState.frase.toUpperCase();
+        const normalized = normalizzaFrase(raw);
+        const words = normalized.split(' ');
         let idx = 0;
-        words.forEach((w, wi) => {
+
+        words.forEach((word, wi) => {
             const wDiv = document.createElement('div');
-            wDiv.className = 'word-box';
-            wDiv.dataset.wordIdx = wi;
-            for (let c of w) {
+            wDiv.className = 'word';
+            for (let i = 0; i < word.length; i++) {
+                const c = word[i];
                 const box = document.createElement('div');
                 box.className = 'letter-box';
                 if (c === ' ') {
@@ -225,450 +621,778 @@
                 }
                 wDiv.appendChild(box);
             }
-            b.appendChild(wDiv);
+            board.appendChild(wDiv);
         });
     }
 
-    function renderPlayers(players) {
-        const panel = document.getElementById('players-panel');
-        panel.innerHTML = '';
-        players.forEach(p => {
-            const div = document.createElement('div');
-            div.style.marginBottom = '8px';
-            const isTurn = roomState.id_giocatore_corrente === p.indice;
-            div.innerHTML = `
-                <div${isTurn ? ' style="color:yellow;font-weight:bold;"' : ''}>
-                    ${p.nome} ${isTurn ? '(TURNO)' : ''}
-                </div>
-                <div>Totale: €${p.punteggio_totale}</div>
-                <div>Jolly: ${p.jolly}</div>
-            `;
-            panel.appendChild(div);
-        });
-    }
-
-    function isMyTurn() {
-        return roomState.id_giocatore_corrente === myIndex;
-    }
-
-    async function broadcast(action, msg, extra = {}) {
-        await supabase.from('stanze').update({
-            ultima_azione: action,
-            ultimo_messaggio: msg,
-            azione_timestamp: Date.now().toString(),
-            ...extra
-        }).eq('id', myRoomId);
-    }
-
-    //
-    // SETUP STANZA
-    //
-    async function createOrJoinRoom(isCreate) {
-        myName = (document.getElementById('player-name').value || '').trim();
-        const code = (document.getElementById('room-code').value || '').trim().toUpperCase();
-        if (!myName || !code) {
-            alert("Scrivi il tuo nome e il codice stanza."); return;
+    function updateCategoryAndRoundInfo() {
+        const catEl = document.getElementById('category');
+        const roundEl = document.getElementById('round-info');
+        if (!roomState) {
+            catEl.textContent = 'CATEGORIA: —';
+            roundEl.textContent = 'Round non avviato';
+            return;
         }
+        catEl.textContent = 'CATEGORIA: ' + (roomState.categoria || '—');
+        roundEl.textContent = roomState.round_attivo ? 'Round in corso' : 'Round non avviato';
+    }
 
-        if (isCreate) {
-            const { data: room } = await supabase.from('stanze').insert({
-                codice: code,
-                stato: 'attesa'
-            }).select().single();
-            myRoomId = room.id;
-            const { data: player } = await supabase.from('giocatori').insert({
-                stanza_id: myRoomId,
-                nome: myName,
-                indice: 0,
-                is_host: true
-            }).select().single();
-            myId = player.id;
-            myIndex = player.indice;
+    function updateCurrentPlayerIndicator() {
+        const el = document.getElementById('current-player');
+        if (!roomState) {
+            el.textContent = '';
+            return;
+        }
+        const turnoId = roomState.turno_giocatore_id;
+        if (!turnoId) {
+            el.textContent = 'Nessun turno assegnato.';
+            return;
+        }
+        const p = players.find(pl => pl.id === turnoId);
+        if (!p) {
+            el.textContent = 'Turno assegnato a un giocatore sconosciuto.';
         } else {
-            const { data: room } = await supabase.from('stanze').select('*').eq('codice', code).maybeSingle();
-            if (!room) {
-                alert("Stanza non trovata."); return;
-            }
-            myRoomId = room.id;
-            const { data: players } = await supabase.from('giocatori').select('*').eq('stanza_id', myRoomId).order('indice');
-            const newIndex = players.length;
-            const { data: player } = await supabase.from('giocatori').insert({
-                stanza_id: myRoomId,
-                nome: myName,
-                indice: newIndex,
-                is_host: false
-            }).select().single();
-            myId = player.id;
-            myIndex = player.indice;
+            el.textContent = `Turno di: ${p.nome}`;
         }
-
-        document.getElementById('setup-overlay').classList.add('hidden');
-        document.getElementById('game-container').classList.remove('hidden');
-        renderWheel();
-        subscribeRoom();
     }
 
-    document.getElementById('btn-create-room').onclick = () => createOrJoinRoom(true);
-    document.getElementById('btn-join-room').onclick = () => createOrJoinRoom(false);
+    function updateScoresTable() {
+        const tbody = document.getElementById('scores-body');
+        tbody.innerHTML = '';
 
-    async function subscribeRoom() {
-        const channel = supabase
-            .channel('stanze-' + myRoomId)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'stanze', filter: 'id=eq.' + myRoomId }, payload => {
-                handleRoomUpdate(payload.new);
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'giocatori', filter: 'stanza_id=eq.' + myRoomId }, payload => {
-                refreshPlayers();
-            })
-            .subscribe();
-
-        const { data: s } = await supabase.from('stanze').select('*').eq('id', myRoomId).single();
-        handleRoomUpdate(s);
-        await refreshPlayers();
-    }
-
-    async function refreshPlayers() {
-        const { data: players } = await supabase.from('giocatori').select('*').eq('stanza_id', myRoomId).order('indice');
-        renderPlayers(players || []);
-    }
-
-    async function handleRoomUpdate(s) {
-        roomState = s;
-
-        if (s.frase_corrente_id) {
-            const { data: f } = await supabase.from('frasi').select('*').eq('id', s.frase_corrente_id).single();
-            if (f) {
-                curSolDisp = f.soluzione.toUpperCase(); 
-                curSol = window.normalize(f.soluzione);
-                document.getElementById('category-display').textContent = f.categoria;
-            }
-        }
-
-        renderBoard();
-
-        if (s.stato === 'chiusa') {
-            alert("Partita chiusa.");
-            location.reload();
+        if (!players || players.length === 0) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 4;
+            td.textContent = 'Nessun giocatore ancora.';
+            tr.appendChild(td);
+            tbody.appendChild(tr);
             return;
         }
 
-        if (s.azione_timestamp !== lastTs) {
-            lastTs = s.azione_timestamp;
-            if (s.ultima_azione === 'spin_start') {
-                const a = document.getElementById('snd-spin'); 
-                a.currentTime = 0; a.play().catch(()=>{});
-            } else if (s.ultima_azione === 'hit-1' || s.ultima_azione === 'hit-2' || s.ultima_azione === 'hit-5') {
-                const a = document.getElementById('snd-hit'); 
-                a.currentTime = 0; a.play().catch(()=>{});
-            } else if (s.ultima_azione === 'miss') {
-                const a = document.getElementById('snd-miss'); 
-                a.currentTime = 0; a.play().catch(()=>{});
-            } else if (s.ultima_azione === 'ding') {
-                const a = document.getElementById('snd-ding'); 
-                a.currentTime = 0; a.play().catch(()=>{});
+        players.forEach(p => {
+            if (!scores[p.id]) {
+                scores[p.id] = {
+                    roundScore: 0,
+                    totalScore: 0,
+                    jolly: 0
+                };
+            }
+        });
+
+        players.forEach(p => {
+            const tr = document.createElement('tr');
+            if (roomState && roomState.turno_giocatore_id === p.id) {
+                tr.classList.add('highlight');
             }
 
-            document.getElementById('status-message').textContent = s.ultimo_messaggio || '';
-        }
+            const sc = scores[p.id] || { roundScore: 0, totalScore: 0, jolly: 0 };
+            const tdName = document.createElement('td');
+            const tdRound = document.createElement('td');
+            const tdTotal = document.createElement('td');
+            const tdJolly = document.createElement('td');
 
-        const myTurn = s.id_giocatore_corrente === myIndex;
-        document.getElementById('turn-info').textContent = myTurn ? "È il tuo turno." : "Turno di un altro giocatore.";
-        if (!myTurn) {
-            setControls('none');
+            tdName.textContent = p.nome;
+            tdRound.textContent = sc.roundScore;
+            tdTotal.textContent = sc.totalScore;
+            tdJolly.textContent = sc.jolly;
+
+            tr.appendChild(tdName);
+            tr.appendChild(tdRound);
+            tr.appendChild(tdTotal);
+            tr.appendChild(tdJolly);
+            tbody.appendChild(tr);
+        });
+    }
+
+    async function loadPlayers(roomCode) {
+        const { data, error } = await supabase
+            .from('giocatori')
+            .select('*')
+            .eq('stanza', roomCode)
+            .order('created_at', { ascending: true });
+
+        if (error) {
+            console.error('Errore caricamento giocatori:', error);
+            return;
+        }
+        players = data || [];
+        refreshPlayersUI();
+    }
+
+    function refreshPlayersUI() {
+        const ul = document.getElementById('players-ul');
+        ul.innerHTML = '';
+        if (!players || players.length === 0) {
+            const li = document.createElement('li');
+            li.textContent = 'Nessuno collegato';
+            ul.appendChild(li);
+            return;
+        }
+        players.forEach(p => {
+            const li = document.createElement('li');
+            li.textContent = p.nome + (p.id === currentPlayerId ? ' (tu)' : '');
+            ul.appendChild(li);
+        });
+        updateScoresTable();
+        updateCurrentPlayerIndicator();
+    }
+
+    function enableSpinIfNeeded() {
+        const btn = document.getElementById('spin-button');
+        if (!roomState || !roomState.round_attivo) {
+            btn.disabled = true;
+            return;
+        }
+        if (roomState.turno_giocatore_id === currentPlayerId && !spinning) {
+            btn.disabled = false;
         } else {
-            setControls('main');
+            btn.disabled = true;
         }
     }
 
-    window.setControls = function(m) {
-        ['main-actions','letter-input-area','solve-input-area','jolly-decision-area'].forEach(id => document.getElementById(id).classList.add('hidden'));
+    async function upsertPlayer(roomCode, playerName) {
+        const storageKey = `ruota_player_${roomCode}_${playerName}`;
+        const cachedId = localStorage.getItem(storageKey);
+        if (cachedId) {
+            currentPlayerId = cachedId;
+            await loadPlayers(roomCode);
+            return;
+        }
 
-        if (m === 'main') { 
-            document.getElementById('main-actions').classList.remove('hidden'); 
-            document.getElementById('btn-spin').focus(); 
+        const { data, error } = await supabase
+            .from('giocatori')
+            .insert({ stanza: roomCode, nome: playerName })
+            .select('*')
+            .single();
+        if (error) {
+            console.error('Errore inserimento giocatore:', error);
+            setStatus('Errore nel registrare il giocatore.');
+            speak('Errore nel registrare il giocatore.');
+            return;
         }
-        if (m === 'consonant' || m === 'vowel') { 
-            document.getElementById('letter-input-area').classList.remove('hidden'); 
-            const inp = document.getElementById('letter-input');
-            document.getElementById('letter-label').textContent = m === 'vowel' ? "Vocale:" : "Consonante:";
-            inp.value = '';
-            inp.placeholder = m === 'vowel' ? "VOCALE" : "CONSONANTE";
-            inp.focus(); 
-        }
-        if (m === 'solve') { 
-            document.getElementById('solve-input-area').classList.remove('hidden'); 
-            const si = document.getElementById('solve-input');
-            si.value = '';
-            si.focus(); 
-        }
-        if (m === 'none') {
-            // tutto nascosto, nessun controllo attivo
-        }
-    };
+        currentPlayerId = data.id;
+        localStorage.setItem(storageKey, currentPlayerId);
+        await loadPlayers(roomCode);
+    }
 
-    window.closeRoom = async function() {
-        if(!confirm("Chiudere la partita?")) return;
-        await supabase.from('stanze').update({stato:'chiusa'}).eq('id', myRoomId);
-        await supabase.from('stanze').delete().eq('id', myRoomId);
-        location.reload();
-    };
-
-    window.openInspector = function() {
-        const words = curSolDisp.split(' ');
-        let absIndex = 0;
-        let html = "";
-        words.forEach((w, i) => {
-            let wordStr = "";
-            for(let char of w) {
-                if(char.match(/[A-ZÀ-Ù]/)) {
-                    if((roomState.lettere_rivelate||[]).includes(absIndex)) wordStr += char + " ";
-                    else wordStr += "- ";
-                    absIndex++;
-                } else {
-                    wordStr += char + " ";
+    async function attachRoomListener(roomCode) {
+        const channel = supabase
+            .channel(`stanza-${roomCode}`)
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'stanze', filter: `stanza=eq.${roomCode}` }, payload => {
+                roomState = payload.new;
+                onRoomStateUpdated();
+            })
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'frasi', filter: `stanza=eq.${roomCode}` }, payload => {
+                logMessage(`Nuova frase caricata: ${payload.new.categoria}`);
+            })
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'giocatori', filter: `stanza=eq.${roomCode}` }, async () => {
+                await loadPlayers(roomCode);
+            })
+            .subscribe(status => {
+                if (status === 'SUBSCRIBED') {
+                    showConnectionAlert(false);
+                } else if (status === 'TIMED_OUT' || status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+                    showConnectionAlert(true);
                 }
-            }
-            html += `<div>Parola ${i+1}: ${wordStr}</div>`;
-        });
-        const box = document.getElementById('inspector-content');
-        box.innerHTML = html;
-        document.getElementById('inspector-overlay').classList.remove('hidden');
-        box.focus();
-    };
+            });
+    }
 
-    window.closeInspector = function() {
-        document.getElementById('inspector-overlay').classList.add('hidden');
-    };
+    function onRoomStateUpdated() {
+        renderBoard();
+        updateCategoryAndRoundInfo();
+        updateCurrentPlayerIndicator();
+        enableSpinIfNeeded();
+        updateDebugInspector();
+        if (roomState && roomState.valore_ruota !== null) {
+            document.getElementById('wheel-value').textContent = 'Valore: ' + roomState.valore_ruota;
+        }
+    }
 
-    window.spin = function() {
-        if(!isMyTurn()) return window.speak("Non tocca a te.");
-        window.setControls('none');
-        const v = wheelValues[Math.floor(Math.random()*wheelValues.length)];
-        doVisualSpin(v);
-        broadcast('spin_start', '', {}); 
+    function updateDebugInspector() {
+        const dbg = document.getElementById('debug-content');
+        if (!dbg) return;
+        dbg.textContent = JSON.stringify({
+            roomState,
+            players,
+            scores,
+            currentPlayerId,
+            currentRoomCode
+        }, null, 2);
+    }
+
+    async function handleCreateRoom() {
+        const playerName = (document.getElementById('player-name').value || '').trim();
+        const roomCode = (document.getElementById('room-code').value || '').trim().toUpperCase();
+
+        if (!playerName || !roomCode) {
+            setStatus('Inserisci nome e codice stanza.');
+            speak('Inserisci nome e codice stanza.');
+            return;
+        }
+
+        setStatus('Creazione stanza in corso...');
+        const existing = await fetchRoomState(roomCode);
+        if (existing) {
+            setStatus('Esiste già una stanza con questo codice. Usa "Entra in stanza esistente".');
+            speak('Esiste già una stanza con questo codice.');
+            return;
+        }
+
+        const ok = await createRoomState(roomCode);
+        if (!ok) return;
+
+        currentRoomCode = roomCode;
+        isRoomOwner = true;
+        roomState = await fetchRoomState(roomCode);
+        await upsertPlayer(roomCode, playerName);
+        await loadPlayers(roomCode);
+        attachRoomListener(roomCode);
+
+        document.getElementById('spin-button').disabled = true;
+
+        setStatus(`Stanza ${roomCode} creata. Ora puoi preparare il round e avviare il gioco.`);
+        speak(`Stanza ${roomCode} creata. Sei il proprietario del gioco.`);
+        onRoomStateUpdated();
+    }
+
+    async function handleJoinRoom() {
+        const playerName = (document.getElementById('player-name').value || '').trim();
+        const roomCode = (document.getElementById('room-code').value || '').trim().toUpperCase();
+
+        if (!playerName || !roomCode) {
+            setStatus('Inserisci nome e codice stanza.');
+            speak('Inserisci nome e codice stanza.');
+            return;
+        }
+
+        setStatus('Connessione alla stanza in corso...');
+        const existing = await fetchRoomState(roomCode);
+        if (!existing) {
+            setStatus('Nessuna stanza trovata con questo codice.');
+            speak('Nessuna stanza trovata con questo codice.');
+            return;
+        }
+
+        currentRoomCode = roomCode;
+        isRoomOwner = false;
+        roomState = existing;
+        await upsertPlayer(roomCode, playerName);
+        await loadPlayers(roomCode);
+        attachRoomListener(roomCode);
+
+        setStatus(`Sei entrato nella stanza ${roomCode}. Attendi che il proprietario avvii il round.`);
+        speak(`Sei entrato nella stanza ${roomCode}.`);
+        onRoomStateUpdated();
+    }
+
+    async function startRoundWithRandomPhrase() {
+        if (!isRoomOwner || !currentRoomCode) {
+            setStatus('Solo il proprietario della stanza può avviare un round.');
+            speak('Solo il proprietario della stanza può avviare un round.');
+            return;
+        }
+
+        const { data, error } = await supabase
+            .from('frasi')
+            .select('*')
+            .eq('stanza', currentRoomCode);
+        if (error) {
+            console.error('Errore caricamento frasi:', error);
+            setStatus('Errore nel caricare le frasi.');
+            return;
+        }
+        if (!data || data.length === 0) {
+            setStatus('Nessuna frase disponibile per questa stanza.');
+            speak('Nessuna frase disponibile.');
+            return;
+        }
+
+        const idx = Math.floor(Math.random() * data.length);
+        const chosen = data[idx];
+
+        const firstPlayer = players.length > 0 ? players[0].id : null;
+
+        const { error: updError } = await supabase
+            .from('stanze')
+            .update({
+                categoria: chosen.categoria,
+                frase: chosen.frase,
+                lettere_rivelate: [],
+                turno_giocatore_id: firstPlayer,
+                valore_ruota: null,
+                round_attivo: true
+            })
+            .eq('stanza', currentRoomCode);
+
+        if (updError) {
+            console.error('Errore avvio round:', updError);
+            setStatus('Errore nell\'avviare il round.');
+            speak('Errore nell\'avviare il round.');
+            return;
+        }
+
+        setStatus('Round avviato. Il primo giocatore può girare la ruota.');
+        speak('Round avviato. Il primo giocatore può girare la ruota.');
+    }
+
+    function drawWheelSlice(ctx, cx, cy, radius, startAngle, endAngle, color, label) {
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, radius, startAngle, endAngle);
+        ctx.closePath();
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.strokeStyle = '#000';
+        ctx.stroke();
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate((startAngle + endAngle) / 2);
+        ctx.fillStyle = '#000';
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, radius * 0.6, 0);
+        ctx.restore();
+    }
+
+    function renderWheel() {
+        const wheelDiv = document.getElementById('wheel');
+        const canvas = document.createElement('canvas');
+        canvas.width = wheelDiv.clientWidth || 200;
+        canvas.height = wheelDiv.clientHeight || 200;
+        wheelDiv.innerHTML = '';
+        wheelDiv.appendChild(canvas);
+        const ctx = canvas.getContext('2d');
+
+        const cx = canvas.width / 2;
+        const cy = canvas.height / 2;
+        const radius = Math.min(cx, cy) - 5;
+
+        const sliceAngle = (2 * Math.PI) / wheelValues.length;
+        for (let i = 0; i < wheelValues.length; i++) {
+            const start = i * sliceAngle;
+            const end = start + sliceAngle;
+            const color = wheelColors[i % wheelColors.length];
+            const v = wheelValues[i];
+            const label = typeof v === 'number' ? v.toString() : v;
+            drawWheelSlice(ctx, cx, cy, radius, start, end, color, label);
+        }
+    }
+
+    async function spinWheel() {
+        if (!roomState || !roomState.round_attivo) {
+            setStatus('Il round non è attivo.');
+            return;
+        }
+        if (roomState.turno_giocatore_id !== currentPlayerId) {
+            setStatus('Non è il tuo turno.');
+            return;
+        }
+        if (spinning) return;
+
+        spinning = true;
+        enableSpinIfNeeded();
+
+        const audio = sndSpin;
+        if (audio) {
+            audio.currentTime = 0;
+            audio.play().catch(() => {});
+        }
+
+        const totalSlices = wheelValues.length;
+        const extraSpins = 5 + Math.floor(Math.random() * 5);
+        const chosenIndex = Math.floor(Math.random() * totalSlices);
+        const baseAngle = 360 * extraSpins;
+        const sliceAngle = 360 / totalSlices;
+        const finalAngle = baseAngle + (totalSlices - chosenIndex) * sliceAngle;
+
+        const wheelDiv = document.getElementById('wheel');
+        wheelDiv.style.transition = 'transform 3.5s cubic-bezier(0.33, 1, 0.68, 1)';
+        wheelDiv.style.transform = `rotate(${finalAngle}deg)`;
 
         setTimeout(async () => {
-            if(typeof v === 'number') {
-                sessionStorage.setItem('sv', v);
-                await broadcast('spin_result', `${myName} ottiene ${v}.`, {});
-                if(isMyTurn()) window.setControls('consonant');
-            } else if (v === 'BANCAROTTA') {
-                bankrupt();
-            } else if (v === 'PASSA') {
-                await broadcast('miss', `${myName} passa.`, {}); 
-                pass();
-            } else if (v === 'MISTERO') {
-                mystery();
-            }
-        }, 5500);
-    };
+            spinning = false;
+            const v = wheelValues[chosenIndex];
+            currentWheelValue = v;
 
-    async function mystery() {
-        if(!isMyTurn()) return;
-        window.speak("Mistero...");
-        setTimeout(async()=>{
-            if(Math.random() < 0.5) { 
-                await broadcast('miss', "Mistero: BANCAROTTA!", {montepremi_round:0}); 
-                setTimeout(pass, 1500); 
-            } else { 
-                const {data:me}=await supabase.from('giocatori').select('jolly').eq('id',myId).single();
-                await supabase.from('giocatori').update({jolly:(me.jolly||0)+1}).eq('id',myId);
-                await broadcast('hit-1', "Mistero: Jolly!", {}); 
-                window.setControls('main'); 
-            }
-        }, 1500);
+            document.getElementById('wheel-value').textContent = 'Valore: ' + v;
+
+            wheelDiv.style.transition = 'none';
+            wheelDiv.style.transform = `rotate(${(totalSlices - chosenIndex) * sliceAngle}deg)`;
+
+            await onWheelStop(v);
+            enableSpinIfNeeded();
+        }, 3600);
     }
 
-    window.pass = async function() {
-        const { data: players } = await supabase.from('giocatori').select('indice').eq('stanza_id', myRoomId).order('indice');
-        let currArrIdx = players.findIndex(p => p.indice === myIndex);
-        let nextArrIdx = (currArrIdx + 1) % players.length;
-        await supabase.from('stanze').update({id_giocatore_corrente: players[nextArrIdx].indice}).eq('id', myRoomId);
-    };
-
-    async function bankrupt() {
-        if(!isMyTurn()) return;
-        const {data:me}=await supabase.from('giocatori').select('punteggio_totale').eq('id',myId).single();
-        await supabase.from('giocatori').update({punteggio_totale:(me.punteggio_totale||0)}).eq('id',myId);
-        await broadcast('miss', `${myName} finisce in BANCAROTTA e perde il montepremi del round.`, {montepremi_round:0});
-        setControls('main');
-        pass();
-    }
-
-    window.confirmLetter = async function() {
-        if(!isMyTurn()) return;
-        const inp = document.getElementById('letter-input');
-        let ch = (inp.value || '').toUpperCase();
-        if(!ch.match(/[A-ZÀ-Ù]/)) {
-            alert("Inserisci una lettera valida.");
-            inp.focus();
-            return;
-        }
-        const isVowel = 'AEIOUÀÈÉÌÒÙ'.includes(ch);
-        const mode = document.getElementById('letter-label').textContent.includes('Vocale') ? 'vowel' : 'consonant';
-        if (isVowel && mode === 'consonant') {
-            alert("Devi inserire una consonante."); inp.focus(); return;
-        }
-        if (!isVowel && mode === 'vowel') {
-            alert("Devi inserire una vocale."); inp.focus(); return;
-        }
-
-        inp.value = '';
-        if ((roomState.lettere_chiamate || []).includes(ch)) {
-            alert("Lettera già chiamata."); 
-            setControls('main'); 
-            return;
-        }
-
-        if (isVowel) {
-            const {data:me}=await supabase.from('giocatori').select('punteggio_totale').eq('id',myId).single();
-            if ((me.punteggio_totale||0) < 500) {
-                alert("Non hai abbastanza soldi per comprare una vocale.");
-                setControls('main');
-                return;
-            }
-            await supabase.from('giocatori').update({punteggio_totale:(me.punteggio_totale||0)-500}).eq('id',myId);
-        }
-
-        let hits = [];
-        let idx = 0;
-        for (let c of curSolDisp) {
-            if (c === ' ') continue;
-            if (c === ch) hits.push(idx);
-            idx++;
-        }
-
-        const newLetters = [...(roomState.lettere_chiamate || []), ch];
-
-        if (hits.length > 0) {
-            const newRevealed = Array.from(new Set([...(roomState.lettere_rivelate || []), ...hits]));
-            let addMoney = 0;
-            if (!isVowel) {
-                const v = parseInt(sessionStorage.getItem('sv') || '0',10);
-                addMoney = v * hits.length;
-            }
-            const newRound = (roomState.montepremi_round || 0) + addMoney;
-
-            await supabase.from('stanze').update({
-                lettere_chiamate: newLetters,
-                lettere_rivelate: newRevealed,
-                montepremi_round: newRound
-            }).eq('id', myRoomId);
-
-            await broadcast(isVowel?'hit-1':'hit-2', `${myName} trova ${hits.length} ${ch}.`, {});
-            setControls('main');
+    async function onWheelStop(value) {
+        if (value === 'BANCAROTTA') {
+            await handleBankrupt();
+        } else if (value === 'JOLLY') {
+            await handleJolly();
+        } else if (value === 'MISTERO') {
+            await handleMistero();
+        } else if (typeof value === 'number') {
+            setStatus(`Hai ottenuto ${value} punti per ogni consonante corretta. Inserisci una consonante.`);
+            openLetterInput();
         } else {
-            const {data:me}=await supabase.from('giocatori').select('jolly').eq('id',myId).single();
-            if ((me.jolly||0) > 0) {
-                window.speak("Lettera assente. Vuoi usare il jolly?");
-                document.getElementById('jolly-decision-area').classList.remove('hidden');
-                document.getElementById('main-actions').classList.add('hidden');
+            setStatus('Valore ruota non riconosciuto.');
+        }
+
+        if (roomState && currentRoomCode) {
+            const { error } = await supabase
+                .from('stanze')
+                .update({ valore_ruota: value })
+                .eq('stanza', currentRoomCode);
+            if (error) {
+                console.error('Errore aggiornamento valore ruota:', error);
+            }
+        }
+    }
+
+    function openLetterInput() {
+        document.getElementById('letter-input-area').classList.remove('hidden');
+        document.getElementById('solve-input-area').classList.add('hidden');
+        document.getElementById('letter-input').focus();
+    }
+
+    function openSolveInput() {
+        document.getElementById('solve-input-area').classList.remove('hidden');
+        document.getElementById('letter-input-area').classList.add('hidden');
+        document.getElementById('solve-input').focus();
+    }
+
+    function closeInputs() {
+        document.getElementById('letter-input-area').classList.add('hidden');
+        document.getElementById('solve-input-area').classList.add('hidden');
+    }
+
+    async function confirmLetter() {
+        if (!roomState || !roomState.round_attivo) return;
+        if (roomState.turno_giocatore_id !== currentPlayerId) {
+            setStatus('Non è il tuo turno.');
+            return;
+        }
+        if (typeof currentWheelValue !== 'number') {
+            setStatus('Gira la ruota e ottieni un valore numerico prima di proporre una consonante.');
+            return;
+        }
+
+        const input = (document.getElementById('letter-input').value || '').trim().toUpperCase();
+        document.getElementById('letter-input').value = '';
+
+        if (!input || input.length !== 1 || 'AEIOU'.includes(input)) {
+            setStatus('Inserisci una sola consonante.');
+            speak('Inserisci una sola consonante.');
+            return;
+        }
+
+        const normalizedPhrase = normalizzaFrase(roomState.frase || '');
+        const indices = [];
+        for (let i = 0; i < normalizedPhrase.length; i++) {
+            if (normalizedPhrase[i] === input && !roomState.lettere_rivelate.includes(i)) {
+                indices.push(i);
+            }
+        }
+
+        if (indices.length === 0) {
+            setStatus(`La consonante ${input} non è presente. Cambio turno.`);
+            sndMiss.currentTime = 0;
+            sndMiss.play().catch(() => {});
+            await changeTurn();
+            closeInputs();
+            return;
+        }
+
+        const newRevealed = roomState.lettere_rivelate.concat(indices);
+        const gained = indices.length * currentWheelValue;
+
+        if (!scores[currentPlayerId]) {
+            scores[currentPlayerId] = { roundScore: 0, totalScore: 0, jolly: 0 };
+        }
+        scores[currentPlayerId].roundScore += gained;
+
+        sndHit.currentTime = 0;
+        sndHit.play().catch(() => {});
+
+        const { error } = await supabase
+            .from('stanze')
+            .update({ lettere_rivelate: newRevealed })
+            .eq('stanza', currentRoomCode);
+        if (error) {
+            console.error('Errore aggiornamento lettere rivelate:', error);
+        }
+
+        roomState.lettere_rivelate = newRevealed;
+        renderBoard();
+        updateScoresTable();
+
+        setStatus(`La consonante ${input} compare ${indices.length} volte. Hai guadagnato ${gained} punti round.`);
+
+        if (newRevealed.length === normalizzaFrase(roomState.frase).replace(/ /g, '').length) {
+            await endRound(currentPlayerId);
+        } else {
+            openLetterInput();
+        }
+    }
+
+    async function confirmSolve() {
+        if (!roomState || !roomState.round_attivo) return;
+        if (roomState.turno_giocatore_id !== currentPlayerId) {
+            setStatus('Non è il tuo turno.');
+            return;
+        }
+
+        const proposal = (document.getElementById('solve-input').value || '').trim().toUpperCase();
+        document.getElementById('solve-input').value = '';
+        if (!proposal) {
+            setStatus('Inserisci una proposta di soluzione.');
+            return;
+        }
+
+        const normalizedProposal = normalizzaFrase(proposal);
+        const normalizedTarget = normalizzaFrase(roomState.frase || '');
+
+        if (normalizedProposal === normalizedTarget) {
+            setStatus('Soluzione corretta! Hai indovinato la frase.');
+            await endRound(currentPlayerId, true);
+        } else {
+            setStatus('Soluzione sbagliata. Cambio turno.');
+            await changeTurn();
+        }
+        closeInputs();
+    }
+
+    async function changeTurn() {
+        if (!roomState || !currentRoomCode) return;
+        if (!players || players.length === 0) return;
+        const ids = players.map(p => p.id);
+        const currentIdx = ids.indexOf(roomState.turno_giocatore_id);
+        let nextIdx = (currentIdx + 1) % ids.length;
+        const next = ids[nextIdx];
+
+        const { error } = await supabase
+            .from('stanze')
+            .update({ turno_giocatore_id: next, valore_ruota: null })
+            .eq('stanza', currentRoomCode);
+        if (error) {
+            console.error('Errore cambio turno:', error);
+            return;
+        }
+        roomState.turno_giocatore_id = next;
+        roomState.valore_ruota = null;
+        updateCurrentPlayerIndicator();
+        document.getElementById('wheel-value').textContent = 'Valore: —';
+        enableSpinIfNeeded();
+    }
+
+    async function endRound(winnerId, fromSolve = false) {
+        if (!scores[winnerId]) {
+            scores[winnerId] = { roundScore: 0, totalScore: 0, jolly: 0 };
+        }
+        scores[winnerId].totalScore += scores[winnerId].roundScore;
+
+        if (isRoomOwner) {
+            const { error } = await supabase
+                .from('stanze')
+                .update({
+                    round_attivo: false,
+                    turno_giocatore_id: null,
+                    valore_ruota: null
+                })
+                .eq('stanza', currentRoomCode);
+            if (error) {
+                console.error('Errore chiusura round:', error);
+            }
+        }
+
+        updateScoresTable();
+        setStatus(fromSolve ? 'Round terminato con soluzione corretta!' : 'Round terminato: tutte le lettere rivelate.');
+        closeInputs();
+    }
+
+    async function handleBankrupt() {
+        if (!scores[currentPlayerId]) {
+            scores[currentPlayerId] = { roundScore: 0, totalScore: 0, jolly: 0 };
+        }
+        scores[currentPlayerId].roundScore = 0;
+        updateScoresTable();
+        setStatus('Bancarrotta! Hai perso i punti di questo round. Cambio turno.');
+        await changeTurn();
+    }
+
+    async function handleJolly() {
+        if (!scores[currentPlayerId]) {
+            scores[currentPlayerId] = { roundScore: 0, totalScore: 0, jolly: 0 };
+        }
+        scores[currentPlayerId].jolly += 1;
+        updateScoresTable();
+        setStatus('Hai guadagnato un Jolly! Puoi usarlo per non perdere il turno in caso di errore.');
+    }
+
+    async function handleMistero() {
+        const eventiMistero = [
+            { tipo: 'raddoppia', prob: 0.25 },
+            { tipo: 'perdi_tutto', prob: 0.20 },
+            { tipo: 'lettera_gratis', prob: 0.25 },
+            { tipo: 'vocale_gratis', prob: 0.15 },
+            { tipo: 'passa_turno', prob: 0.15 }
+        ];
+
+        let rnd = Math.random();
+        let scelto = eventiMistero[0];
+        for (let ev of eventiMistero) {
+            if (rnd < ev.prob) {
+                scelto = ev;
+                break;
+            }
+            rnd -= ev.prob;
+        }
+
+        if (!scores[currentPlayerId]) {
+            scores[currentPlayerId] = { roundScore: 0, totalScore: 0, jolly: 0 };
+        }
+
+        switch (scelto.tipo) {
+            case 'raddoppia':
+                scores[currentPlayerId].roundScore *= 2;
+                setStatus('Mistero: raddoppi il punteggio di round!');
+                break;
+            case 'perdi_tutto':
+                scores[currentPlayerId].roundScore = 0;
+                setStatus('Mistero: perdi tutti i punti di round.');
+                break;
+            case 'lettera_gratis':
+                setStatus('Mistero: puoi inserire una consonante gratis, senza girare la ruota.');
+                currentWheelValue = 100;
+                openLetterInput();
+                break;
+            case 'vocale_gratis':
+                setStatus('Mistero: puoi proporre una vocale gratis (non implementato qui, considerala bonus narrativo).');
+                break;
+            case 'passa_turno':
+                setStatus('Mistero: passi il turno.');
+                await changeTurn();
+                break;
+        }
+        updateScoresTable();
+    }
+
+    function readBoardSimple() {
+        if (!roomState || !roomState.frase) {
+            speak('Nessun tabellone attivo.');
+            return;
+        }
+        const normalized = normalizzaFrase(roomState.frase);
+        let out = '';
+        for (let i = 0; i < normalized.length; i++) {
+            const c = normalized[i];
+            if (c === ' ') {
+                out += ' / ';
+            } else if (roomState.lettere_rivelate.includes(i)) {
+                out += c + ' ';
             } else {
-                await broadcast('miss', `${myName} non trova ${ch}.`, {});
-                pass();
+                out += '_ ';
             }
         }
-    };
-
-    window.useJolly = async function() {
-        const {data:me}=await supabase.from('giocatori').select('jolly').eq('id',myId).single();
-        if ((me.jolly||0) <= 0) {
-            setControls('main');
-            return;
-        }
-        await supabase.from('giocatori').update({jolly:(me.jolly||0)-1}).eq('id',myId);
-        await broadcast('hit-1', `${myName} usa un jolly e mantiene il turno.`, {});
-        document.getElementById('jolly-decision-area').classList.add('hidden');
-        setControls('main');
-    };
-
-    window.confirmSolve = async function() {
-        if(!isMyTurn()) return;
-        const inp = document.getElementById('solve-input');
-        const txt = inp.value || '';
-        inp.value = '';
-        window.setControls('main'); 
-
-        if(window.normalize(txt) === curSol) {
-            const roundMoney = roomState.montepremi_round || 0;
-            const w = roundMoney < 1000 ? 1000 : roundMoney;
-            const {data:me}=await supabase.from('giocatori').select('punteggio_totale').eq('id',myId).single();
-            await supabase.from('giocatori').update({punteggio_totale:(me.punteggio_totale||0)+w}).eq('id',myId);
-            // Incrementa il numero di round giocati e azzera il montepremi del round
-            await supabase.from('stanze').update({
-                montepremi_round: 0,
-                round_giocati: (roomState.round_giocati || 0) + 1
-            }).eq('id', myRoomId);
-            let allIndices = []; let c = 0; for(let char of curSolDisp) if(char !== ' ') { allIndices.push(c); c++; }
-            await broadcast('hit-5', `VITTORIA! ${myName} indovina: ${curSolDisp}`, {lettere_rivelate: allIndices});
-            setTimeout(() => { startNewRound(); }, 8000); 
-        } else {
-            await broadcast('miss', `${myName} sbaglia soluzione.`); 
-            setTimeout(pass, 1500);
-        }
-    };
-
-    async function startNewRound() {
-        if(myIndex !== roomState.id_giocatore_corrente) return; 
-        // Controlla se è stato raggiunto il limite di 10 frasi
-        const roundsPlayed = roomState.round_giocati || 0;
-        if(roundsPlayed >= 10) {
-            await supabase.from('stanze').update({
-                stato: 'chiusa',
-                ultimo_messaggio: 'Partita conclusa: avete giocato 10 frasi!',
-                ultima_azione: 'fine_partita',
-                azione_timestamp: Date.now().toString()
-            }).eq('id', myRoomId);
-            return;
-        }
-        const prevWinnerIdx = roomState.vincitore_precedente_idx;
-        const consec = roomState.vittorie_consecutive || 0;
-        let newConsec = 1;
-        let nextStarter = myIndex;
-
-        if(prevWinnerIdx === myIndex) {
-            newConsec = consec + 1;
-            if(newConsec >= 2) {
-                const { count } = await supabase.from('giocatori').select('*', { count: 'exact', head: true }).eq('stanza_id', myRoomId);
-                nextStarter = (myIndex + 1) % count;
-                newConsec = 0;
-            }
-        }
-
-        await broadcast('spin_start', "Caricamento nuovo round...", {}); 
-        const { data: f } = await supabase.from('frasi').select('*');
-        const newFrase = f[Math.floor(Math.random()*f.length)];
-        await supabase.from('stanze').update({
-            frase_corrente_id: newFrase.id,
-            id_giocatore_corrente: nextStarter, 
-            vincitore_precedente_idx: myIndex,  
-            vittorie_consecutive: newConsec,    
-            lettere_chiamate: [], lettere_rivelate: [], montepremi_round: 0,
-            ultimo_messaggio: `Nuovo Round! Categoria: ${newFrase.categoria}`,
-            ultima_azione: 'ding', azione_timestamp: Date.now().toString()
-        }).eq('id', myRoomId);
+        speak('Tabellone: ' + out);
     }
 
-    // TASTI RAPIDI BASE
-    document.addEventListener('keydown', e => {
-        if(e.key === 'Escape') {
-            if(!document.getElementById('inspector-overlay').classList.contains('hidden')) {
-                closeInspector();
-                return;
+    function readBoardWithPositions() {
+        if (!roomState || !roomState.frase) {
+            speak('Nessun tabellone attivo.');
+            return;
+        }
+        const normalized = normalizzaFrase(roomState.frase);
+        let out = '';
+        for (let i = 0; i < normalized.length; i++) {
+            const c = normalized[i];
+            if (c === ' ') {
+                out += '| ';
+            } else if (roomState.lettere_rivelate.includes(i)) {
+                out += `${i + 1}:${c} `;
+            } else {
+                out += `${i + 1}:_ `;
             }
-            setControls('main');
         }
-        if(e.ctrlKey) {
-            if(e.key.toLowerCase()==='g') { e.preventDefault(); document.getElementById('btn-spin').click(); }
-            if(e.key.toLowerCase()==='v') { e.preventDefault(); document.getElementById('btn-buy-vowel').click(); }
-            if(e.key.toLowerCase()==='s') { e.preventDefault(); setControls('solve'); }
-            if(e.key.toLowerCase()==='i') { e.preventDefault(); openInspector(); }
+        speak('Tabellone con posizioni: ' + out);
+    }
+
+    function openInspector() {
+        const dbg = document.getElementById('debug-inspector');
+        if (!dbg) return;
+        dbg.style.display = dbg.style.display === 'none' || dbg.style.display === '' ? 'block' : 'none';
+        updateDebugInspector();
+    }
+
+    window.confirmLetter = confirmLetter;
+    window.confirmSolve = confirmSolve;
+    window.readBoardSimple = readBoardSimple;
+    window.readBoardWithPositions = readBoardWithPositions;
+
+    document.getElementById('create-room-btn').addEventListener('click', () => {
+        handleCreateRoom();
+    });
+    document.getElementById('join-room-btn').addEventListener('click', () => {
+        handleJoinRoom();
+    });
+    document.getElementById('spin-button').addEventListener('click', () => {
+        spinWheel();
+    });
+    document.getElementById('letter-confirm-btn').addEventListener('click', () => {
+        confirmLetter();
+    });
+    document.getElementById('solve-confirm-btn').addEventListener('click', () => {
+        confirmSolve();
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'F2') {
+            e.preventDefault();
+            let txt = '';
+            if (!currentRoomCode) {
+                txt = 'Nessuna stanza attiva.';
+            } else {
+                txt = `Stanza ${currentRoomCode}. `;
+                if (roomState) {
+                    txt += roomState.round_attivo ? 'Round in corso. ' : 'Round non avviato. ';
+                    if (roomState.turno_giocatore_id) {
+                        const p = players.find(pl => pl.id === roomState.turno_giocatore_id);
+                        if (p) txt += `Turno di ${p.nome}. `;
+                    }
+                    if (roomState.valore_ruota) {
+                        txt += `Valore della ruota: ${roomState.valore_ruota}. `;
+                    }
+                }
+            }
+            speak(txt);
+        } else if (e.key === 'F3') {
+            e.preventDefault();
+            readBoardSimple();
+        } else if (e.key.toLowerCase() === 'g') {
+            e.preventDefault();
+            spinWheel();
+        } else if (e.key.toLowerCase() === 'l') {
+            e.preventDefault();
+            openLetterInput();
+        } else if (e.key.toLowerCase() === 's') {
+            e.preventDefault();
+            openSolveInput();
+        } else if (e.key.toLowerCase() === 'j') {
+            e.preventDefault();
+            handleJolly();
+        } else if (e.key.toLowerCase() === 'i') {
+            e.preventDefault();
+            openInspector();
         }
-        if(e.key === 'Enter') {
+
+        if (e.key === 'Enter') {
             const letterArea = !document.getElementById('letter-input-area').classList.contains('hidden');
             const solveArea = !document.getElementById('solve-input-area').classList.contains('hidden');
-            if(letterArea) window.confirmLetter();
-            if(solveArea) window.confirmSolve();
+            if (letterArea) window.confirmLetter();
+            if (solveArea) window.confirmSolve();
         }
     });
 

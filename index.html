@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>La Ruota - V31 (Anti-Fantasma)</title>
+    <title>La Ruota - V33 (Suoni Multipli)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -67,15 +67,19 @@
         #wheel-status-text { font-size: 1.5em; color: #ffd700; text-align: center; margin: 15px 0; font-weight: bold; }
 
         /* RUOTA VISIVA */
-        #wheel-wrapper { position: relative; width: 200px; height: 200px; margin: 0 auto 20px auto; }
-        #wheel-visual {
-            width: 100%; height: 100%; border-radius: 50%; border: 5px solid #fff;
-            background: conic-gradient(#ff0000 0deg 36deg, #ff8800 36deg 72deg, #ffff00 72deg 108deg, #00aa00 108deg 144deg, #0088ff 144deg 180deg, #8800ff 180deg 216deg, #ff00ff 216deg 252deg, #222222 252deg 288deg, #cccccc 288deg 324deg, #ffd700 324deg 360deg);
+        #wheel-wrapper { position: relative; width: 300px; height: 300px; margin: 0 auto 20px auto; }
+        
+        #wheel-img {
+            width: 100%; height: 100%; 
+            border-radius: 50%; 
+            border: 5px solid #fff;
+            object-fit: cover;
             transition: transform 3s cubic-bezier(0.1, 0.8, 0.1, 1);
         }
+        
         #wheel-pointer {
-            position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
-            width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-top: 20px solid #ffffff; z-index: 3;
+            position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
+            width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-top: 30px solid #ffffff; z-index: 10;
         }
 
         /* OVERLAYS */
@@ -128,7 +132,7 @@
                 <div class="col-visual">
                     <div id="wheel-wrapper" aria-hidden="true">
                         <div id="wheel-pointer"></div>
-                        <div id="wheel-visual"></div>
+                        <img id="wheel-img" src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/dc/Wheel_of_Fortune_Round_4_2017.png/600px-Wheel_of_Fortune_Round_4_2017.png" alt="Immagine Ruota">
                     </div>
                     
                     <div id="wheel-status-text">GIRA LA RUOTA</div>
@@ -200,6 +204,25 @@
     }
 
     function cleanStr(str) { return str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/g, ""); }
+    
+    // V33: RIPRISTINATO SUONO MULTIPLO
+    function playHitSound(times) {
+        let count = 0;
+        function loop() {
+            if (count < times) {
+                const audio = document.getElementById('snd-hit');
+                if(audio) { 
+                    audio.currentTime = 0; 
+                    audio.play().catch(()=>{}); 
+                }
+                count++; 
+                // Ripeti ogni 400ms per un suono distinto
+                setTimeout(loop, 400);
+            }
+        } 
+        loop();
+    }
+    
     function play(id) { document.getElementById(id).play().catch(()=>{}); }
 
     // --- TASTIERA ---
@@ -211,7 +234,6 @@
         if (!e.key) return;
         const inInput = (document.activeElement.tagName === 'INPUT');
 
-        // T: LEGGI ARGOMENTO
         if(e.key.toLowerCase() === 't' && !inInput) {
             e.preventDefault();
             speak("Argomento: " + currentCategory);
@@ -239,7 +261,6 @@
             return;
         }
 
-        // FRECCE
         if(!inInput && roomState.stato === 'gioco' && parsedBoard.length > 0) {
             if(['ArrowRight','ArrowLeft','ArrowDown','ArrowUp'].includes(e.key)) {
                 e.preventDefault();
@@ -278,7 +299,7 @@
         }
     }
 
-    // --- GESTIONE INGRESSO ---
+    // --- GESTIONE INGRESSO ANTI-FANTASMA ---
     async function joinGame(create) {
         const name = document.getElementById('inp-name').value.trim().toUpperCase();
         const code = document.getElementById('inp-code').value.trim().toUpperCase();
@@ -300,10 +321,9 @@
             myRoomId = data.id;
         }
 
-        // V31: ANTI-FANTASMA - Cancella vecchi giocatori con lo stesso nome nella stanza
+        // PULIZIA PREVENTIVA
         await supabase.from('giocatori').delete().eq('stanza_id', myRoomId).eq('nome', name);
 
-        // Ora entra pulito
         const {count} = await supabase.from('giocatori').select('*',{count:'exact',head:true}).eq('stanza_id',myRoomId);
         const safeIndex = count || 0;
         const {data:neu} = await supabase.from('giocatori').insert({stanza_id:myRoomId, nome:name, indice:safeIndex}).select().single();
@@ -336,7 +356,6 @@
         const gameList = document.getElementById('player-list');
         gameList.innerHTML = '';
         
-        // V31: Logica Host più robusta. Se sono il primo (o l'unico), sono Host.
         if (pl.length > 0) {
             if (pl[0].id === myId) { 
                 isHost = true; 
@@ -409,12 +428,8 @@
     function doSpin() {
         if(isSpinning) return;
         
-        const visual = document.getElementById('wheel-visual');
-        if(!visual) {
-            console.error("Elemento ruota non trovato!");
-            finishSpinLogic();
-            return;
-        }
+        const visual = document.getElementById('wheel-img');
+        if(!visual) { finishSpinLogic(); return; }
 
         isSpinning = true;
         play('snd-spin');
@@ -453,13 +468,11 @@
         }
     }
 
-    // V31: RESET CHE FORZA IL TURNO A ME
     async function forceReset() {
         isSpinning = false;
         inputMode = null;
         closeInput();
-        speak("Forzo il turno a te...");
-        // Questo è il trucco: dico al database che tocca al mio indice
+        speak("Sblocco: prendo il turno.");
         await supabase.from('stanze').update({id_giocatore_corrente: myIndex}).eq('id', myRoomId);
     }
 
@@ -534,7 +547,9 @@
         if(ind.length > 0 && currentRevealed.includes(ind[0])) {
             speak("Già detta!"); passTurn();
         } else if(ind.length > 0) {
-            play('snd-hit'); speak("Ce ne sono "+ind.length);
+            // V33: CHIAMATA AL SUONO MULTIPLO
+            playHitSound(ind.length); 
+            speak("Ce ne sono "+ind.length);
             let nr = [...new Set([...currentRevealed,...ind])];
             if(mode === 'letter') {
                  const {data:me} = await supabase.from('giocatori').select('punteggio_totale').eq('id',myId).single();

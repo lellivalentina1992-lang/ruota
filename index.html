@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>La Ruota - Accessibile V6</title>
+    <title>La Ruota - Accessibile V7</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -95,7 +95,7 @@
 </div>
 
 <div class="container">
-    <h1>LA RUOTA V6</h1>
+    <h1>LA RUOTA V7</h1>
 
     <div id="setup-panel">
         <label for="inp-name">Tuo Nome:</label>
@@ -138,7 +138,7 @@
         </div>
 
         <div id="host-controls" class="hidden" style="margin-top:20px;">
-            <button onclick="startNewRound()" style="width:100%; padding:15px; background:#550000; color:fff;">[HOST] NUOVO ROUND</button>
+            <button onclick="startNewRound()" style="width:100%; padding:15px; background:#550000; color:fff;">[HOST] NUOVO ROUND (Ctrl+H)</button>
         </div>
     </div>
 </div>
@@ -170,7 +170,7 @@
     let roomState = {};
     let currentSolution = "";
     let currentRevealed = [];
-    let inputMode = null; // 'letter', 'vowel', 'solve'
+    let inputMode = null; 
     let isSpinning = false;
     
     // NAVIGAZIONE TABELLONE
@@ -234,7 +234,7 @@
         if (e.key === 'Escape') {
             e.preventDefault();
             document.getElementById('btn-spin').focus();
-            speak("Focus su azioni.");
+            speak("Uscito dal tabellone. Focus su Gira Ruota.");
             return;
         }
 
@@ -301,16 +301,25 @@
         speak(msg);
     }
 
-    // --- TASTI GLOBALI ---
+    // --- TASTI GLOBALI E SCORCIATOIE ---
     document.addEventListener('keydown', (e) => {
-        // DEBUG LOG
-        if(e.key === 'Control' || e.key === 'g') console.log("Tasto premuto:", e.key, "Ctrl:", e.ctrlKey, "InputMode:", inputMode);
-
         // CTRL+I Inspector
         if (e.ctrlKey && (e.key === 'i' || e.key === 'I')) {
             e.preventDefault(); openInspector(); return;
         }
         
+        // CTRL+H: HOST START (CRUCIALE PER TE)
+        if (e.ctrlKey && (e.key === 'h' || e.key === 'H')) {
+            e.preventDefault();
+            if(isHost) {
+                speak("Avvio nuovo round...");
+                startNewRound();
+            } else {
+                speak("Non sei l'host.");
+            }
+            return;
+        }
+
         // ESC GENERICO
         if (e.key === 'Escape') {
             if(inputMode) closeInput();
@@ -319,27 +328,33 @@
             return;
         }
 
-        // SCORCIATOIE GIOCO
-        // Funzionano solo se non sto scrivendo (inputMode null) e sono nel gioco
+        // COMANDI DI GIOCO (G, V, S)
         if (inputMode === null && !document.getElementById('game-panel').classList.contains('hidden')) {
             
-            // Controllo turno per feedback
-            const isMyTurn = (roomState.id_giocatore_corrente === myIndex && roomState.stato === 'gioco');
+            // Se premo CTRL+G, V o S, controllo perché non posso agire
+            if (e.ctrlKey) {
+                const k = e.key.toLowerCase();
+                if (k === 'g' || k === 'v' || k === 's') {
+                    e.preventDefault();
+                    
+                    // 1. Controllo se il gioco è fermo
+                    if (roomState.stato !== 'gioco') {
+                        if(isHost) speak("Il round è fermo. Premi Control H per iniziare.");
+                        else speak("Il round è fermo. L'host deve avviarlo.");
+                        return;
+                    }
 
-            if (e.ctrlKey && (e.key === 'g' || e.key === 'G')) { 
-                e.preventDefault(); 
-                if(isMyTurn) doSpin(); 
-                else speak("Non è il tuo turno");
-            }
-            if (e.ctrlKey && (e.key === 'v' || e.key === 'V')) { 
-                e.preventDefault(); 
-                if(isMyTurn) openInput('vowel');
-                else speak("Non è il tuo turno");
-            }
-            if (e.ctrlKey && (e.key === 's' || e.key === 'S')) { 
-                e.preventDefault(); 
-                if(isMyTurn) openInput('solve');
-                else speak("Non è il tuo turno");
+                    // 2. Controllo se è il mio turno
+                    if (roomState.id_giocatore_corrente !== myIndex) {
+                        speak("Non è il tuo turno. Tocca al giocatore " + roomState.id_giocatore_corrente);
+                        return;
+                    }
+
+                    // 3. Eseguo azione
+                    if (k === 'g') doSpin();
+                    if (k === 'v') openInput('vowel');
+                    if (k === 's') openInput('solve');
+                }
             }
         }
     });
@@ -387,20 +402,20 @@
         if(exist) {
             myId=exist.id; myIndex=exist.indice; isHost=exist.is_host;
             speak("Bentornato " + name);
+            if(isHost) speak("Sei Host. Premi Control H per iniziare.");
         } else {
             const {count} = await supabase.from('giocatori').select('*',{count:'exact', head:true}).eq('stanza_id',rId);
             const {data:neu} = await supabase.from('giocatori').insert({stanza_id:rId, nome:name, indice:count||0, is_host:isHost}).select().single();
             myId=neu.id; myIndex=neu.indice;
             speak("Sei entrato come " + name);
+            if(isHost) speak("Premi Control H per iniziare.");
         }
         
         document.getElementById('setup-panel').classList.add('hidden');
         document.getElementById('game-panel').classList.remove('hidden');
         if(isHost) document.getElementById('host-controls').classList.remove('hidden');
         
-        // Focus iniziale sul pulsante di gioco
         document.getElementById('btn-spin').focus();
-        
         startSync();
     }
 
@@ -415,17 +430,22 @@
         roomState = data;
         
         // Turno
-        const isMyTurn = (data.id_giocatore_corrente === myIndex);
+        const isMyTurn = (data.id_giocatore_corrente === myIndex && data.stato === 'gioco');
         const ti = document.getElementById('turn-indicator');
-        if(isMyTurn) {
+        
+        if (data.stato !== 'gioco') {
+            ti.textContent = "GIOCO IN ATTESA (Host premi CTRL+H)";
+            ti.className = '';
+        } else if (isMyTurn) {
             ti.textContent = "È IL TUO TURNO!";
             ti.className = 'turn-active';
-            ['btn-spin','btn-vowel','btn-solve'].forEach(id=>document.getElementById(id).disabled=false);
         } else {
             ti.textContent = `Turno di Giocatore ${data.id_giocatore_corrente}`;
             ti.className = '';
-            ['btn-spin','btn-vowel','btn-solve'].forEach(id=>document.getElementById(id).disabled=true);
         }
+        
+        // Abilita/Disabilita pulsanti visivi
+        ['btn-spin','btn-vowel','btn-solve'].forEach(id => document.getElementById(id).disabled = !isMyTurn);
 
         // Ruota
         const w = document.getElementById('wheel-status');
@@ -457,7 +477,7 @@
         data.forEach(p => {
             const li = document.createElement('li');
             li.textContent = `${p.nome}: €${p.punteggio_totale}`;
-            if(p.indice === roomState.id_giocatore_corrente) li.style.color='#00ff00';
+            if(p.indice === roomState.id_giocatore_corrente && roomState.stato === 'gioco') li.style.color='#00ff00';
             if(p.id === myId) document.getElementById('my-score').textContent = `Tu: €${p.punteggio_totale}`;
             list.appendChild(li);
         });
@@ -493,7 +513,7 @@
     }
 
     function openInput(mode) {
-        inputMode = mode; // Imposta modalità
+        inputMode = mode; 
         const area = document.getElementById('input-area');
         const lbl = document.getElementById('input-label');
         const inp = document.getElementById('game-input');
@@ -517,7 +537,6 @@
         const txt = document.getElementById('game-input').value.toUpperCase().trim();
         if(!txt) return;
         
-        // SALVA IL MODO PRIMA DI RESETTARE
         const currentMode = inputMode; 
         
         // Chiudi UI

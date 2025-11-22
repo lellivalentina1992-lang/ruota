@@ -18,7 +18,6 @@
             text-align: center;
         }
 
-        /* Focus molto visibile per ipovedenti */
         *:focus {
             outline: 4px solid #ffd700 !important;
             box-shadow: 0 0 15px #ffd700;
@@ -34,10 +33,8 @@
         }
         .hidden { display: none !important; }
 
-        /* Layout */
         .container { max-width: 1000px; margin: 0 auto; }
 
-        /* Pannelli */
         #setup-panel, #lobby-panel {
             border: 2px solid #ffd700;
             padding: 20px;
@@ -210,7 +207,7 @@
         </div>
     </div>
 
-    <!-- Overlay di input (consonante/vocale/soluzione) -->
+    <!-- Overlay di input -->
     <div id="input-area" class="hidden">
         <h2 id="input-title" style="color:#ffd700">INSERISCI</h2>
         <input id="game-input" type="text" autocomplete="off">
@@ -278,7 +275,7 @@
         let myIndex = null;
         let roomId = null;
         let isHost = false;
-        let myName = "";               // <--- usata nei messaggi
+        let myName = "";
         let currentFrase = null;
         let currentStanza = null;
         let lastTimestamp = "";
@@ -286,7 +283,6 @@
         let inputMode = null;
         let wheelAngle = 0;
 
-        // --- ACCESSIBILITÀ ---
         function speak(text) {
             const el = document.getElementById('sr-announcer');
             el.textContent = '';
@@ -301,7 +297,7 @@
                 speak("Inserisci il nome");
                 return;
             }
-            myName = name; // salva globalmente, usato nei messaggi
+            myName = name;
 
             let stanza;
 
@@ -331,7 +327,6 @@
             }
             roomId = stanza.id;
 
-            // pulizia eventuale
             await supabase.from('giocatori')
                 .delete()
                 .eq('stanza_id', roomId)
@@ -358,7 +353,6 @@
 
             myId = player.id;
 
-            // UI
             document.getElementById('setup-panel').classList.add('hidden');
             document.getElementById('game-panel').classList.remove('hidden');
             if (isHost) document.getElementById('host-controls').classList.remove('hidden');
@@ -369,7 +363,6 @@
             fetchFullState();
         }
 
-        // --- REALTIME ---
         function setupRealtime() {
             supabase.channel('game')
                 .on(
@@ -394,7 +387,6 @@
             currentStanza = stanza;
             currentFrase = stanza.frasi;
 
-            // 1. Messaggi & Audio
             if (stanza.azione_timestamp && stanza.azione_timestamp !== lastTimestamp) {
                 lastTimestamp = stanza.azione_timestamp;
                 if (stanza.ultimo_messaggio) speak(stanza.ultimo_messaggio);
@@ -415,12 +407,10 @@
                 if (stanza.ultima_azione === 'vittoria') playTone('win');
             }
 
-            // 2. Nuovo Round
             if (currentFrase.id !== oldFraseId) {
                 speak("Nuovo Round! Argomento: " + currentFrase.categoria);
             }
 
-            // 3. Dati a video
             document.getElementById('live-category').textContent =
                 "ARGOMENTO: " + currentFrase.categoria;
             document.getElementById('wheel-status-text').textContent =
@@ -428,24 +418,20 @@
                     ? `IN PALIO: €${stanza.montepremi_round}`
                     : "GIRA LA RUOTA";
 
-            // 4. Tabellone (versione accessibile migliorata)
             renderBoard(currentFrase.soluzione, stanza.lettere_rivelate);
 
-            // 5. Turno
             const isMyTurn = (stanza.id_giocatore_corrente === myIndex);
             const turnTxt = isMyTurn ? "È IL TUO TURNO" : "Turno avversario";
             const turnEl = document.getElementById('turn-indicator');
             turnEl.textContent = turnTxt;
             turnEl.style.color = isMyTurn ? "#00ff00" : "#ffffff";
 
-            // Tasti
             const busy = isSpinning || !!inputMode;
             document.getElementById('btn-spin').disabled   = !isMyTurn || busy;
             document.getElementById('btn-letter').disabled = !isMyTurn || busy;
             document.getElementById('btn-vowel').disabled  = !isMyTurn || busy;
             document.getElementById('btn-solve').disabled  = !isMyTurn || busy;
 
-            // Soldi
             const me = stanza.giocatori.find(p => p.indice === myIndex);
             if (me) {
                 const jolly = (typeof me.jolly === 'number') ? me.jolly : 0;
@@ -454,13 +440,12 @@
             }
         }
 
-        // --- TABELLONE (unione del meglio delle due versioni) ---
+        // --- TABELLONE: NIENTE TABINDEX, SI LEGGE CON LE FRECCE ---
         function renderBoard(text, revealedIndices) {
             const container = document.getElementById('board-container');
             container.innerHTML = '';
 
             const chars = text.toUpperCase().split('');
-            // se il campo nel DB è nullo, metto array vuoto
             const revealed = Array.isArray(revealedIndices) ? revealedIndices : [];
 
             let letterCounter = 0;
@@ -471,7 +456,6 @@
                 const div = document.createElement('div');
 
                 if (!isLetter) {
-                    // Spazio tra le parole
                     div.className = 'tile space';
                     div.setAttribute('aria-hidden', 'true');
                 } else {
@@ -480,16 +464,12 @@
                     div.className = isRevealed ? 'tile' : 'tile empty';
                     div.textContent = isRevealed ? char : '';
 
-                    // Accessibilità: ogni casella è tab-navigabile
-                    div.setAttribute('tabindex', '0');
-
+                    // niente tabindex -> NVDA lo leggerà con le frecce come normale contenuto
                     let label;
                     if (isRevealed) {
                         const nato = NATO[char] ? `, ${NATO[char]}` : '';
-                        // Lettera + codifica NATO + posizione
                         label = `Lettera ${char}${nato}. ${letterCounter} di ${totalLetters}.`;
                     } else {
-                        // Casella vuota, ma con posizione
                         label = `Vuota. ${letterCounter} di ${totalLetters}.`;
                     }
                     div.setAttribute('aria-label', label);
@@ -499,7 +479,7 @@
             });
         }
 
-        // --- LOGICA AZIONI ---
+        // --- RUOTA ---
         async function doSpin() {
             if (isSpinning) {
                 speak("Aspetta che finisca la rotazione.");
@@ -521,7 +501,6 @@
                 azione_timestamp: new Date().toISOString()
             }).eq('id', roomId);
 
-            // PASSA / BANCAROTTA / JOLLY semplificati
             if (typeof val !== 'number' && val !== 'JOLLY') {
                 setTimeout(async () => {
                     speak(val + "! Passi il turno.");
@@ -591,7 +570,6 @@
 
             speak("Controllo " + txt + "...");
 
-            // --- RISOLUZIONE COMPLETA ---
             if (mode === 'solve') {
                 const real = currentFrase.soluzione.toUpperCase().trim();
                 if (txt === real) {
@@ -617,7 +595,6 @@
                 return;
             }
 
-            // --- LETTERA / VOCALE ---
             const char = txt.charAt(0);
             const sol = currentFrase.soluzione.toUpperCase();
             let found = [];
@@ -628,7 +605,6 @@
             const oldRev = currentStanza.lettere_rivelate || [];
             const count = found.length;
 
-            // Vocale: costo 500 se possibile
             if (mode === 'vowel') {
                 const me = currentStanza.giocatori.find(p => p.id === myId);
                 if (!me || me.punteggio_totale < 500) {
@@ -649,7 +625,6 @@
                 if (isNew) {
                     msg = `${myName} chiama ${char}. Ce ne sono ${count}!`;
 
-                    // Aggiungo soldi solo per consonanti
                     if (mode === 'letter') {
                         const val = currentStanza.montepremi_round || 0;
                         const me2 = currentStanza.giocatori.find(p => p.id === myId);
@@ -696,7 +671,6 @@
             }).eq('id', roomId);
         }
 
-        // --- HELPER DI LETTURA ---
         function readTopic() {
             if (currentFrase) speak("Argomento: " + currentFrase.categoria);
         }
@@ -707,12 +681,10 @@
             tiles.forEach(t => {
                 if (!t.classList.contains('empty')) revealed++;
             });
-            speak(`Tabellone: ${revealed} lettere scoperte su ${tiles.length}. Usa il tasto TAB per spostarti tra le caselle.`);
+            speak(`Tabellone: ${revealed} lettere scoperte su ${tiles.length}. Usa le frecce di NVDA per leggere le caselle in ordine.`);
         }
 
-        // --- SCORCIATOIE DA TASTIERA ---
         document.addEventListener('keydown', (e) => {
-            // Se è aperto l'overlay di input
             if (inputMode) {
                 if (e.key === 'Escape') {
                     e.preventDefault();

@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>La Ruota - V30 (Anti-Blocco)</title>
+    <title>La Ruota - V31 (Anti-Fantasma)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -35,7 +35,7 @@
             color: #ffff00; font-size: 2.5em; font-weight: 900; margin: 0;
             text-transform: uppercase; letter-spacing: 2px;
             border-bottom: 2px solid #fff; padding-bottom: 15px; margin-bottom: 15px;
-            min-height: 1.2em; /* Evita che sparisca se vuoto */
+            min-height: 1.2em; 
         }
         
         /* TABELLONE */
@@ -66,12 +66,12 @@
         
         #wheel-status-text { font-size: 1.5em; color: #ffd700; text-align: center; margin: 15px 0; font-weight: bold; }
 
-        /* RUOTA VISIVA (Importante per l'errore) */
+        /* RUOTA VISIVA */
         #wheel-wrapper { position: relative; width: 200px; height: 200px; margin: 0 auto 20px auto; }
         #wheel-visual {
             width: 100%; height: 100%; border-radius: 50%; border: 5px solid #fff;
             background: conic-gradient(#ff0000 0deg 36deg, #ff8800 36deg 72deg, #ffff00 72deg 108deg, #00aa00 108deg 144deg, #0088ff 144deg 180deg, #8800ff 180deg 216deg, #ff00ff 216deg 252deg, #222222 252deg 288deg, #cccccc 288deg 324deg, #ffd700 324deg 360deg);
-            transition: transform 3s cubic-bezier(0.1, 0.8, 0.1, 1); /* Durata fissa */
+            transition: transform 3s cubic-bezier(0.1, 0.8, 0.1, 1);
         }
         #wheel-pointer {
             position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
@@ -140,7 +140,7 @@
                     </div>
                     <button id="btn-read-letters" class="btn-secondary" onclick="readRevealedLetters()" style="background:#333; color:#fff;">RILEGGI LETTERE (Ctrl+L)</button>
                     
-                    <button onclick="forceReset()" style="background:#440000; margin-top:20px;">SBLOCCA GIOCO (Se bloccato)</button>
+                    <button onclick="forceReset()" style="background:#660000; border-color:#ff0000; color:#fff; margin-top:20px; font-weight:900;">SBLOCCA: PRENDI TURNO</button>
 
                     <div style="text-align:center; margin-top:20px; color:#aaa;">
                         Premi <strong>'T'</strong> per rileggere l'Argomento.<br>
@@ -186,7 +186,7 @@
     let currentCategory = "ATTESA";
     let currentRevealed = [];
     let inputMode = null;
-    let isSpinning = false; // Variabile critica
+    let isSpinning = false;
     let isProcessing = false;
     let navWordIdx = 0;
     let navCharIdx = 0;
@@ -300,6 +300,10 @@
             myRoomId = data.id;
         }
 
+        // V31: ANTI-FANTASMA - Cancella vecchi giocatori con lo stesso nome nella stanza
+        await supabase.from('giocatori').delete().eq('stanza_id', myRoomId).eq('nome', name);
+
+        // Ora entra pulito
         const {count} = await supabase.from('giocatori').select('*',{count:'exact',head:true}).eq('stanza_id',myRoomId);
         const safeIndex = count || 0;
         const {data:neu} = await supabase.from('giocatori').insert({stanza_id:myRoomId, nome:name, indice:safeIndex}).select().single();
@@ -332,12 +336,17 @@
         const gameList = document.getElementById('player-list');
         gameList.innerHTML = '';
         
+        // V31: Logica Host più robusta. Se sono il primo (o l'unico), sono Host.
         if (pl.length > 0) {
-            if (pl[0].id === myId && !isHost) { 
+            if (pl[0].id === myId) { 
                 isHost = true; 
                 document.getElementById('host-controls').classList.remove('hidden'); 
                 document.getElementById('btn-start-round').classList.remove('hidden');
                 document.getElementById('lobby-msg').textContent = "SEI L'HOST! Premi AVVIA PARTITA.";
+            } else {
+                isHost = false;
+                document.getElementById('host-controls').classList.add('hidden');
+                document.getElementById('btn-start-round').classList.add('hidden');
             }
         }
 
@@ -375,15 +384,13 @@
         document.getElementById('wheel-status-text').textContent = data.montepremi_round > 0 ? `VALORE: €${data.montepremi_round}` : "GIRA LA RUOTA";
 
         if(data.frase_corrente_id) {
-            // FIX V30: Aggiorno SOLO se necessario per evitare sfarfallii, ma pulisco se cambia
-            if(data.frase_corrente_id !== currentSolution.id) { // Controllo approssimativo
+            if(data.frase_corrente_id !== currentSolution.id) {
                  const {data:f} = await supabase.from('frasi').select('*').eq('id',data.frase_corrente_id).single();
                  if(f) { 
                     currentSolution = f.soluzione.toUpperCase(); 
                     currentCategory = f.categoria.toUpperCase();
                     
-                    // FIX V30: Pulizia testo
-                    document.getElementById('live-category').textContent = ""; // Pulisco prima
+                    document.getElementById('live-category').textContent = ""; 
                     setTimeout(() => {
                         document.getElementById('live-category').textContent = "ARGOMENTO: " + currentCategory;
                         document.getElementById('input-category-display').textContent = "ARGOMENTO: " + currentCategory;
@@ -396,17 +403,14 @@
             parseBoardData();
         }
 
-        // FIX V30: Safety Check - se non sto girando ma ho soldi, apri input
         if(isMyTurn && data.montepremi_round > 0 && !inputMode && !isSpinning) openInput('letter');
     }
 
-    // FIX V30: FUNZIONE DO SPIN BLINDATA
     function doSpin() {
         if(isSpinning) return;
         
         const visual = document.getElementById('wheel-visual');
         if(!visual) {
-            // Fallback se l'elemento non esiste (per l'errore console)
             console.error("Elemento ruota non trovato!");
             finishSpinLogic();
             return;
@@ -417,16 +421,10 @@
         wheelRot += (720 + Math.random() * 360);
         visual.style.transform = `rotate(${wheelRot}deg)`;
         
-        // FIX V30: Timeout di sicurezza. Se si blocca, si sblocca da solo dopo 4s
-        const safetyTimer = setTimeout(() => {
-            if(isSpinning) {
-                console.log("Sblocco di sicurezza attivato");
-                isSpinning = false;
-            }
-        }, 4000);
+        const safetyTimer = setTimeout(() => { if(isSpinning) isSpinning = false; }, 4000);
 
         setTimeout(async () => {
-            clearTimeout(safetyTimer); // Tutto ok, cancello il timer
+            clearTimeout(safetyTimer); 
             await finishSpinLogic();
         }, 3000);
     }
@@ -455,12 +453,14 @@
         }
     }
 
-    // NUOVA FUNZIONE DI EMERGENZA
-    function forceReset() {
+    // V31: RESET CHE FORZA IL TURNO A ME
+    async function forceReset() {
         isSpinning = false;
         inputMode = null;
         closeInput();
-        speak("Gioco sbloccato.");
+        speak("Forzo il turno a te...");
+        // Questo è il trucco: dico al database che tocca al mio indice
+        await supabase.from('stanze').update({id_giocatore_corrente: myIndex}).eq('id', myRoomId);
     }
 
     async function handleMistero() {
@@ -565,7 +565,6 @@
         
         speak("Nuovo round! Argomento: " + currentCategory);
         
-        // FIX V30: Reset forzato variabili locali
         isSpinning = false;
         inputMode = null;
 

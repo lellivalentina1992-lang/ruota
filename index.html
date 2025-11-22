@@ -663,7 +663,6 @@
         <div id="controls-info">
             <p><strong>Comandi da tastiera:</strong></p>
             <p><kbd>CTRL+G</kbd> Gira ruota · <kbd>CTRL+V</kbd> Compra vocale · <kbd>CTRL+S</kbd> Risolvi frase</p>
-            <p><kbd>F2</kbd> Stato stanza · <kbd>F3</kbd> Tabellone</p>
             <p><kbd>ESC</kbd> Annulla inserimento · <kbd>INVIO</kbd> Conferma lettera/soluzione</p>
         </div>
 
@@ -1303,7 +1302,9 @@
                 await supabase.from('stanze').update({
                     montepremi_round: value
                 }).eq('id', myRoomId);
-                await broadcast('after_spin', `Valore ruota: €${value}. Chiama una consonante o compra una vocale.`);
+                await broadcast('after_spin', `Valore ruota: €${value}. Chiama una consonante.`);
+                // DOPO IL GIRO CON VALORE NUMERICO: APRO DIRETTAMENTE L'INSERIMENTO CONSONANTE
+                setControls('letter');
             }
         }, 4100);
     }
@@ -1358,9 +1359,21 @@
 
     function setControls(mode) {
         controlsMode = mode;
-        document.getElementById('letter-input-area').classList.toggle('hidden', mode !== 'letter' && mode !== 'vowel');
-        document.getElementById('solve-input-area').classList.toggle('hidden', mode !== 'solve');
-        document.getElementById('jolly-decision-area').classList.toggle('hidden', mode !== 'jolly');
+        const letterArea = document.getElementById('letter-input-area');
+        const solveArea = document.getElementById('solve-input-area');
+        const jollyArea = document.getElementById('jolly-decision-area');
+        const letterLabel = document.getElementById('letter-label');
+
+        letterArea.classList.toggle('hidden', mode !== 'letter' && mode !== 'vowel');
+        solveArea.classList.toggle('hidden', mode !== 'solve');
+        jollyArea.classList.toggle('hidden', mode !== 'jolly');
+
+        if (mode === 'letter') {
+            letterLabel.textContent = 'Consonante:';
+        } else if (mode === 'vowel') {
+            letterLabel.textContent = 'Vocale:';
+        }
+
         if (mode === 'main') {
             document.getElementById('letter-input').value = '';
             document.getElementById('solve-input').value = '';

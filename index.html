@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>La Ruota - V21 (No Ripetizioni)</title>
+    <title>La Ruota - V23 (Argomento Visibile)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -14,8 +14,8 @@
         }
         *:focus { outline: 4px solid #ffd700 !important; outline-offset: 4px; box-shadow: 0 0 15px #ffd700; }
 
-        h1 { color: #ffd700; text-align: center; text-shadow: 2px 2px 0 #ff0000; font-size: 2em; margin-bottom: 10px; }
-        .container { max-width: 1000px; margin: 0 auto; }
+        h1 { color: #444; font-size: 1em; text-align: center; margin-bottom: 5px; } /* Titolo molto piccolo e scuro, ignorabile */
+        .container { max-width: 1000px; margin: 0 auto; padding-bottom: 50px; }
 
         /* SETUP & LOBBY */
         #setup-panel, #lobby-panel {
@@ -34,16 +34,26 @@
         }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
 
-        /* STATUS BAR */
+        /* STATUS BAR - Ora focalizzata sull'ARGOMENTO */
         .status-bar {
             background: linear-gradient(90deg, #002244 0%, #004488 100%);
-            padding: 15px; text-align: center; font-size: 1.3em;
+            padding: 20px; text-align: center;
             border: 2px solid #0088ff; border-radius: 10px; margin-bottom: 20px;
+            display: flex; flex-direction: column; gap: 10px;
         }
+        
+        /* LO STILE PER L'ARGOMENTO/CATEGORIA */
+        #live-category {
+            color: #ffd700; font-size: 1.8em; font-weight: 900; 
+            text-transform: uppercase; letter-spacing: 1px;
+            text-shadow: 2px 2px 0 #000; border-bottom: 1px solid #0066aa; padding-bottom: 10px;
+        }
+        
         .turn-active {
             background: linear-gradient(90deg, #004400 0%, #008800 100%);
-            border-color: #00ff00; color: #fff; text-shadow: 0 0 5px #00ff00;
+            border-color: #00ff00; 
         }
+        .turn-active #live-category { text-shadow: 2px 2px 0 #003300; }
 
         /* GIOCO VISIBILE */
         #active-game-interface { display: none; }
@@ -124,6 +134,8 @@
 
 <div id="sr-announcer" class="sr-only" aria-live="assertive"></div>
 
+<h1>Ruota della Fortuna</h1>
+
 <div id="inspector-overlay" class="hidden" role="dialog" aria-label="Ispettore Testuale">
     <div style="background:#222; padding:30px; border-radius:10px; border:2px solid #ffd700; max-width:90%; max-height:80%; overflow:auto;">
         <h2 style="color:#ffd700; margin-top:0;">Modalità Lettura (Frecce SU/GIÙ)</h2>
@@ -133,8 +145,7 @@
 </div>
 
 <div class="container">
-    <h1>LA RUOTA DELLA FORTUNA</h1>
-
+    
     <div id="setup-panel">
         <label style="font-size:1.2em;">Tuo Nome:</label>
         <input id="inp-name" type="text" placeholder="Nome">
@@ -157,15 +168,16 @@
         </div>
 
         <div id="active-game-interface">
-            <div class="status-bar">
-                <div id="turn-indicator">In attesa...</div>
-                <div id="my-score" style="font-size:0.9em; margin-top:5px; color:#ffd700;">Tu: €0 | Jolly: 0</div>
+            <div class="status-bar" role="region" aria-label="Stato del Gioco">
+                <div id="live-category" tabindex="0">ARGOMENTO: ATTESA</div>
+                
+                <div id="turn-indicator" style="font-size:1.3em;">In attesa...</div>
+                <div id="my-score" style="font-size:1em; color:#fff;">Tu: €0 | Jolly: 0</div>
             </div>
 
             <div class="game-area">
                 <div class="col-controls">
-                    <div id="category-display" style="text-align:center; font-style:italic; margin-bottom:10px; color:#00ff00; font-size:1.2em;">CATEGORIA: —</div>
-                    <div id="board-container" aria-hidden="true"></div>
+                    <div id="board-container" aria-label="Tabellone di gioco" role="img"></div>
                     
                     <div id="mobile-dpad" role="group" aria-label="Controlli Tabellone">
                         <div style="color:#aaa; font-size:0.9em; margin-bottom:10px;">NAVIGAZIONE TABELLONE</div>
@@ -479,7 +491,11 @@
         if(data.frase_corrente_id) {
             if(!currentSolution || data.stato === 'attesa') {
                 const {data:f} = await supabase.from('frasi').select('*').eq('id',data.frase_corrente_id).single();
-                if(f) { currentSolution = f.soluzione.toUpperCase(); document.getElementById('category-display').textContent = "CATEGORIA: " + f.categoria; }
+                if(f) { 
+                    currentSolution = f.soluzione.toUpperCase(); 
+                    // UPDATE LIVE CATEGORY DISPLAY
+                    document.getElementById('live-category').textContent = "ARGOMENTO: " + f.categoria.toUpperCase();
+                }
             }
             currentRevealed = data.lettere_rivelate || [];
             parseBoardData();
@@ -646,8 +662,9 @@
         if(available.length === 0) available = f; // Fallback
 
         const pick = available[Math.floor(Math.random()*available.length)];
+        // SPEAK CATEGORY IMMEDIATELY
+        speak("Nuovo round! Argomento: " + pick.categoria);
         await supabase.from('stanze').update({stato:'gioco', frase_corrente_id:pick.id, lettere_rivelate:[], montepremi_round:0}).eq('id',myRoomId);
-        speak("Nuovo round!");
     }
     
     async function destroyRoom() {
@@ -674,7 +691,8 @@
 
     function openInspector() {
         const txt = document.getElementById('inspector-text');
-        let html = `<p style="color:#ffd700">CAT: ${document.getElementById('category-display').textContent.split(': ')[1]}</p>`;
+        let cat = document.getElementById('live-category').textContent;
+        let html = `<p style="color:#ffd700; font-size:1.2em;">${cat}</p>`;
         parsedBoard.forEach((w, i) => {
             html += `<p>Parola ${i+1}: ${w.chars.map(c => c.isRevealed ? c.realChar : "_").join(" ")}</p>`;
         });

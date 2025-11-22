@@ -2,19 +2,19 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>La Ruota - V27 (Tasto T per Tema)</title>
+    <title>La Ruota - V28 (Fix Accesso)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        /* STILE AD ALTO CONTRASTO */
+        /* STILE AD ALTO CONTRASTO (SCURO TOTALE) */
         body {
-            background: #000000; /* Sfondo nero puro per contrasto */
+            background: #000000; 
             color: #ffffff; font-family: 'Verdana', sans-serif; margin: 0; padding: 10px;
             min-height: 100vh;
         }
         *:focus { outline: 4px solid #ffd700 !important; outline-offset: 4px; box-shadow: 0 0 15px #ffd700; }
 
-        h1 { font-size: 1px; color: #000; opacity: 0; margin: 0; height: 1px; overflow: hidden; } /* Nascosto visivamente ma presente per struttura */
+        h1 { font-size: 1px; color: #000; opacity: 0; margin: 0; height: 1px; overflow: hidden; } 
 
         .container { max-width: 1000px; margin: 0 auto; padding-bottom: 50px; }
 
@@ -24,12 +24,13 @@
             text-align: center; margin-top: 20px; background: #111;
         }
         
-        /* STATUS BAR & ARGOMENTO - MOLTO GRANDE */
+        /* STATUS BAR */
         .status-bar {
             border: 4px solid #0088ff; background: #001133;
             padding: 20px; text-align: center; border-radius: 10px; margin-bottom: 20px;
         }
         
+        /* ARGOMENTO BEN VISIBILE E NAVIGABILE */
         #live-category {
             color: #ffff00; font-size: 2.5em; font-weight: 900; margin: 0;
             text-transform: uppercase; letter-spacing: 2px;
@@ -40,7 +41,7 @@
         #board-container {
             display: flex; flex-direction: column; align-items: center; gap: 10px;
             border: 4px solid #fff; padding: 20px; margin-bottom: 20px; min-height: 150px; justify-content: center;
-            background: #053305; /* Verde scuro per contrasto lettere */
+            background: #053305; 
         }
         .board-row { display: flex; gap: 8px; }
         .tile {
@@ -48,7 +49,7 @@
             color: #000000; font-weight: 900; font-size: 2.2em; display: flex; align-items: center; justify-content: center;
             border-radius: 4px; border: 2px solid #999;
         }
-        .tile.hidden { background: #ffffff; color: transparent; } /* Casella bianca vuota */
+        .tile.hidden { background: #ffffff; color: transparent; } 
         
         /* BOTTONI */
         button { width: 100%; padding: 20px; margin-bottom: 15px; font-size: 1.3em; border: 2px solid #fff; border-radius: 8px; cursor: pointer; font-weight: bold; color: #000; }
@@ -62,9 +63,6 @@
         #player-list { list-style: none; padding: 0; margin-top: 20px; font-size: 1.2em; }
         #player-list li { border-bottom: 1px solid #444; padding: 10px; }
         
-        /* LAYOUT */
-        .game-area { display: flex; flex-direction: column; gap: 20px; }
-
         #wheel-status-text { font-size: 1.5em; color: #ffd700; text-align: center; margin: 15px 0; font-weight: bold; }
 
         /* OVERLAYS */
@@ -112,7 +110,7 @@
             </div>
 
             <div class="game-area">
-                <div id="board-container" role="application" aria-label="Tabellone di Gioco. Usa le frecce."></div>
+                <div id="board-container" role="application" aria-label="Tabellone."></div>
                 
                 <div id="wheel-status-text">GIRA LA RUOTA</div>
 
@@ -186,11 +184,11 @@
         if(e.key === 'Enter') { e.preventDefault(); submitInput(); }
     });
 
-    // --- NAVIGAZIONE E SHORTCUT ---
+    // --- SHORTCUTS ---
     document.addEventListener('keydown', (e) => {
         const inInput = (document.activeElement.tagName === 'INPUT');
 
-        // TASTO T: LEGGI ARGOMENTO (Sempre attivo se non sei nell'input)
+        // TASTO T: LEGGI ARGOMENTO
         if(e.key.toLowerCase() === 't' && !inInput) {
             e.preventDefault();
             speak("Argomento attuale: " + currentCategory);
@@ -218,17 +216,15 @@
             return;
         }
 
-        // FRECCE PER IL TABELLONE
+        // NAVIGAZIONE TABELLONE
         if(!inInput && roomState.stato === 'gioco' && parsedBoard.length > 0) {
             if(['ArrowRight','ArrowLeft','ArrowDown','ArrowUp'].includes(e.key)) {
                 e.preventDefault();
-                
                 let dWord=0, dChar=0;
                 if(e.key === 'ArrowRight') dChar = 1;
                 if(e.key === 'ArrowLeft') dChar = -1;
                 if(e.key === 'ArrowDown') dWord = 1;
                 if(e.key === 'ArrowUp') dWord = -1;
-                
                 moveNav(dWord, dChar);
             }
         }
@@ -259,7 +255,7 @@
         }
     }
 
-    // --- GESTIONE ---
+    // --- GESTIONE STANZE ---
     async function joinGame(create) {
         const name = document.getElementById('inp-name').value.trim().toUpperCase();
         const code = document.getElementById('inp-code').value.trim().toUpperCase();
@@ -273,7 +269,7 @@
              if(exist) return speak("Codice già usato. Cambialo.");
 
              const {data, error} = await supabase.from('stanze').insert({codice:code, stato:'attesa'}).select().single();
-             if(error) return speak("Errore creazione");
+             if(error) return speak("Errore creazione stanza.");
              myRoomId = data.id;
         } else {
             const {data} = await supabase.from('stanze').select('*').eq('codice',code).maybeSingle();
@@ -281,13 +277,14 @@
             myRoomId = data.id;
         }
 
-        const {data:neu} = await supabase.from('giocatori').insert({stanza_id:myRoomId, nome:name, indice:Date.now()}).select().single();
+        // FIX V28: Usiamo Count per l'indice, non Date.now()
+        const {count} = await supabase.from('giocatori').select('*',{count:'exact',head:true}).eq('stanza_id',myRoomId);
+        const safeIndex = count || 0;
+
+        const {data:neu, error:errInsert} = await supabase.from('giocatori').insert({stanza_id:myRoomId, nome:name, indice:safeIndex}).select().single();
+        if(errInsert || !neu) { console.error(errInsert); return speak("Errore ingresso. Riprova."); }
+
         myId=neu.id; myIndex=neu.indice; 
-        
-        // Sistema indici
-        const {data:all} = await supabase.from('giocatori').select('*').eq('stanza_id',myRoomId).order('indice');
-        myIndex = all.findIndex(x => x.id === myId);
-        await supabase.from('giocatori').update({indice:myIndex}).eq('id',myId);
         
         speak("Benvenuto " + name + ". Sei in attesa.");
         document.getElementById('setup-panel').classList.add('hidden');
@@ -366,9 +363,7 @@
                     currentCategory = f.categoria.toUpperCase();
                     document.getElementById('live-category').textContent = "ARGOMENTO: " + currentCategory;
                     document.getElementById('input-category-display').textContent = "ARGOMENTO: " + currentCategory;
-                    
-                    // AGGIORNA ARIA LABEL DEL TABELLONE PER DARE CONTESTO
-                    document.getElementById('board-container').setAttribute('aria-label', `Tabellone. Argomento: ${currentCategory}. Usa le frecce per leggere.`);
+                    document.getElementById('board-container').setAttribute('aria-label', `Tabellone per ${currentCategory}. Usa le frecce.`);
                 }
             }
             currentRevealed = data.lettere_rivelate || [];
@@ -412,7 +407,7 @@
 
     async function handleMistero() {
         speak("Mistero...");
-        const res = Math.random() > 0.5 ? 'JOLLY' : 'BANKRUPT'; // Semplificato
+        const res = Math.random() > 0.5 ? 'JOLLY' : 'BANKRUPT'; 
         if(res==='JOLLY') {
              const {data:me} = await supabase.from('giocatori').select('jolly').eq('id',myId).single();
              await supabase.from('giocatori').update({jolly: me.jolly + 1}).eq('id',myId);
@@ -433,7 +428,6 @@
         inputMode = mode;
         document.getElementById('input-area').classList.remove('hidden');
         
-        // ANNUNCIO CONTESTUALE IMPORTANTE
         const lbl = document.getElementById('input-label');
         const hint = document.getElementById('input-category-display');
         hint.textContent = "ARGOMENTO: " + currentCategory;
@@ -511,7 +505,6 @@
         const pick = f[Math.floor(Math.random()*f.length)];
         currentCategory = pick.categoria.toUpperCase();
         
-        // ANNUNCIO IMMEDIATO
         speak("Nuovo round! Argomento: " + currentCategory);
         
         await supabase.from('stanze').update({stato:'gioco', frase_corrente_id:pick.id, lettere_rivelate:[], montepremi_round:0}).eq('id',myRoomId);

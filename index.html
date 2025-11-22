@@ -2,160 +2,120 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>La Ruota - V16 (Grafica TV & Accessibilità)</title>
+    <title>La Ruota - V21 (No Ripetizioni)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        /* --- STILE GRAFICO "TV SHOW" --- */
+        /* STILE TV SHOW */
         body {
-            background: radial-gradient(circle at center, #1a0b2e 0%, #000000 100%); /* Sfondo studio TV */
-            color: #ffffff;
-            font-family: 'Verdana', sans-serif;
-            margin: 0; padding: 10px;
+            background: radial-gradient(circle at center, #1a0b2e 0%, #000000 100%);
+            color: #ffffff; font-family: 'Verdana', sans-serif; margin: 0; padding: 10px;
             min-height: 100vh;
         }
+        *:focus { outline: 4px solid #ffd700 !important; outline-offset: 4px; box-shadow: 0 0 15px #ffd700; }
 
-        /* FOCUS AD ALTO CONTRASTO (Per ipovedenti/tastiera) */
-        *:focus {
-            outline: 4px solid #ffd700 !important;
-            outline-offset: 4px;
-            box-shadow: 0 0 15px #ffd700;
-        }
-
-        h1 {
-            color: #ffd700;
-            text-align: center;
-            text-shadow: 2px 2px 0px #ff0000;
-            font-size: 2em; margin-bottom: 10px;
-        }
-
+        h1 { color: #ffd700; text-align: center; text-shadow: 2px 2px 0 #ff0000; font-size: 2em; margin-bottom: 10px; }
         .container { max-width: 1000px; margin: 0 auto; }
 
-        /* SETUP PANEL */
-        #setup-panel {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 20px; border-radius: 15px;
-            border: 2px solid #444;
-            backdrop-filter: blur(5px);
+        /* SETUP & LOBBY */
+        #setup-panel, #lobby-panel {
+            background: rgba(255, 255, 255, 0.1); padding: 20px; border-radius: 15px;
+            border: 2px solid #444; backdrop-filter: blur(5px); text-align: center; margin-top: 20px;
         }
+        
+        /* PULSANTE LOBBY GIGANTE */
+        .btn-giant {
+            display: block; width: 100%; max-width: 400px; margin: 20px auto;
+            padding: 25px; font-size: 1.5em; font-weight: 900;
+            background: linear-gradient(to bottom, #00cc00, #006600);
+            color: white; border: 3px solid #00ff00; border-radius: 15px;
+            cursor: pointer; box-shadow: 0 0 20px #00ff00; text-transform: uppercase;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
 
         /* STATUS BAR */
         .status-bar {
             background: linear-gradient(90deg, #002244 0%, #004488 100%);
             padding: 15px; text-align: center; font-size: 1.3em;
-            border: 2px solid #0088ff; border-radius: 10px;
-            margin-bottom: 20px;
-            box-shadow: 0 0 10px rgba(0,136,255,0.5);
+            border: 2px solid #0088ff; border-radius: 10px; margin-bottom: 20px;
         }
         .turn-active {
             background: linear-gradient(90deg, #004400 0%, #008800 100%);
-            border-color: #00ff00;
-            color: #fff; text-shadow: 0 0 5px #00ff00;
-            transform: scale(1.02); transition: 0.3s;
+            border-color: #00ff00; color: #fff; text-shadow: 0 0 5px #00ff00;
         }
 
-        /* TABELLONE GRAFICO (EFFETTO 3D) */
+        /* GIOCO VISIBILE */
+        #active-game-interface { display: none; }
+        
+        /* TABELLONE */
         #board-container {
             display: flex; flex-direction: column; align-items: center; gap: 8px;
-            background: rgba(0, 50, 0, 0.8); /* Sfondo verde scuro semitrasparente */
-            padding: 20px; border-radius: 15px; border: 4px solid #ffd700;
-            margin-bottom: 20px;
-            box-shadow: inset 0 0 20px #000;
-            min-height: 120px; justify-content: center;
+            background: rgba(0, 50, 0, 0.8); padding: 20px; border-radius: 15px; 
+            border: 4px solid #ffd700; margin-bottom: 20px; min-height: 120px; justify-content: center;
         }
         .board-row { display: flex; gap: 6px; }
-        
         .tile {
-            width: 40px; height: 55px;
-            background: linear-gradient(to bottom, #ffffff 0%, #e0e0e0 100%);
-            color: black; font-weight: 900; font-size: 2em;
-            display: flex; align-items: center; justify-content: center;
-            border-radius: 6px;
-            box-shadow: 0 4px 0 #999; /* Effetto 3D */
-            text-transform: uppercase;
+            width: 40px; height: 55px; background: linear-gradient(to bottom, #ffffff 0%, #e0e0e0 100%);
+            color: black; font-weight: 900; font-size: 2em; display: flex; align-items: center; justify-content: center;
+            border-radius: 6px; box-shadow: 0 4px 0 #999;
         }
-        /* Lettera nascosta (Bianca vuota) */
         .tile.hidden { color: transparent; background: white; }
-        /* Spazio vuoto (Verde scuro) */
-        .tile.empty {
-            background: transparent; box-shadow: none; border: 1px dashed rgba(0,255,0,0.2);
-        }
+        .tile.empty { background: transparent; box-shadow: none; border: 1px dashed rgba(0,255,0,0.2); }
 
-        /* LAYOUT DUE COLONNE (PC) */
+        /* TASTIERINO NAVIGAZIONE MOBILE (D-PAD) */
+        #mobile-dpad {
+            background: #222; padding: 15px; border-radius: 10px; border: 2px solid #555;
+            margin-bottom: 20px; text-align: center;
+        }
+        .dpad-row { display: flex; justify-content: center; gap: 10px; margin: 5px 0; }
+        .dpad-btn {
+            width: 60px; height: 60px; font-size: 2em; border-radius: 10px;
+            background: #444; color: #fff; border: 2px solid #777; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .dpad-btn:active { background: #ffd700; color: #000; }
+        .dpad-center { width: 60px; height: 60px; } 
+
+        /* LAYOUT */
         .game-area { display: flex; flex-wrap: wrap; gap: 30px; justify-content: center; align-items: flex-start; }
         .col-visual { flex: 1; min-width: 300px; display: flex; flex-direction: column; align-items: center; }
         .col-controls { flex: 1; min-width: 300px; }
 
-        /* RUOTA GRAFICA */
-        #wheel-wrapper {
-            position: relative; width: 280px; height: 280px; margin-bottom: 15px;
-            filter: drop-shadow(0 10px 15px rgba(0,0,0,0.5));
-        }
+        /* RUOTA */
+        #wheel-wrapper { position: relative; width: 280px; height: 280px; margin-bottom: 15px; filter: drop-shadow(0 10px 15px rgba(0,0,0,0.5)); }
         #wheel-visual {
-            width: 100%; height: 100%; border-radius: 50%;
-            border: 8px solid #fff;
-            background: conic-gradient(
-                #ff0000 0deg 36deg, #ff8800 36deg 72deg, #ffff00 72deg 108deg, 
-                #00aa00 108deg 144deg, #0088ff 144deg 180deg, #8800ff 180deg 216deg, 
-                #ff00ff 216deg 252deg, #222222 252deg 288deg, #cccccc 288deg 324deg, #ffd700 324deg 360deg
-            );
+            width: 100%; height: 100%; border-radius: 50%; border: 8px solid #fff;
+            background: conic-gradient(#ff0000 0deg 36deg, #ff8800 36deg 72deg, #ffff00 72deg 108deg, #00aa00 108deg 144deg, #0088ff 144deg 180deg, #8800ff 180deg 216deg, #ff00ff 216deg 252deg, #222222 252deg 288deg, #cccccc 288deg 324deg, #ffd700 324deg 360deg);
             transition: transform 4s cubic-bezier(0.1, 0.8, 0.1, 1);
         }
-        /* Perno centrale */
-        #wheel-center {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 40px; height: 40px; background: white; border-radius: 50%;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.5); z-index: 2;
-        }
-        /* Indicatore */
         #wheel-pointer {
             position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
-            width: 0; height: 0; 
-            border-left: 15px solid transparent; border-right: 15px solid transparent;
-            border-top: 35px solid #ffffff; z-index: 3;
-            filter: drop-shadow(0 2px 2px black);
+            width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-top: 35px solid #ffffff; z-index: 3;
         }
         #wheel-status-text {
-            background: #000; color: #ffd700; padding: 10px 20px;
-            border: 2px solid #ffd700; border-radius: 50px;
-            font-size: 1.5em; font-weight: bold; text-align: center;
-            margin-bottom: 20px;
+            background: #000; color: #ffd700; padding: 10px 20px; border: 2px solid #ffd700; border-radius: 50px;
+            font-size: 1.5em; font-weight: bold; text-align: center; margin-bottom: 20px;
         }
 
         /* BOTTONI */
-        button {
-            width: 100%; padding: 15px; margin-bottom: 10px; font-size: 1.2em;
-            border: none; border-radius: 8px; cursor: pointer;
-            font-weight: bold; text-transform: uppercase;
-            transition: transform 0.1s, background 0.2s;
-        }
-        button:active { transform: scale(0.98); }
-        
+        button { width: 100%; padding: 15px; margin-bottom: 10px; font-size: 1.2em; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
         .btn-primary { background: #ffcc00; color: #000; border-bottom: 4px solid #b38f00; }
         .btn-secondary { background: #0088ff; color: #fff; border-bottom: 4px solid #0055aa; }
         .btn-accent { background: #ff0066; color: #fff; border-bottom: 4px solid #aa0044; }
-        .btn-host { background: #aa0000; color: #fff; border: 1px solid red; }
-        
         button:disabled { background: #444; color: #888; border-bottom: none; cursor: not-allowed; }
 
-        /* LISTA GIOCATORI */
+        /* UTILS */
+        input { display: block; width: 95%; padding: 15px; margin: 10px auto; font-size: 1.2em; }
         #player-list { list-style: none; padding: 0; margin-top: 20px; }
-        #player-list li {
-            background: rgba(255,255,255,0.1); margin-bottom: 5px; padding: 10px;
-            border-radius: 5px; display: flex; justify-content: space-between;
-        }
-
-        /* MODALE */
+        #player-list li { background: rgba(255,255,255,0.1); margin-bottom: 5px; padding: 10px; border-radius: 5px; display: flex; justify-content: space-between; }
+        
         #input-area, #inspector-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9); z-index: 2000;
+            background: rgba(0,0,0,0.95); z-index: 2000;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
-            backdrop-filter: blur(5px);
         }
-        #game-input {
-            font-size: 3em; padding: 10px; width: 80%; text-align: center;
-            background: #fff; color: #000; border-radius: 10px; border: none;
-        }
+        #game-input { font-size: 3em; padding: 10px; width: 80%; text-align: center; }
         .hidden { display: none !important; }
         .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
     </style>
@@ -176,52 +136,75 @@
     <h1>LA RUOTA DELLA FORTUNA</h1>
 
     <div id="setup-panel">
-        <label style="font-size:1.2em;">Il tuo nome:</label>
-        <input id="inp-name" type="text" placeholder="Nome" style="padding:10px; width:95%; margin:10px 0; font-size:1.2em;">
+        <label style="font-size:1.2em;">Tuo Nome:</label>
+        <input id="inp-name" type="text" placeholder="Nome">
         <label style="font-size:1.2em;">Codice Stanza:</label>
-        <input id="inp-code" type="text" placeholder="Es. CASA" style="padding:10px; width:95%; margin:10px 0; font-size:1.2em;">
+        <input id="inp-code" type="text" placeholder="Es. CASA">
         <button onclick="joinGame(true)" class="btn-primary">CREA NUOVA STANZA</button>
         <button onclick="joinGame(false)" class="btn-secondary">ENTRA IN STANZA</button>
     </div>
 
     <div id="game-panel" class="hidden">
         
-        <div class="status-bar">
-            <div id="turn-indicator">In attesa...</div>
-            <div id="my-score" style="font-size:0.9em; margin-top:5px; color:#ffd700;">Tu: €0 | Jolly: 0</div>
+        <div id="lobby-panel" class="hidden">
+            <h2 style="color:#00ff00">SALA D'ATTESA</h2>
+            <p id="lobby-msg">In attesa dell'Host...</p>
+            <button id="btn-start-round" class="btn-giant hidden" onclick="startNewRound()">AVVIA PARTITA</button>
+            <div style="margin-top:30px; text-align:left;">
+                <h3>Giocatori Pronti:</h3>
+                <ul id="lobby-player-list" style="padding:0; list-style:none;"></ul>
+            </div>
         </div>
 
-        <div class="game-area">
-            <div class="col-controls">
-                <div id="category-display" style="text-align:center; font-style:italic; margin-bottom:10px; color:#00ff00; font-size:1.2em;">CATEGORIA: —</div>
-                
-                <div id="board-container" aria-hidden="true"></div>
-                
-                <div style="text-align:center; color:#aaa; font-size:0.9em; margin-bottom:15px;">
-                    Usa le ⬆️⬇️⬅️➡️ frecce per leggere il tabellone.
-                </div>
-
-                <ul id="player-list"></ul>
+        <div id="active-game-interface">
+            <div class="status-bar">
+                <div id="turn-indicator">In attesa...</div>
+                <div id="my-score" style="font-size:0.9em; margin-top:5px; color:#ffd700;">Tu: €0 | Jolly: 0</div>
             </div>
 
-            <div class="col-visual">
-                <div id="wheel-wrapper" aria-hidden="true">
-                    <div id="wheel-pointer"></div>
-                    <div id="wheel-visual"><div id="wheel-center"></div></div>
-                </div>
-                
-                <div id="wheel-status-text">GIRA LA RUOTA</div>
+            <div class="game-area">
+                <div class="col-controls">
+                    <div id="category-display" style="text-align:center; font-style:italic; margin-bottom:10px; color:#00ff00; font-size:1.2em;">CATEGORIA: —</div>
+                    <div id="board-container" aria-hidden="true"></div>
+                    
+                    <div id="mobile-dpad" role="group" aria-label="Controlli Tabellone">
+                        <div style="color:#aaa; font-size:0.9em; margin-bottom:10px;">NAVIGAZIONE TABELLONE</div>
+                        <div class="dpad-row">
+                            <button class="dpad-btn" onclick="navUp()" aria-label="Parola Precedente">⬆️</button>
+                        </div>
+                        <div class="dpad-row">
+                            <button class="dpad-btn" onclick="navLeft()" aria-label="Lettera Precedente">⬅️</button>
+                            <div class="dpad-center"></div>
+                            <button class="dpad-btn" onclick="navRight()" aria-label="Lettera Successiva">➡️</button>
+                        </div>
+                        <div class="dpad-row">
+                            <button class="dpad-btn" onclick="navDown()" aria-label="Parola Successiva">⬇️</button>
+                        </div>
+                    </div>
 
-                <button id="btn-spin" class="btn-primary" onclick="doSpin()">1. GIRA RUOTA (Ctrl+G)</button>
-                <div style="display:flex; gap:10px; width:100%;">
-                    <button id="btn-vowel" class="btn-secondary" onclick="openInput('vowel')">2. VOCALE (Ctrl+V)</button>
-                    <button id="btn-solve" class="btn-accent" onclick="openInput('solve')">3. RISOLVI (Ctrl+S)</button>
+                    <div style="border-top:1px solid #444; padding-top:10px;">
+                        <ul id="player-list"></ul>
+                    </div>
                 </div>
-                <button id="btn-read-letters" class="btn-secondary" onclick="readRevealedLetters()" style="background:#444; border-bottom:4px solid #222;">LEGGI LETTERE (Ctrl+L)</button>
 
-                <div id="host-controls" class="hidden" style="margin-top:15px; width:100%;">
-                    <button onclick="startNewRound()" class="btn-host">HOST: NUOVO ROUND (Ctrl+H)</button>
-                    <button onclick="destroyRoom()" class="btn-host" style="background:#550000;">HOST: CHIUDI STANZA</button>
+                <div class="col-visual">
+                    <div id="wheel-wrapper" aria-hidden="true">
+                        <div id="wheel-pointer"></div>
+                        <div id="wheel-visual"><div id="wheel-center" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:40px; height:40px; background:white; border-radius:50%;"></div></div>
+                    </div>
+                    <div id="wheel-status-text">GIRA LA RUOTA</div>
+
+                    <button id="btn-spin" class="btn-primary" onclick="doSpin()">1. GIRA RUOTA (Ctrl+G)</button>
+                    <div style="display:flex; gap:10px; width:100%;">
+                        <button id="btn-vowel" class="btn-secondary" onclick="openInput('vowel')">2. VOCALE (Ctrl+V)</button>
+                        <button id="btn-solve" class="btn-accent" onclick="openInput('solve')">3. RISOLVI (Ctrl+S)</button>
+                    </div>
+                    <button id="btn-read-letters" class="btn-secondary" onclick="readRevealedLetters()" style="background:#444;">LEGGI LETTERE (Ctrl+L)</button>
+
+                    <div id="host-controls" class="hidden" style="margin-top:20px;">
+                        <button onclick="startNewRound()" style="background:#550000; color:white;">HOST: NUOVO ROUND</button>
+                        <button onclick="destroyRoom()" style="background:#330000; color:white;">HOST: CHIUDI STANZA</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -233,7 +216,7 @@
     <input id="game-input" type="text" autocomplete="off">
     <div style="display:flex; gap:20px; margin-top:20px; width:80%;">
         <button onclick="submitInput()" class="btn-primary">CONFERMA (Invio)</button>
-        <button onclick="closeInput()" class="btn-secondary" style="background:#555; border-color:#333;">ANNULLA (Esc)</button>
+        <button onclick="closeInput()" class="btn-secondary" style="background:#555;">ANNULLA (Esc)</button>
     </div>
 </div>
 
@@ -260,13 +243,27 @@
     let navCharIdx = 0;
     let parsedBoard = [];
     let wheelRot = 0;
+    let seqTimer = null;
 
     function speak(text) {
         const el = document.getElementById('sr-announcer');
         el.textContent = '';
         setTimeout(() => el.textContent = text, 50);
-        console.log("SPEAK:", text);
     }
+    
+    function speakSequence(msgs) {
+        if(seqTimer) clearTimeout(seqTimer);
+        let index = 0;
+        function next() {
+            if(index < msgs.length) {
+                speak(msgs[index]);
+                index++;
+                seqTimer = setTimeout(next, 1200); 
+            }
+        }
+        next();
+    }
+
     function cleanStr(str) { return str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/g, ""); }
     function playHitSound(times) {
         let count = 0;
@@ -284,19 +281,51 @@
         if(e.key === 'Enter') { e.preventDefault(); submitInput(); }
     });
 
-    // NAVIGAZIONE GLOBALE
+    // --- FUNZIONI NAVIGAZIONE ---
+    function navRight() { moveNav(0, 1); }
+    function navLeft() { moveNav(0, -1); }
+    function navDown() { moveNav(1, 0); }
+    function navUp() { moveNav(-1, 0); }
+
+    function moveNav(dWord, dChar) {
+        if(parsedBoard.length === 0) return;
+        let moved = false;
+        if(dChar !== 0) { navCharIdx += dChar; moved=true; }
+        if(dWord !== 0) { navWordIdx += dWord; navCharIdx = 0; moved=true; }
+
+        if(moved) {
+            if(navWordIdx < 0) navWordIdx = 0;
+            if(navWordIdx >= parsedBoard.length) navWordIdx = parsedBoard.length - 1;
+            let w = parsedBoard[navWordIdx];
+            if(navCharIdx < 0) navCharIdx = 0;
+            if(navCharIdx >= w.chars.length) navCharIdx = w.chars.length - 1;
+            
+            let c = w.chars[navCharIdx];
+            let charText = "Nascosta";
+            if(c.isRevealed) {
+                let chUpper = c.realChar.toUpperCase();
+                if("ÀÈÉÌÒÙ".includes(chUpper)) charText = NATO[chUpper]; 
+                else charText = `${chUpper}, ${NATO[chUpper]||""}`;
+            }
+            let pre = (navCharIdx === 0) ? `Parola ${navWordIdx+1}. ` : "";
+            speak(`${pre}${charText}, ${navCharIdx+1} di ${w.chars.length}`);
+        }
+    }
+
+    // --- KEYBOARD LISTENERS ---
     document.addEventListener('keydown', (e) => {
-        if(document.activeElement.tagName === 'INPUT') return;
-        
-        // Tasti Funzione
+        const inInput = (document.activeElement.tagName === 'INPUT');
+
         if(e.ctrlKey) {
             const k = e.key.toLowerCase();
             if(k==='i') { e.preventDefault(); openInspector(); return; }
             if(k==='l') { e.preventDefault(); readRevealedLetters(); return; }
             if(k==='h') { e.preventDefault(); if(isHost) startNewRound(); return; }
+            if(k==='arrowright' || k==='arrowleft') { e.preventDefault(); readCurrentWord(); return; }
+
             if(['g','v','s'].includes(k)) {
                 e.preventDefault();
-                if(inputMode || document.getElementById('game-panel').classList.contains('hidden')) return;
+                if(inputMode || document.getElementById('active-game-interface').style.display === 'none') return;
                 if(roomState.stato !== 'gioco') { speak("Gioco fermo."); return; }
                 if(roomState.id_giocatore_corrente !== myIndex) { speak("Non tocca a te."); return; }
                 if(k==='g') doSpin(); if(k==='v') openInput('vowel'); if(k==='s') openInput('solve');
@@ -311,30 +340,34 @@
             return;
         }
 
-        // Navigazione Tabellone (Frecce)
-        if(parsedBoard.length > 0) {
-            let moved = false;
-            if (e.key === 'ArrowRight') { navCharIdx++; moved=true; }
-            if (e.key === 'ArrowLeft') { navCharIdx--; moved=true; }
-            if (e.key === 'ArrowDown') { navWordIdx++; navCharIdx=0; moved=true; }
-            if (e.key === 'ArrowUp') { navWordIdx--; navCharIdx=0; moved=true; }
-            
-            if(moved) {
-                e.preventDefault();
-                if(navWordIdx < 0) navWordIdx = 0;
-                if(navWordIdx >= parsedBoard.length) navWordIdx = parsedBoard.length - 1;
-                let w = parsedBoard[navWordIdx];
-                if(navCharIdx < 0) navCharIdx = 0;
-                if(navCharIdx >= w.chars.length) navCharIdx = w.chars.length - 1;
-                
-                let c = w.chars[navCharIdx];
-                let charText = "Nascosta";
-                if(c.isRevealed) charText = `${c.realChar}, ${NATO[c.realChar.toUpperCase()]||""}`;
-                speak(`${navCharIdx===0 ? "Parola "+(navWordIdx+1)+". " : ""}${charText}, ${navCharIdx+1} di ${w.chars.length}`);
-            }
+        if(!inInput && roomState.stato === 'gioco' && parsedBoard.length > 0) {
+            if(e.key === 'ArrowRight') { e.preventDefault(); navRight(); }
+            if(e.key === 'ArrowLeft') { e.preventDefault(); navLeft(); }
+            if(e.key === 'ArrowDown') { e.preventDefault(); navDown(); }
+            if(e.key === 'ArrowUp') { e.preventDefault(); navUp(); }
         }
     });
 
+    function readCurrentWord() {
+        if(parsedBoard.length === 0) return;
+        let w = parsedBoard[navWordIdx];
+        let missing = w.chars.filter(c => !c.isRevealed).length;
+        if(missing === 0) { speak(w.wordStr); }
+        else {
+            let msgs = [`Mancano ${missing} lettere.`];
+            w.chars.forEach(c => {
+                if(c.isRevealed) {
+                    let ch = c.realChar.toUpperCase();
+                    let ph = NATO[ch] || ch;
+                    if(!"ÀÈÉÌÒÙ".includes(ch)) ph = `${ch}, ${ph}`;
+                    msgs.push(ph);
+                } else { msgs.push("Lettera nascosta"); }
+            });
+            speakSequence(msgs);
+        }
+    }
+
+    // --- LOGICA ---
     async function joinGame(create) {
         const name = document.getElementById('inp-name').value.trim().toUpperCase();
         const code = document.getElementById('inp-code').value.trim().toUpperCase();
@@ -368,7 +401,6 @@
 
         document.getElementById('setup-panel').classList.add('hidden');
         document.getElementById('game-panel').classList.remove('hidden');
-        document.getElementById('btn-spin').focus();
         startSync();
     }
 
@@ -377,7 +409,6 @@
             p => { if(p.eventType==='DELETE'){alert("Stanza chiusa");location.reload();} else updateRoom(p.new); })
         .subscribe();
         supabase.channel('players').on('postgres_changes',{event:'*',schema:'public',table:'giocatori',filter:'stanza_id=eq.'+myRoomId}, updatePlayers).subscribe();
-        
         supabase.from('stanze').select('*').eq('id',myRoomId).single().then(r=>updateRoom(r.data));
         updatePlayers();
     }
@@ -385,13 +416,28 @@
     async function updatePlayers() {
         const {data: pl} = await supabase.from('giocatori').select('*').eq('stanza_id',myRoomId).order('indice');
         if(!pl) return;
-        const list = document.getElementById('player-list');
-        list.innerHTML = '';
+        
+        const lobbyList = document.getElementById('lobby-player-list');
+        lobbyList.innerHTML = '';
+        pl.forEach(p => { const li=document.createElement('li'); li.textContent=`${p.nome} ${p.id===myId?"(TU)":""}`; lobbyList.appendChild(li); });
+
+        const gameList = document.getElementById('player-list');
+        gameList.innerHTML = '';
         
         if (pl.length > 0) {
             const oldest = pl[0];
-            if (oldest.id === myId && !isHost) { isHost = true; document.getElementById('host-controls').classList.remove('hidden'); }
-            else if (oldest.id !== myId && isHost) { isHost = false; document.getElementById('host-controls').classList.add('hidden'); }
+            if (oldest.id === myId && !isHost) { 
+                isHost = true; 
+                document.getElementById('host-controls').classList.remove('hidden'); 
+                document.getElementById('btn-start-round').classList.remove('hidden');
+                document.getElementById('lobby-msg').textContent = "SEI L'HOST! Premi il pulsante verde.";
+            }
+            else if (oldest.id !== myId && isHost) { 
+                isHost = false; 
+                document.getElementById('host-controls').classList.add('hidden');
+                document.getElementById('btn-start-round').classList.add('hidden');
+                document.getElementById('lobby-msg').textContent = "In attesa dell'Host...";
+            }
         }
 
         pl.forEach(p => {
@@ -400,7 +446,7 @@
             if(p.indice === roomState.id_giocatore_corrente && roomState.stato === 'gioco') {
                 li.style.background = 'rgba(0,255,0,0.2)'; li.style.border = '1px solid #0f0';
             }
-            list.appendChild(li);
+            gameList.appendChild(li);
             if(p.id === myId) document.getElementById('my-score').textContent = `Tu: €${p.punteggio_totale} | Jolly: ${p.jolly}`;
         });
     }
@@ -408,17 +454,27 @@
     async function updateRoom(data) {
         if(!data) return;
         roomState = data;
+        
+        const lobby = document.getElementById('lobby-panel');
+        const game = document.getElementById('active-game-interface');
+
+        if (data.stato === 'attesa') {
+            lobby.classList.remove('hidden'); game.classList.add('hidden');
+            if(isHost) document.getElementById('btn-start-round').focus();
+        } else {
+            lobby.classList.add('hidden'); game.classList.remove('hidden');
+            if(document.activeElement === document.body) document.getElementById('btn-spin').focus();
+        }
+
         const isMyTurn = (data.id_giocatore_corrente === myIndex && data.stato === 'gioco');
         const ti = document.getElementById('turn-indicator');
 
-        if(data.stato !== 'gioco') ti.textContent = "ATTESA (Host preme CTRL+H)";
-        else if(isMyTurn) { ti.textContent = "È IL TUO TURNO!"; ti.className='status-bar turn-active'; }
+        if(isMyTurn) { ti.textContent = "È IL TUO TURNO!"; ti.className='status-bar turn-active'; }
         else { ti.textContent = `Turno Giocatore ${data.id_giocatore_corrente+1}`; ti.className='status-bar'; }
 
         ['btn-spin','btn-vowel','btn-solve'].forEach(id => document.getElementById(id).disabled = !isMyTurn);
         
-        const wTxt = document.getElementById('wheel-status-text');
-        wTxt.textContent = data.montepremi_round > 0 ? `VALORE: €${data.montepremi_round}` : "GIRA LA RUOTA";
+        document.getElementById('wheel-status-text').textContent = data.montepremi_round > 0 ? `VALORE: €${data.montepremi_round}` : "GIRA LA RUOTA";
 
         if(data.frase_corrente_id) {
             if(!currentSolution || data.stato === 'attesa') {
@@ -436,8 +492,6 @@
         if(isSpinning) return;
         isSpinning = true;
         play('snd-spin');
-        
-        // Rotazione Visiva
         wheelRot += (720 + Math.random() * 360);
         document.getElementById('wheel-visual').style.transform = `rotate(${wheelRot}deg)`;
         
@@ -449,7 +503,7 @@
                 const {data:me} = await supabase.from('giocatori').select('jolly').eq('id',myId).single();
                 if(me.jolly > 0) {
                     await supabase.from('giocatori').update({jolly: me.jolly - 1}).eq('id',myId);
-                    speak("Bancarotta! Salvato dal Jolly.");
+                    speak("Bancarotta! Salvato.");
                     await supabase.from('stanze').update({montepremi_round:0}).eq('id',myRoomId);
                 } else {
                     speak("Bancarotta!");
@@ -555,7 +609,7 @@
         }
 
         if(ind.length > 0 && currentRevealed.includes(ind[0])) {
-            speak("Già chiamata!"); passTurn();
+            speak("Già chiamata! Errore."); passTurn();
         } else if(ind.length > 0) {
             playHitSound(ind.length); speak("Trovate "+ind.length);
             let nr = [...new Set([...currentRevealed,...ind])];
@@ -579,10 +633,19 @@
         await supabase.from('stanze').update({id_giocatore_corrente:nxt, montepremi_round:0}).eq('id',myRoomId);
     }
 
+    // NUOVO ROUND SENZA RIPETIZIONI (V21 LOGIC)
     async function startNewRound() {
         const {data:f} = await supabase.from('frasi').select('*');
         if(!f || !f.length) return speak("Nessuna frase");
-        const pick = f[Math.floor(Math.random()*f.length)];
+        
+        // Filtro per evitare la frase appena giocata
+        let available = f;
+        if(roomState.frase_corrente_id) {
+            available = f.filter(p => p.id !== roomState.frase_corrente_id);
+        }
+        if(available.length === 0) available = f; // Fallback
+
+        const pick = available[Math.floor(Math.random()*available.length)];
         await supabase.from('stanze').update({stato:'gioco', frase_corrente_id:pick.id, lettere_rivelate:[], montepremi_round:0}).eq('id',myRoomId);
         speak("Nuovo round!");
     }
@@ -599,7 +662,13 @@
     function readRevealedLetters() {
         if(currentRevealed.length === 0) return speak("Nessuna.");
         let u = new Set(); currentRevealed.forEach(i => u.add(currentSolution[i].toUpperCase()));
-        let msg = "Presenti: " + Array.from(u).sort().join(", ");
+        let sorted = Array.from(u).sort();
+        let msg = "Presenti: ";
+        sorted.forEach(c => { 
+            let ph = NATO[c] || c; 
+            if(!"ÀÈÉÌÒÙ".includes(c)) ph = `${c}, ${ph}`;
+            msg += `${ph}. `; 
+        });
         speak(msg);
     }
 
@@ -624,7 +693,7 @@
         const raw = currentSolution.split(' ');
         let g = 0;
         raw.forEach(w => {
-            let obj = { chars: [] };
+            let obj = { wordStr: w, chars: [] };
             for (let i = 0; i < w.length; i++) {
                 const ch = w[i];
                 obj.chars.push({ realChar: ch, isRevealed: currentRevealed.includes(g) });
@@ -633,7 +702,6 @@
             parsedBoard.push(obj); g++; 
         });
         
-        // RENDER GRAFICO
         const cont = document.getElementById('board-container');
         cont.innerHTML = '';
         parsedBoard.forEach(w => {

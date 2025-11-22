@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>La Ruota - V35 (Accessibilità Fix)</title>
+    <title>La Ruota - V36 (Struttura Intestazioni)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -14,7 +14,7 @@
         }
         *:focus { outline: 4px solid #ffd700 !important; outline-offset: 4px; box-shadow: 0 0 15px #ffd700; }
 
-        /* FIX ACCESSIBILITÀ H1: Ora visibile agli screen reader */
+        /* FIX ACCESSIBILITÀ H1: Visibile agli screen reader */
         h1 { 
             position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; 
             overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; 
@@ -128,13 +128,14 @@
         <div id="active-game-interface">
             <div class="status-bar" role="region" aria-label="Stato">
                 <h2 id="live-category" tabindex="0" aria-live="polite">CARICAMENTO...</h2>
-                
                 <div id="turn-indicator" style="font-size:1.5em; color:#fff;">In attesa...</div>
                 <div id="my-score" style="font-size:1.2em; color:#ffd700; margin-top:10px;">Tu: €0 | Jolly: 0</div>
             </div>
 
             <div class="game-area">
-                <div id="board-container" role="application" aria-label="Tabellone."></div>
+                <h2 class="sr-only">ZONA TABELLONE</h2>
+                <div id="board-container" role="application" aria-label="Tabellone gioco."></div>
+                <div id="nav-status-display" class="sr-only" aria-live="polite"></div>
                 
                 <div class="col-visual">
                     <div id="wheel-wrapper" aria-hidden="true">
@@ -211,6 +212,14 @@
         setTimeout(() => el.textContent = text, 50);
     }
 
+    // FIX: Funzione per aggiornare lo status persistente oltre alla voce
+    function updateNavStatus(text) {
+        speak(text);
+        // Aggiorna anche il div persistente per rilettura
+        const display = document.getElementById('nav-status-display');
+        if(display) display.textContent = text;
+    }
+
     function cleanStr(str) { return str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/g, ""); }
     
     function playHitSound(times) {
@@ -282,7 +291,7 @@
         }
     });
 
-    // V34: FUNZIONE LETTURA PAROLA CORRENTE
+    // V36: AGGIORNATA PER USARE updateNavStatus
     function readCurrentWord() {
         if(parsedBoard.length === 0) return;
         let w = parsedBoard[navWordIdx];
@@ -302,10 +311,10 @@
                 else text += "nascosta, ";
             });
         }
-        speak(text);
+        updateNavStatus(text);
     }
 
-    // V34: FUNZIONI INSPECTOR (CTRL+I)
+    // V36: FUNZIONI INSPECTOR - ORA USA H3
     function openInspector() {
         const txt = document.getElementById('inspector-text');
         let html = `<p style="color:#ffd700; border-bottom:1px solid #555;">ARGOMENTO: ${currentCategory}</p>`;
@@ -316,12 +325,13 @@
                 if(c.isRevealed) wordHtml += `<span style="margin:0 5px;">${c.realChar}</span>`;
                 else wordHtml += `<span style="margin:0 5px;">_</span>`;
             });
-            html += `<p>Parola ${i+1}: ${wordHtml}</p>`;
+            // FIX: Usa H3 per permettere navigazione per intestazione
+            html += `<h3 style="margin-top:15px; color:#fff;">Parola ${i+1}</h3><p style="font-size:1.5em; margin:5px 0;">${wordHtml}</p>`;
         });
         
         txt.innerHTML = html;
         document.getElementById('inspector-overlay').classList.remove('hidden');
-        speak("Modalità lettura aperta. Premi frecce per leggere.");
+        speak("Riepilogo aperto. Usa tasti H o 3 per saltare le parole.");
         txt.focus();
     }
 
@@ -351,7 +361,7 @@
                 else charText = `${chUpper}, ${NATO[chUpper]||""}`;
             }
             let pre = (navCharIdx === 0) ? `Parola ${navWordIdx+1}. ` : "";
-            speak(`${pre}${charText}, ${navCharIdx+1} di ${w.chars.length}`);
+            updateNavStatus(`${pre}${charText}, ${navCharIdx+1} di ${w.chars.length}`);
         }
     }
 

@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>La Ruota - V28 (Fix Accesso)</title>
+    <title>La Ruota - V30 (Anti-Blocco)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -35,6 +35,7 @@
             color: #ffff00; font-size: 2.5em; font-weight: 900; margin: 0;
             text-transform: uppercase; letter-spacing: 2px;
             border-bottom: 2px solid #fff; padding-bottom: 15px; margin-bottom: 15px;
+            min-height: 1.2em; /* Evita che sparisca se vuoto */
         }
         
         /* TABELLONE */
@@ -64,6 +65,18 @@
         #player-list li { border-bottom: 1px solid #444; padding: 10px; }
         
         #wheel-status-text { font-size: 1.5em; color: #ffd700; text-align: center; margin: 15px 0; font-weight: bold; }
+
+        /* RUOTA VISIVA (Importante per l'errore) */
+        #wheel-wrapper { position: relative; width: 200px; height: 200px; margin: 0 auto 20px auto; }
+        #wheel-visual {
+            width: 100%; height: 100%; border-radius: 50%; border: 5px solid #fff;
+            background: conic-gradient(#ff0000 0deg 36deg, #ff8800 36deg 72deg, #ffff00 72deg 108deg, #00aa00 108deg 144deg, #0088ff 144deg 180deg, #8800ff 180deg 216deg, #ff00ff 216deg 252deg, #222222 252deg 288deg, #cccccc 288deg 324deg, #ffd700 324deg 360deg);
+            transition: transform 3s cubic-bezier(0.1, 0.8, 0.1, 1); /* Durata fissa */
+        }
+        #wheel-pointer {
+            position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+            width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-top: 20px solid #ffffff; z-index: 3;
+        }
 
         /* OVERLAYS */
         #input-area {
@@ -103,7 +116,7 @@
 
         <div id="active-game-interface">
             <div class="status-bar" role="region" aria-label="Stato">
-                <h2 id="live-category" tabindex="0">ARGOMENTO: ATTESA</h2>
+                <h2 id="live-category" tabindex="0">CARICAMENTO...</h2>
                 
                 <div id="turn-indicator" style="font-size:1.5em; color:#fff;">In attesa...</div>
                 <div id="my-score" style="font-size:1.2em; color:#ffd700; margin-top:10px;">Tu: €0 | Jolly: 0</div>
@@ -112,24 +125,33 @@
             <div class="game-area">
                 <div id="board-container" role="application" aria-label="Tabellone."></div>
                 
-                <div id="wheel-status-text">GIRA LA RUOTA</div>
+                <div class="col-visual">
+                    <div id="wheel-wrapper" aria-hidden="true">
+                        <div id="wheel-pointer"></div>
+                        <div id="wheel-visual"></div>
+                    </div>
+                    
+                    <div id="wheel-status-text">GIRA LA RUOTA</div>
 
-                <button id="btn-spin" class="btn-primary" onclick="doSpin()">1. GIRA RUOTA (Ctrl+G)</button>
-                <div style="display:flex; gap:10px;">
-                    <button id="btn-vowel" class="btn-secondary" onclick="openInput('vowel')">2. VOCALE (Ctrl+V)</button>
-                    <button id="btn-solve" class="btn-accent" onclick="openInput('solve')">3. RISOLVI (Ctrl+S)</button>
-                </div>
-                <button id="btn-read-letters" class="btn-secondary" onclick="readRevealedLetters()" style="background:#333; color:#fff;">RILEGGI LETTERE (Ctrl+L)</button>
-                
-                <div style="text-align:center; margin-top:20px; color:#aaa;">
-                    Premi <strong>'T'</strong> per rileggere l'Argomento.<br>
-                    Premi <strong>Frecce</strong> per esplorare le lettere.
-                </div>
+                    <button id="btn-spin" class="btn-primary" onclick="doSpin()">1. GIRA RUOTA (Ctrl+G)</button>
+                    <div style="display:flex; gap:10px;">
+                        <button id="btn-vowel" class="btn-secondary" onclick="openInput('vowel')">2. VOCALE (Ctrl+V)</button>
+                        <button id="btn-solve" class="btn-accent" onclick="openInput('solve')">3. RISOLVI (Ctrl+S)</button>
+                    </div>
+                    <button id="btn-read-letters" class="btn-secondary" onclick="readRevealedLetters()" style="background:#333; color:#fff;">RILEGGI LETTERE (Ctrl+L)</button>
+                    
+                    <button onclick="forceReset()" style="background:#440000; margin-top:20px;">SBLOCCA GIOCO (Se bloccato)</button>
 
-                <ul id="player-list"></ul>
+                    <div style="text-align:center; margin-top:20px; color:#aaa;">
+                        Premi <strong>'T'</strong> per rileggere l'Argomento.<br>
+                        Premi <strong>Frecce</strong> per esplorare le lettere.
+                    </div>
 
-                <div id="host-controls" class="hidden" style="margin-top:30px; border-top:2px solid #fff; padding-top:20px;">
-                    <button onclick="startNewRound()" style="background:#550000; color:white;">NUOVO ROUND (H)</button>
+                    <ul id="player-list"></ul>
+
+                    <div id="host-controls" class="hidden" style="margin-top:30px; border-top:2px solid #fff; padding-top:20px;">
+                        <button onclick="startNewRound()" style="background:#550000; color:white;">NUOVO ROUND (H)</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -164,7 +186,7 @@
     let currentCategory = "ATTESA";
     let currentRevealed = [];
     let inputMode = null;
-    let isSpinning = false;
+    let isSpinning = false; // Variabile critica
     let isProcessing = false;
     let navWordIdx = 0;
     let navCharIdx = 0;
@@ -180,18 +202,19 @@
     function cleanStr(str) { return str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/g, ""); }
     function play(id) { document.getElementById(id).play().catch(()=>{}); }
 
+    // --- TASTIERA ---
     document.getElementById('game-input').addEventListener('keydown', (e) => {
         if(e.key === 'Enter') { e.preventDefault(); submitInput(); }
     });
 
-    // --- SHORTCUTS ---
     document.addEventListener('keydown', (e) => {
+        if (!e.key) return;
         const inInput = (document.activeElement.tagName === 'INPUT');
 
-        // TASTO T: LEGGI ARGOMENTO
+        // T: LEGGI ARGOMENTO
         if(e.key.toLowerCase() === 't' && !inInput) {
             e.preventDefault();
-            speak("Argomento attuale: " + currentCategory);
+            speak("Argomento: " + currentCategory);
             return;
         }
 
@@ -216,7 +239,7 @@
             return;
         }
 
-        // NAVIGAZIONE TABELLONE
+        // FRECCE
         if(!inInput && roomState.stato === 'gioco' && parsedBoard.length > 0) {
             if(['ArrowRight','ArrowLeft','ArrowDown','ArrowUp'].includes(e.key)) {
                 e.preventDefault();
@@ -255,7 +278,7 @@
         }
     }
 
-    // --- GESTIONE STANZE ---
+    // --- GESTIONE INGRESSO ---
     async function joinGame(create) {
         const name = document.getElementById('inp-name').value.trim().toUpperCase();
         const code = document.getElementById('inp-code').value.trim().toUpperCase();
@@ -266,27 +289,23 @@
              await supabase.from('stanze').delete().lt('created_at', time);
              
              const {data:exist} = await supabase.from('stanze').select('id').eq('codice',code).maybeSingle();
-             if(exist) return speak("Codice già usato. Cambialo.");
+             if(exist) return speak("Codice occupato. Cambialo.");
 
-             const {data, error} = await supabase.from('stanze').insert({codice:code, stato:'attesa'}).select().single();
-             if(error) return speak("Errore creazione stanza.");
+             const {data, error} = await supabase.from('stanze').insert({codice:code, stato:'attesa', id_giocatore_corrente:0}).select().single();
+             if(error) return speak("Errore creazione.");
              myRoomId = data.id;
         } else {
             const {data} = await supabase.from('stanze').select('*').eq('codice',code).maybeSingle();
-            if(!data) return speak("Stanza non trovata");
+            if(!data) return speak("Stanza inesistente");
             myRoomId = data.id;
         }
 
-        // FIX V28: Usiamo Count per l'indice, non Date.now()
         const {count} = await supabase.from('giocatori').select('*',{count:'exact',head:true}).eq('stanza_id',myRoomId);
         const safeIndex = count || 0;
-
-        const {data:neu, error:errInsert} = await supabase.from('giocatori').insert({stanza_id:myRoomId, nome:name, indice:safeIndex}).select().single();
-        if(errInsert || !neu) { console.error(errInsert); return speak("Errore ingresso. Riprova."); }
-
-        myId=neu.id; myIndex=neu.indice; 
+        const {data:neu} = await supabase.from('giocatori').insert({stanza_id:myRoomId, nome:name, indice:safeIndex}).select().single();
         
-        speak("Benvenuto " + name + ". Sei in attesa.");
+        myId=neu.id; myIndex=neu.indice; 
+        speak("Benvenuto " + name);
         document.getElementById('setup-panel').classList.add('hidden');
         document.getElementById('game-panel').classList.remove('hidden');
         startSync();
@@ -318,7 +337,7 @@
                 isHost = true; 
                 document.getElementById('host-controls').classList.remove('hidden'); 
                 document.getElementById('btn-start-round').classList.remove('hidden');
-                document.getElementById('lobby-msg').textContent = "SEI L'HOST! Avvia partita.";
+                document.getElementById('lobby-msg').textContent = "SEI L'HOST! Premi AVVIA PARTITA.";
             }
         }
 
@@ -356,53 +375,92 @@
         document.getElementById('wheel-status-text').textContent = data.montepremi_round > 0 ? `VALORE: €${data.montepremi_round}` : "GIRA LA RUOTA";
 
         if(data.frase_corrente_id) {
-            if(!currentSolution || data.stato === 'attesa' || !parsedBoard.length) {
-                const {data:f} = await supabase.from('frasi').select('*').eq('id',data.frase_corrente_id).single();
-                if(f) { 
+            // FIX V30: Aggiorno SOLO se necessario per evitare sfarfallii, ma pulisco se cambia
+            if(data.frase_corrente_id !== currentSolution.id) { // Controllo approssimativo
+                 const {data:f} = await supabase.from('frasi').select('*').eq('id',data.frase_corrente_id).single();
+                 if(f) { 
                     currentSolution = f.soluzione.toUpperCase(); 
                     currentCategory = f.categoria.toUpperCase();
-                    document.getElementById('live-category').textContent = "ARGOMENTO: " + currentCategory;
-                    document.getElementById('input-category-display').textContent = "ARGOMENTO: " + currentCategory;
-                    document.getElementById('board-container').setAttribute('aria-label', `Tabellone per ${currentCategory}. Usa le frecce.`);
-                }
+                    
+                    // FIX V30: Pulizia testo
+                    document.getElementById('live-category').textContent = ""; // Pulisco prima
+                    setTimeout(() => {
+                        document.getElementById('live-category').textContent = "ARGOMENTO: " + currentCategory;
+                        document.getElementById('input-category-display').textContent = "ARGOMENTO: " + currentCategory;
+                    }, 50);
+                    
+                    document.getElementById('board-container').setAttribute('aria-label', `Tabellone per ${currentCategory}.`);
+                 }
             }
             currentRevealed = data.lettere_rivelate || [];
             parseBoardData();
         }
 
+        // FIX V30: Safety Check - se non sto girando ma ho soldi, apri input
         if(isMyTurn && data.montepremi_round > 0 && !inputMode && !isSpinning) openInput('letter');
     }
 
+    // FIX V30: FUNZIONE DO SPIN BLINDATA
     function doSpin() {
         if(isSpinning) return;
+        
+        const visual = document.getElementById('wheel-visual');
+        if(!visual) {
+            // Fallback se l'elemento non esiste (per l'errore console)
+            console.error("Elemento ruota non trovato!");
+            finishSpinLogic();
+            return;
+        }
+
         isSpinning = true;
         play('snd-spin');
         wheelRot += (720 + Math.random() * 360);
-        document.getElementById('wheel-visual').style.transform = `rotate(${wheelRot}deg)`;
+        visual.style.transform = `rotate(${wheelRot}deg)`;
         
-        setTimeout(async () => {
-            isSpinning = false;
-            const val = WHEEL_VALUES[Math.floor(Math.random()*WHEEL_VALUES.length)];
-            
-            if(val === 'BANCAROTTA') {
-                const {data:me} = await supabase.from('giocatori').select('jolly').eq('id',myId).single();
-                if(me.jolly > 0) {
-                    await supabase.from('giocatori').update({jolly: me.jolly - 1}).eq('id',myId);
-                    speak("Bancarotta! Salvato dal Jolly.");
-                    await supabase.from('stanze').update({montepremi_round:0}).eq('id',myRoomId);
-                } else {
-                    speak("Bancarotta!");
-                    await supabase.from('giocatori').update({punteggio_totale:0}).eq('id',myId);
-                    passTurn();
-                }
-            } 
-            else if (val === 'PASSA') { speak("Passa"); passTurn(); } 
-            else if (val === 'MISTERO') { await handleMistero(); } 
-            else {
-                speak(`Esce ${val}.`);
-                await supabase.from('stanze').update({montepremi_round:val}).eq('id',myRoomId);
+        // FIX V30: Timeout di sicurezza. Se si blocca, si sblocca da solo dopo 4s
+        const safetyTimer = setTimeout(() => {
+            if(isSpinning) {
+                console.log("Sblocco di sicurezza attivato");
+                isSpinning = false;
             }
+        }, 4000);
+
+        setTimeout(async () => {
+            clearTimeout(safetyTimer); // Tutto ok, cancello il timer
+            await finishSpinLogic();
         }, 3000);
+    }
+
+    async function finishSpinLogic() {
+        isSpinning = false;
+        const val = WHEEL_VALUES[Math.floor(Math.random()*WHEEL_VALUES.length)];
+        
+        if(val === 'BANCAROTTA') {
+            const {data:me} = await supabase.from('giocatori').select('jolly').eq('id',myId).single();
+            if(me.jolly > 0) {
+                await supabase.from('giocatori').update({jolly: me.jolly - 1}).eq('id',myId);
+                speak("Bancarotta! Salvato dal Jolly.");
+                await supabase.from('stanze').update({montepremi_round:0}).eq('id',myRoomId);
+            } else {
+                speak("Bancarotta!");
+                await supabase.from('giocatori').update({punteggio_totale:0}).eq('id',myId);
+                passTurn();
+            }
+        } 
+        else if (val === 'PASSA') { speak("Passa"); passTurn(); } 
+        else if (val === 'MISTERO') { await handleMistero(); } 
+        else {
+            speak(`Esce ${val}.`);
+            await supabase.from('stanze').update({montepremi_round:val}).eq('id',myRoomId);
+        }
+    }
+
+    // NUOVA FUNZIONE DI EMERGENZA
+    function forceReset() {
+        isSpinning = false;
+        inputMode = null;
+        closeInput();
+        speak("Gioco sbloccato.");
     }
 
     async function handleMistero() {
@@ -507,7 +565,17 @@
         
         speak("Nuovo round! Argomento: " + currentCategory);
         
-        await supabase.from('stanze').update({stato:'gioco', frase_corrente_id:pick.id, lettere_rivelate:[], montepremi_round:0}).eq('id',myRoomId);
+        // FIX V30: Reset forzato variabili locali
+        isSpinning = false;
+        inputMode = null;
+
+        await supabase.from('stanze').update({
+            stato:'gioco', 
+            frase_corrente_id:pick.id, 
+            lettere_rivelate:[], 
+            montepremi_round:0,
+            id_giocatore_corrente:0 
+        }).eq('id',myRoomId);
     }
 
     function readRevealedLetters() {

@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>La Ruota - V33 (Suoni Multipli)</title>
+    <title>La Ruota - V34 (Shortcuts Ripristinati)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -30,7 +30,7 @@
             padding: 20px; text-align: center; border-radius: 10px; margin-bottom: 20px;
         }
         
-        /* ARGOMENTO BEN VISIBILE E NAVIGABILE */
+        /* ARGOMENTO BEN VISIBILE */
         #live-category {
             color: #ffff00; font-size: 2.5em; font-weight: 900; margin: 0;
             text-transform: uppercase; letter-spacing: 2px;
@@ -68,22 +68,17 @@
 
         /* RUOTA VISIVA */
         #wheel-wrapper { position: relative; width: 300px; height: 300px; margin: 0 auto 20px auto; }
-        
         #wheel-img {
-            width: 100%; height: 100%; 
-            border-radius: 50%; 
-            border: 5px solid #fff;
-            object-fit: cover;
+            width: 100%; height: 100%; border-radius: 50%; border: 5px solid #fff; object-fit: cover;
             transition: transform 3s cubic-bezier(0.1, 0.8, 0.1, 1);
         }
-        
         #wheel-pointer {
             position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
             width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-top: 30px solid #ffffff; z-index: 10;
         }
 
         /* OVERLAYS */
-        #input-area {
+        #input-area, #inspector-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #000; z-index: 2000;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
@@ -97,6 +92,14 @@
 <div id="sr-announcer" class="sr-only" aria-live="assertive"></div>
 
 <h1>Ruota della Fortuna</h1>
+
+<div id="inspector-overlay" class="hidden" role="dialog" aria-label="Riepilogo Testuale">
+    <div style="background:#222; padding:30px; border:4px solid #ffd700; width:90%; max-height:90%; overflow:auto;">
+        <h2 style="color:#ffd700; text-align:center;">RIEPILOGO (Lettura)</h2>
+        <div id="inspector-text" tabindex="-1" style="font-size:2em; line-height:1.6; color:#fff;"></div>
+        <button onclick="closeInspector()" class="btn-secondary" style="margin-top:20px;">CHIUDI (ESC)</button>
+    </div>
+</div>
 
 <div class="container">
     
@@ -121,7 +124,6 @@
         <div id="active-game-interface">
             <div class="status-bar" role="region" aria-label="Stato">
                 <h2 id="live-category" tabindex="0">CARICAMENTO...</h2>
-                
                 <div id="turn-indicator" style="font-size:1.5em; color:#fff;">In attesa...</div>
                 <div id="my-score" style="font-size:1.2em; color:#ffd700; margin-top:10px;">Tu: €0 | Jolly: 0</div>
             </div>
@@ -148,7 +150,8 @@
 
                     <div style="text-align:center; margin-top:20px; color:#aaa;">
                         Premi <strong>'T'</strong> per rileggere l'Argomento.<br>
-                        Premi <strong>Frecce</strong> per esplorare le lettere.
+                        Premi <strong>Ctrl+I</strong> per leggere tutto il testo.<br>
+                        Premi <strong>Ctrl+Frecce</strong> per leggere la parola corrente.
                     </div>
 
                     <ul id="player-list"></ul>
@@ -205,24 +208,17 @@
 
     function cleanStr(str) { return str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/g, ""); }
     
-    // V33: RIPRISTINATO SUONO MULTIPLO
     function playHitSound(times) {
         let count = 0;
         function loop() {
             if (count < times) {
                 const audio = document.getElementById('snd-hit');
-                if(audio) { 
-                    audio.currentTime = 0; 
-                    audio.play().catch(()=>{}); 
-                }
-                count++; 
-                // Ripeti ogni 400ms per un suono distinto
-                setTimeout(loop, 400);
+                if(audio) { audio.currentTime = 0; audio.play().catch(()=>{}); }
+                count++; setTimeout(loop, 400);
             }
         } 
         loop();
     }
-    
     function play(id) { document.getElementById(id).play().catch(()=>{}); }
 
     // --- TASTIERA ---
@@ -234,6 +230,7 @@
         if (!e.key) return;
         const inInput = (document.activeElement.tagName === 'INPUT');
 
+        // T: LEGGI ARGOMENTO
         if(e.key.toLowerCase() === 't' && !inInput) {
             e.preventDefault();
             speak("Argomento: " + currentCategory);
@@ -242,6 +239,10 @@
 
         if(e.ctrlKey) {
             const k = e.key.toLowerCase();
+            // V34: RIPRISTINATO CTRL+I e CTRL+FRECCE
+            if(k === 'i') { e.preventDefault(); openInspector(); return; }
+            if(k === 'arrowright' || k === 'arrowleft') { e.preventDefault(); readCurrentWord(); return; }
+            
             if(k==='l') { e.preventDefault(); readRevealedLetters(); return; }
             if(k==='h') { e.preventDefault(); if(isHost) startNewRound(); return; }
             
@@ -257,10 +258,12 @@
 
         if(e.key === 'Escape') {
             if(inputMode) closeInput();
+            else closeInspector(); // Chiude anche l'inspector
             document.getElementById('btn-spin').focus();
             return;
         }
 
+        // FRECCE (Navigazione normale)
         if(!inInput && roomState.stato === 'gioco' && parsedBoard.length > 0) {
             if(['ArrowRight','ArrowLeft','ArrowDown','ArrowUp'].includes(e.key)) {
                 e.preventDefault();
@@ -273,6 +276,54 @@
             }
         }
     });
+
+    // V34: FUNZIONE LETTURA PAROLA CORRENTE
+    function readCurrentWord() {
+        if(parsedBoard.length === 0) return;
+        let w = parsedBoard[navWordIdx];
+        if(!w) return;
+
+        let missing = w.chars.filter(c => !c.isRevealed).length;
+        let text = `Parola ${navWordIdx+1}. `;
+        
+        if(missing === w.chars.length) {
+            text += `${w.chars.length} lettere, tutte nascoste.`;
+        } else if(missing === 0) {
+            text += w.wordStr; // Legge la parola intera
+        } else {
+            // Spelling
+            w.chars.forEach(c => {
+                if(c.isRevealed) text += `${c.realChar}, `;
+                else text += "nascosta, ";
+            });
+        }
+        speak(text);
+    }
+
+    // V34: FUNZIONI INSPECTOR (CTRL+I)
+    function openInspector() {
+        const txt = document.getElementById('inspector-text');
+        let html = `<p style="color:#ffd700; border-bottom:1px solid #555;">ARGOMENTO: ${currentCategory}</p>`;
+        
+        parsedBoard.forEach((w, i) => {
+            let wordHtml = "";
+            w.chars.forEach(c => {
+                if(c.isRevealed) wordHtml += `<span style="margin:0 5px;">${c.realChar}</span>`;
+                else wordHtml += `<span style="margin:0 5px;">_</span>`;
+            });
+            html += `<p>Parola ${i+1}: ${wordHtml}</p>`;
+        });
+        
+        txt.innerHTML = html;
+        document.getElementById('inspector-overlay').classList.remove('hidden');
+        speak("Modalità lettura aperta. Premi frecce per leggere.");
+        txt.focus();
+    }
+
+    function closeInspector() {
+        document.getElementById('inspector-overlay').classList.add('hidden');
+        document.getElementById('btn-spin').focus();
+    }
 
     function moveNav(dWord, dChar) {
         if(parsedBoard.length === 0) return;
@@ -356,6 +407,7 @@
         const gameList = document.getElementById('player-list');
         gameList.innerHTML = '';
         
+        // Logica Host
         if (pl.length > 0) {
             if (pl[0].id === myId) { 
                 isHost = true; 
@@ -547,7 +599,6 @@
         if(ind.length > 0 && currentRevealed.includes(ind[0])) {
             speak("Già detta!"); passTurn();
         } else if(ind.length > 0) {
-            // V33: CHIAMATA AL SUONO MULTIPLO
             playHitSound(ind.length); 
             speak("Ce ne sono "+ind.length);
             let nr = [...new Set([...currentRevealed,...ind])];

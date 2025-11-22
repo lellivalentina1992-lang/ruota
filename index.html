@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>La Ruota - Accessibile V7</title>
+    <title>La Ruota - Accessibile V8 (Fix Host)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -14,7 +14,7 @@
             margin: 0; padding: 10px;
         }
         
-        /* FOCUS VISIBILE E FORTE */
+        /* FOCUS VISIBILE */
         *:focus {
             outline: 4px solid #ffd700 !important;
             outline-offset: 2px;
@@ -47,18 +47,17 @@
             padding: 20px; text-align: center; font-size: 1.5em; font-weight: bold; margin-bottom: 20px;
         }
 
-        /* TABELLONE NAVIGABILE */
+        /* TABELLONE */
         #board-navigator {
             background: #000; border: 2px dashed #666; padding: 20px; margin: 15px 0;
             color: #fff; font-family: monospace; font-size: 1.2em; cursor: pointer;
             position: relative; min-height: 50px;
         }
-        /* Testo visivo per ipovedenti, nascosto a screen reader per evitare lettura "trattino trattino" */
         #visual-board-content {
             opacity: 0.8; font-weight: bold; letter-spacing: 2px;
         }
 
-        /* INPUT POPUP (MODALE) */
+        /* INPUT MODALE */
         #input-area {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.95); z-index: 1000;
@@ -95,7 +94,7 @@
 </div>
 
 <div class="container">
-    <h1>LA RUOTA V7</h1>
+    <h1>LA RUOTA V8 (Fix)</h1>
 
     <div id="setup-panel">
         <label for="inp-name">Tuo Nome:</label>
@@ -138,7 +137,7 @@
         </div>
 
         <div id="host-controls" class="hidden" style="margin-top:20px;">
-            <button onclick="startNewRound()" style="width:100%; padding:15px; background:#550000; color:fff;">[HOST] NUOVO ROUND (Ctrl+H)</button>
+            <button onclick="startNewRound()" style="width:100%; padding:15px; background:#550000; color:fff;">[HOST] FORZA NUOVO ROUND (Ctrl+H)</button>
         </div>
     </div>
 </div>
@@ -157,7 +156,7 @@
 <audio id="snd-miss" src="lettera assente.wav"></audio>
 
 <script>
-    // --- CONFIGURAZIONE SUPABASE ---
+    // CONFIG SUPABASE
     const supabase = window.supabase.createClient(
         'https://azcwkpdjbysnivknnino.supabase.co',
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Y3drcGRqYnlzbml2a25uaW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MzAwNDksImV4cCI6MjA3OTIwNjA0OX0.R8wkMJEmsP8cTVUUOcWtD4Rrg_ZhuOE-PYBJ56eGqMU'
@@ -165,15 +164,15 @@
     
     const WHEEL_VALUES = [100, 200, 300, 400, 500, 1000, 2000, 'BANCAROTTA', 'PASSA', 'MISTERO'];
 
-    // STATO GLOBALE
+    // STATO
     let myId, myRoomId, myIndex, isHost = false;
     let roomState = {};
     let currentSolution = "";
     let currentRevealed = [];
-    let inputMode = null; 
+    let inputMode = null;
     let isSpinning = false;
     
-    // NAVIGAZIONE TABELLONE
+    // NAVIGAZIONE
     let navWordIdx = 0;
     let navCharIdx = 0;
     let parsedBoard = [];
@@ -190,7 +189,7 @@
         const audio = document.getElementById(id);
         if(audio) {
             audio.currentTime = 0;
-            audio.play().catch(e => console.warn("Audio play fallito:", e));
+            audio.play().catch(e => console.warn("Audio fail:", e));
         }
     }
 
@@ -200,97 +199,65 @@
         if (!currentSolution) return;
         const rawWords = currentSolution.split(' ');
         let globalIndex = 0;
-
         rawWords.forEach((w) => {
             let wordObj = { wordStr: w, chars: [] };
             for (let i = 0; i < w.length; i++) {
                 const char = w[i];
                 const isRev = currentRevealed.includes(globalIndex);
-                wordObj.chars.push({
-                    realChar: char,
-                    displayChar: isRev ? char : '_',
-                    isRevealed: isRev
-                });
+                wordObj.chars.push({ realChar: char, displayChar: isRev ? char : '_', isRevealed: isRev });
                 globalIndex++;
             }
             parsedBoard.push(wordObj);
-            globalIndex++; // Spazio
+            globalIndex++; 
         });
         updateVisual();
     }
 
     function updateVisual() {
         const vis = document.getElementById('visual-board-content');
-        if(parsedBoard.length === 0) {
-            vis.textContent = "(Nessuna frase)";
-            return;
-        }
+        if(parsedBoard.length === 0) { vis.textContent = "(Nessuna frase)"; return; }
         vis.textContent = parsedBoard.map(w => w.chars.map(c => c.displayChar).join(' ')).join('   /   ');
     }
 
-    // --- NAVIGAZIONE FOCUS (TABELLONE) ---
+    // --- NAVIGAZIONE FOCUS ---
     document.getElementById('board-navigator').addEventListener('keydown', (e) => {
-        // GESTIONE ESC SPECIFICA
         if (e.key === 'Escape') {
-            e.preventDefault();
-            document.getElementById('btn-spin').focus();
-            speak("Uscito dal tabellone. Focus su Gira Ruota.");
-            return;
+            e.preventDefault(); document.getElementById('btn-spin').focus();
+            speak("Uscito dal tabellone."); return;
         }
-
-        if (e.ctrlKey) return; // Lascia passare le scorciatoie globali
-
+        if (e.ctrlKey) return; 
         if (parsedBoard.length === 0) return;
+
         let handled = false;
+        if (e.key === 'ArrowRight') { moveNextChar(); handled = true; } 
+        else if (e.key === 'ArrowLeft') { movePrevChar(); handled = true; } 
+        else if (e.key === 'ArrowDown') { jumpNextWord(); handled = true; } 
+        else if (e.key === 'ArrowUp') { jumpPrevWord(); handled = true; }
 
-        if (e.key === 'ArrowRight') {
-            moveNextChar(); handled = true;
-        } else if (e.key === 'ArrowLeft') {
-            movePrevChar(); handled = true;
-        } else if (e.key === 'ArrowDown') {
-            jumpNextWord(); handled = true;
-        } else if (e.key === 'ArrowUp') {
-            jumpPrevWord(); handled = true;
-        }
-
-        if (handled) {
-            e.preventDefault();
-            announcePos();
-        }
+        if (handled) { e.preventDefault(); announcePos(); }
     });
 
     function moveNextChar() {
         navCharIdx++;
         let wLen = parsedBoard[navWordIdx].chars.length;
         if (navCharIdx >= wLen) {
-            if (navWordIdx < parsedBoard.length - 1) {
-                navWordIdx++; navCharIdx = 0;
-            } else {
-                navCharIdx = wLen - 1; speak("Fine frase");
-            }
+            if (navWordIdx < parsedBoard.length - 1) { navWordIdx++; navCharIdx = 0; } 
+            else { navCharIdx = wLen - 1; speak("Fine frase"); }
         }
     }
     function movePrevChar() {
         navCharIdx--;
         if (navCharIdx < 0) {
-            if (navWordIdx > 0) {
-                navWordIdx--; navCharIdx = parsedBoard[navWordIdx].chars.length - 1;
-            } else {
-                navCharIdx = 0; speak("Inizio frase");
-            }
+            if (navWordIdx > 0) { navWordIdx--; navCharIdx = parsedBoard[navWordIdx].chars.length - 1; } 
+            else { navCharIdx = 0; speak("Inizio frase"); }
         }
     }
     function jumpNextWord() {
-        if (navWordIdx < parsedBoard.length - 1) {
-            navWordIdx++; navCharIdx = 0;
-        } else { speak("Ultima parola"); }
+        if (navWordIdx < parsedBoard.length - 1) { navWordIdx++; navCharIdx = 0; } else { speak("Ultima parola"); }
     }
     function jumpPrevWord() {
-        if (navWordIdx > 0) {
-            navWordIdx--; navCharIdx = 0;
-        } else { speak("Prima parola"); }
+        if (navWordIdx > 0) { navWordIdx--; navCharIdx = 0; } else { speak("Prima parola"); }
     }
-
     function announcePos() {
         const w = parsedBoard[navWordIdx];
         const c = w.chars[navCharIdx];
@@ -301,26 +268,23 @@
         speak(msg);
     }
 
-    // --- TASTI GLOBALI E SCORCIATOIE ---
+    // --- TASTI GLOBALI ---
     document.addEventListener('keydown', (e) => {
-        // CTRL+I Inspector
-        if (e.ctrlKey && (e.key === 'i' || e.key === 'I')) {
-            e.preventDefault(); openInspector(); return;
-        }
+        if (e.ctrlKey && (e.key === 'i' || e.key === 'I')) { e.preventDefault(); openInspector(); return; }
         
-        // CTRL+H: HOST START (CRUCIALE PER TE)
+        // CTRL+H: HOST FORCE START
         if (e.ctrlKey && (e.key === 'h' || e.key === 'H')) {
             e.preventDefault();
-            if(isHost) {
-                speak("Avvio nuovo round...");
+            // FIX: Se sono indice 0, permetto sempre!
+            if(isHost || myIndex === 0) {
+                speak("Forzatura avvio round...");
                 startNewRound();
             } else {
-                speak("Non sei l'host.");
+                speak("Non sei l'host (Indice "+myIndex+")");
             }
             return;
         }
 
-        // ESC GENERICO
         if (e.key === 'Escape') {
             if(inputMode) closeInput();
             closeInspector();
@@ -328,29 +292,18 @@
             return;
         }
 
-        // COMANDI DI GIOCO (G, V, S)
+        // GIOCO
         if (inputMode === null && !document.getElementById('game-panel').classList.contains('hidden')) {
-            
-            // Se premo CTRL+G, V o S, controllo perché non posso agire
             if (e.ctrlKey) {
                 const k = e.key.toLowerCase();
                 if (k === 'g' || k === 'v' || k === 's') {
                     e.preventDefault();
-                    
-                    // 1. Controllo se il gioco è fermo
                     if (roomState.stato !== 'gioco') {
-                        if(isHost) speak("Il round è fermo. Premi Control H per iniziare.");
-                        else speak("Il round è fermo. L'host deve avviarlo.");
-                        return;
+                        speak("Gioco fermo. Premi Control H per avviare."); return;
                     }
-
-                    // 2. Controllo se è il mio turno
                     if (roomState.id_giocatore_corrente !== myIndex) {
-                        speak("Non è il tuo turno. Tocca al giocatore " + roomState.id_giocatore_corrente);
-                        return;
+                        speak("Non tocca a te."); return;
                     }
-
-                    // 3. Eseguo azione
                     if (k === 'g') doSpin();
                     if (k === 'v') openInput('vowel');
                     if (k === 's') openInput('solve');
@@ -359,37 +312,16 @@
         }
     });
 
-    // --- ISPETTORE TESTUALE ---
-    function openInspector() {
-        const ov = document.getElementById('inspector-overlay');
-        const txt = document.getElementById('inspector-text');
-        let html = `<p>Categoria: ${document.getElementById('category-display').textContent}</p>`;
-        if (parsedBoard.length === 0) html += "<p>Vuoto.</p>";
-        else {
-            parsedBoard.forEach((w, i) => {
-                let s = w.chars.map(c => c.isRevealed ? c.realChar : "-").join("");
-                html += `<p>Parola ${i+1}: ${s}</p>`;
-            });
-        }
-        txt.innerHTML = html;
-        ov.classList.remove('hidden');
-        txt.focus();
-    }
-    function closeInspector() {
-        document.getElementById('inspector-overlay').classList.add('hidden');
-        document.getElementById('btn-spin').focus();
-    }
-
     // --- SUPABASE ---
     async function joinGame(create) {
         const name = document.getElementById('inp-name').value.trim().toUpperCase();
         const code = document.getElementById('inp-code').value.trim().toUpperCase();
-        if(!name || !code) return speak("Inserisci nome e codice");
+        if(!name || !code) return speak("Dati mancanti");
         
         let rId;
         if(create) {
             const {data, error} = await supabase.from('stanze').insert({codice:code, stato:'attesa'}).select().single();
-            if(error) return speak("Errore creazione stanza (codice usato?)");
+            if(error) return speak("Codice usato?");
             rId = data.id; isHost = true;
         } else {
             const {data} = await supabase.from('stanze').select('*').eq('codice',code).maybeSingle();
@@ -401,40 +333,45 @@
         const {data:exist} = await supabase.from('giocatori').select('*').eq('stanza_id',rId).eq('nome',name).maybeSingle();
         if(exist) {
             myId=exist.id; myIndex=exist.indice; isHost=exist.is_host;
-            speak("Bentornato " + name);
-            if(isHost) speak("Sei Host. Premi Control H per iniziare.");
+            speak("Bentornato " + name + ", indice " + myIndex);
         } else {
             const {count} = await supabase.from('giocatori').select('*',{count:'exact', head:true}).eq('stanza_id',rId);
             const {data:neu} = await supabase.from('giocatori').insert({stanza_id:rId, nome:name, indice:count||0, is_host:isHost}).select().single();
             myId=neu.id; myIndex=neu.indice;
-            speak("Sei entrato come " + name);
-            if(isHost) speak("Premi Control H per iniziare.");
+            speak("Benvenuto " + name + ", indice " + myIndex);
         }
+        
+        // FIX CRUCIALE: SE SONO INDICE 0, DIVENTO HOST AUTOMATICAMENTE
+        if(myIndex === 0) {
+            isHost = true;
+            // Aggiorno DB per sicurezza
+            await supabase.from('giocatori').update({is_host:true}).eq('id',myId);
+            document.getElementById('host-controls').classList.remove('hidden');
+            speak("Sei il Giocatore 0. Sei HOST. Premi Control H per iniziare.");
+        }
+
+        if(isHost) document.getElementById('host-controls').classList.remove('hidden');
         
         document.getElementById('setup-panel').classList.add('hidden');
         document.getElementById('game-panel').classList.remove('hidden');
-        if(isHost) document.getElementById('host-controls').classList.remove('hidden');
-        
         document.getElementById('btn-spin').focus();
         startSync();
     }
 
     function startSync() {
-        supabase.channel('room').on('postgres_changes',{event:'*',schema:'public',table:'stanze',filter:'id=eq.'+myRoomId}, p=>updateRoom(p.new)).subscribe();
-        supabase.channel('players').on('postgres_changes',{event:'*',schema:'public',table:'giocatori',filter:'stanza_id=eq.'+myRoomId}, updatePlayers).subscribe();
+        supabase.channel('r').on('postgres_changes',{event:'*',schema:'public',table:'stanze',filter:'id=eq.'+myRoomId}, p=>updateRoom(p.new)).subscribe();
+        supabase.channel('p').on('postgres_changes',{event:'*',schema:'public',table:'giocatori',filter:'stanza_id=eq.'+myRoomId}, updatePlayers).subscribe();
         supabase.from('stanze').select('*').eq('id',myRoomId).single().then(r=>updateRoom(r.data));
         updatePlayers();
     }
 
     async function updateRoom(data) {
         roomState = data;
-        
-        // Turno
         const isMyTurn = (data.id_giocatore_corrente === myIndex && data.stato === 'gioco');
         const ti = document.getElementById('turn-indicator');
         
         if (data.stato !== 'gioco') {
-            ti.textContent = "GIOCO IN ATTESA (Host premi CTRL+H)";
+            ti.textContent = "GIOCO IN PAUSA (Premi CTRL+H)";
             ti.className = '';
         } else if (isMyTurn) {
             ti.textContent = "È IL TUO TURNO!";
@@ -444,14 +381,10 @@
             ti.className = '';
         }
         
-        // Abilita/Disabilita pulsanti visivi
         ['btn-spin','btn-vowel','btn-solve'].forEach(id => document.getElementById(id).disabled = !isMyTurn);
-
-        // Ruota
         const w = document.getElementById('wheel-status');
         w.textContent = data.montepremi_round > 0 ? `VALORE ATTIVO: €${data.montepremi_round}` : "Ruota Ferma";
 
-        // Frase
         if(data.frase_corrente_id) {
             if(!currentSolution || data.stato === 'attesa') {
                 const {data:f} = await supabase.from('frasi').select('*').eq('id',data.frase_corrente_id).single();
@@ -464,10 +397,7 @@
             parseBoardData();
         }
 
-        // Auto-apertura input se ho girato la ruota
-        if(isMyTurn && data.montepremi_round > 0 && !inputMode && !isSpinning) {
-            openInput('letter');
-        }
+        if(isMyTurn && data.montepremi_round > 0 && !inputMode && !isSpinning) openInput('letter');
     }
 
     async function updatePlayers() {
@@ -476,37 +406,33 @@
         list.innerHTML = '';
         data.forEach(p => {
             const li = document.createElement('li');
-            li.textContent = `${p.nome}: €${p.punteggio_totale}`;
+            li.textContent = `${p.nome} (Idx ${p.indice}): €${p.punteggio_totale}`;
             if(p.indice === roomState.id_giocatore_corrente && roomState.stato === 'gioco') li.style.color='#00ff00';
             if(p.id === myId) document.getElementById('my-score').textContent = `Tu: €${p.punteggio_totale}`;
             list.appendChild(li);
         });
     }
 
-    // --- AZIONI DI GIOCO ---
+    // AZIONI
     function doSpin() {
         if(isSpinning) return;
         isSpinning = true;
         play('snd-spin');
-        speak("La ruota gira...");
+        speak("Ruota gira...");
         document.getElementById('wheel-status').textContent = "GIRANDO...";
-        
         setTimeout(async () => {
             isSpinning = false;
             const val = WHEEL_VALUES[Math.floor(Math.random()*WHEEL_VALUES.length)];
-            
             if(val === 'BANCAROTTA') {
                 speak("Bancarotta!");
                 await supabase.from('giocatori').update({punteggio_totale:0}).eq('id',myId);
                 passTurn();
             } else if (val === 'PASSA') {
-                speak("Passa la mano");
-                passTurn();
+                speak("Passa"); passTurn();
             } else if (val === 'MISTERO') {
-                speak("Mistero... ma non succede nulla");
-                passTurn();
+                speak("Mistero... nulla"); passTurn();
             } else {
-                speak(`Valore ${val} euro. Chiama consonante.`);
+                speak(`Valore ${val}. Chiama consonante.`);
                 await supabase.from('stanze').update({montepremi_round:val}).eq('id',myRoomId);
             }
         }, 3000);
@@ -517,14 +443,11 @@
         const area = document.getElementById('input-area');
         const lbl = document.getElementById('input-label');
         const inp = document.getElementById('game-input');
-        
         area.classList.remove('hidden');
-        inp.value = '';
-        inp.focus();
-
+        inp.value = ''; inp.focus();
         if(mode==='letter') lbl.textContent = `Consonante per €${roomState.montepremi_round}:`;
         if(mode==='vowel') lbl.textContent = "Vocale (€500):";
-        if(mode==='solve') lbl.textContent = "Soluzione Completa:";
+        if(mode==='solve') lbl.textContent = "Soluzione:";
     }
 
     function closeInput() {
@@ -536,50 +459,35 @@
     async function submitInput() {
         const txt = document.getElementById('game-input').value.toUpperCase().trim();
         if(!txt) return;
-        
         const currentMode = inputMode; 
-        
-        // Chiudi UI
         document.getElementById('input-area').classList.add('hidden');
         inputMode = null;
         document.getElementById('btn-spin').focus();
 
-        // LOGICA RISOLVI
         if(currentMode === 'solve') {
             const cleanSol = currentSolution.replace(/[^A-Z]/g,'');
             const cleanInp = txt.replace(/[^A-Z]/g,'');
             if(cleanSol === cleanInp) {
-                play('snd-hit'); speak("Esatto! Hai vinto il round!");
+                play('snd-hit'); speak("Vittoria!");
                 await supabase.from('stanze').update({stato:'attesa',montepremi_round:0}).eq('id',myRoomId);
             } else {
-                play('snd-miss'); speak("Errato.");
-                passTurn();
+                play('snd-miss'); speak("Errato."); passTurn();
             }
             return;
         }
 
-        // LOGICA LETTERA / VOCALE
         const char = txt.charAt(0);
-        const isVowel = "AEIOU".includes(char);
-        
         if(currentMode === 'vowel') {
              const {data:me} = await supabase.from('giocatori').select('punteggio_totale').eq('id',myId).single();
              await supabase.from('giocatori').update({punteggio_totale: me.punteggio_totale - 500}).eq('id',myId);
         }
-
-        // Conta occorrenze
         let indices = [];
         let normSol = currentSolution.replace(/[ÀÁ]/g,'A').replace(/[ÈÉ]/g,'E').replace(/[ÌÍ]/g,'I').replace(/[ÒÓ]/g,'O').replace(/[ÙÚ]/g,'U');
-        
-        for(let i=0; i<normSol.length; i++) {
-            if(normSol[i] === char) indices.push(i);
-        }
+        for(let i=0; i<normSol.length; i++) { if(normSol[i] === char) indices.push(i); }
 
         if(indices.length > 0) {
-            play('snd-hit');
-            speak(`Presente ${indices.length} volte.`);
+            play('snd-hit'); speak(`Presente ${indices.length} volte.`);
             let newRev = [...new Set([...(roomState.lettere_rivelate||[]),...indices])];
-            
             if(currentMode === 'letter') {
                  const {data:me} = await supabase.from('giocatori').select('punteggio_totale').eq('id',myId).single();
                  const win = roomState.montepremi_round * indices.length;
@@ -587,9 +495,7 @@
             }
             await supabase.from('stanze').update({lettere_rivelate:newRev}).eq('id',myRoomId);
         } else {
-            play('snd-miss');
-            speak("Lettera assente.");
-            passTurn();
+            play('snd-miss'); speak("Assente."); passTurn();
         }
     }
 
@@ -601,9 +507,27 @@
 
     async function startNewRound() {
         const {data:f} = await supabase.from('frasi').select('*');
-        if(!f || !f.length) return speak("Nessuna frase nel DB");
+        if(!f || !f.length) return speak("Nessuna frase DB");
         const pick = f[Math.floor(Math.random()*f.length)];
         await supabase.from('stanze').update({stato:'gioco', frase_corrente_id:pick.id, lettere_rivelate:[], montepremi_round:0}).eq('id',myRoomId);
+    }
+    
+    function openInspector() {
+        const ov = document.getElementById('inspector-overlay');
+        const txt = document.getElementById('inspector-text');
+        let html = `<p>Categoria: ${document.getElementById('category-display').textContent}</p>`;
+        if (parsedBoard.length === 0) html += "<p>Vuoto.</p>";
+        else {
+            parsedBoard.forEach((w, i) => {
+                let s = w.chars.map(c => c.isRevealed ? c.realChar : "-").join("");
+                html += `<p>Parola ${i+1}: ${s}</p>`;
+            });
+        }
+        txt.innerHTML = html; ov.classList.remove('hidden'); txt.focus();
+    }
+    function closeInspector() {
+        document.getElementById('inspector-overlay').classList.add('hidden');
+        document.getElementById('btn-spin').focus();
     }
 </script>
 </body>

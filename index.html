@@ -2,84 +2,99 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>La Ruota - Navigazione Frecce Corretta</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ruota Accessibile - Versione GOLD</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <style>
-        /* --- STILE AD ALTO CONTRASTO --- */
+        /* --- STILE GRAFICO & ACCESSIBILE --- */
         body {
-            background-color: #000000; 
-            color: #ffffff; 
+            background-color: #121212; color: #ffffff; 
             font-family: 'Verdana', sans-serif; 
-            margin: 0; padding: 10px;
-            text-align: center;
+            margin: 0; padding: 10px; text-align: center;
+            overflow-x: hidden;
         }
         
         *:focus { outline: 4px solid #ffd700 !important; box-shadow: 0 0 15px #ffd700; }
-
         .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); }
         .hidden { display: none !important; }
 
         /* Layout */
-        .container { max-width: 1000px; margin: 0 auto; }
+        .container { max-width: 900px; margin: 0 auto; padding-bottom: 100px; }
         
         /* Pannelli */
-        #setup-panel, #game-panel { border: 2px solid #ffd700; padding: 20px; margin-top: 20px; background: #111; border-radius: 10px; }
+        #setup-panel, #game-panel { 
+            border: 2px solid #ffd700; padding: 20px; margin-top: 20px; 
+            background: #1e1e1e; border-radius: 15px; box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
         
-        /* Tabellone Visivo */
+        /* Tabellone TV 3D */
         #board-container {
             display: flex; flex-direction: column; align-items: center; gap: 10px;
-            background: #053305; border: 4px solid #fff; padding: 20px; margin: 20px 0;
-            border-radius: 15px; min-height: 100px;
+            background: url('https://img.freepik.com/free-photo/empty-studio-background-blue-spotlight_1258-275.jpg'); /* Sfondo TV */
+            background-size: cover;
+            border: 5px solid #eee; padding: 25px; margin: 20px 0;
+            border-radius: 10px; min-height: 150px;
         }
-        .board-row { display: flex; gap: 8px; }
+        .board-row { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
         
         .tile {
-            width: 45px; height: 60px; background: #ffffff; color: #000000;
-            font-weight: 900; font-size: 2em; display: flex; align-items: center; justify-content: center;
-            border: 2px solid #999;
+            width: 45px; height: 65px; background: #fff; color: #000;
+            font-weight: 900; font-size: 2.2em; display: flex; align-items: center; justify-content: center;
+            border: 2px solid #333; box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+            transition: transform 0.5s, background-color 0.3s; /* Effetto Flip */
         }
-        .tile.empty { background: #006600; color: transparent; border: 1px dashed #00cc00; }
+        .tile.empty { background: #006600; color: transparent; border: 1px solid #fff; opacity: 0.8; }
+        .tile.revealed { transform: rotateY(360deg); background: #fff; color: #000; }
         
-        /* Cursore Navigazione (Bordo Rosso per vedenti/ipovedenti) */
-        .tile.nav-highlight { border: 4px solid #ff0000; transform: scale(1.1); }
+        /* Cursore Navigazione */
+        .tile.cursor { border: 4px solid #ff0000; transform: scale(1.15); z-index: 10; }
 
-        /* Ruota */
+        /* Ruota CSS */
         #wheel-visual {
-            width: 200px; height: 200px; margin: 20px auto;
+            width: 220px; height: 220px; margin: 20px auto;
             border-radius: 50%; border: 8px solid #fff;
-            background: conic-gradient(red, orange, yellow, green, blue, indigo, violet);
-            transition: transform 3s ease-out;
+            background: conic-gradient(#ff0000, #ffa500, #ffff00, #008000, #0000ff, #4b0082, #ee82ee);
+            box-shadow: 0 0 15px #fff;
+            transition: transform 3s cubic-bezier(0.1, 0.8, 0.1, 1);
         }
+        #wheel-pointer { width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-top: 30px solid #fff; margin: 0 auto -20px auto; position: relative; z-index: 10; }
 
         /* Pulsanti */
-        button { padding: 15px 30px; font-size: 1.2em; cursor: pointer; font-weight: bold; margin: 10px; border-radius: 8px; border: 2px solid #fff; }
+        button { padding: 12px 20px; font-size: 1.1em; cursor: pointer; font-weight: bold; margin: 5px; border-radius: 8px; border: 2px solid #fff; text-transform: uppercase; }
         .btn-primary { background: #ffcc00; color: #000; }
         .btn-secondary { background: #00ccff; color: #000; }
-        button:disabled { background: #333; color: #777; border-color: #555; }
+        .btn-danger { background: #ff0000; color: #fff; }
+        button:disabled { background: #444; color: #888; border-color: #666; cursor: not-allowed; }
 
-        /* Input Overlay */
-        #input-area {
+        /* D-PAD MOBILE */
+        #d-pad {
+            display: grid; grid-template-columns: 60px 60px 60px; gap: 5px;
+            justify-content: center; margin: 20px 0;
+            background: #222; padding: 10px; border-radius: 15px; border: 1px solid #555;
+        }
+        .btn-dpad { padding: 15px; font-size: 24px; background: #444; color: #fff; border: 1px solid #777; }
+
+        /* Overlay */
+        #input-area, #inspector-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.95); z-index: 2000;
+            background: rgba(0,0,0,0.95); z-index: 3000;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
         }
-        input { font-size: 1.5em; padding: 10px; text-align: center; width: 80%; max-width: 400px; }
+        #inspector-content { background: #222; border: 2px solid #ffd700; padding: 20px; width: 85%; max-height: 80%; overflow-y: auto; text-align: left; color: #fff; font-size: 1.4em; line-height: 1.6; }
+        input { font-size: 1.8em; padding: 10px; text-align: center; width: 80%; max-width: 400px; background: #333; color: white; border: 2px solid #ffd700; }
     </style>
 </head>
 <body>
 
     <div id="sr-announcer" class="sr-only" aria-live="assertive"></div>
 
-    <h1>La Ruota</h1>
+    <h1 style="color:#ffd700; text-shadow: 2px 2px #000;">LA RUOTA</h1>
 
     <div id="setup-panel" class="container">
-        <h2>Benvenuto</h2>
-        <label>Tuo Nome:</label><br>
-        <input id="inp-name" type="text" placeholder="Nome"><br><br>
-        <label>Codice Stanza:</label><br>
+        <h2>BENVENUTO</h2>
+        <input id="inp-name" type="text" placeholder="IL TUO NOME"><br><br>
         <input id="inp-code" type="text" value="STANZA1"><br><br>
         <button onclick="joinGame(true)" class="btn-primary">CREA STANZA</button>
         <button onclick="joinGame(false)" class="btn-secondary">ENTRA</button>
@@ -87,46 +102,57 @@
 
     <div id="game-panel" class="container hidden">
         
-        <div style="display:flex; justify-content:space-between; font-size:1.2em; padding:10px; background:#222;">
-            <span id="turn-indicator">In attesa...</span>
-            <span id="my-score">Tu: €0</span>
+        <div style="display:flex; justify-content:space-between; background:#000; padding:10px; border-radius:5px;">
+            <span id="turn-indicator" style="font-size:1.2em;">...</span>
+            <span id="my-score" style="color:#ffd700; font-size:1.2em;">Tu: €0</span>
         </div>
 
-        <h2 id="live-category" style="color:#ffd700; font-size: 2em; margin: 20px 0;">...</h2>
+        <h2 id="live-category" style="color:#00ffff; font-size: 1.8em; margin: 15px 0; text-shadow: 1px 1px 2px black;">...</h2>
 
-        <div id="board-container"></div>
+        <div id="board-container" aria-hidden="true"></div>
         
-        <div id="wheel-visual" aria-hidden="true"></div>
-        <div id="wheel-status-text" style="font-size: 1.5em; font-weight: bold; color: cyan;">GIRA LA RUOTA</div>
+        <div id="d-pad">
+            <div></div><button class="btn-dpad" onclick="moveNav(-1, 0)" aria-label="Parola Precedente">▲</button><div></div>
+            <button class="btn-dpad" onclick="moveNav(0, -1)" aria-label="Lettera Sinistra">◄</button>
+            <button class="btn-dpad" onclick="speak('Lettura')">●</button>
+            <button class="btn-dpad" onclick="moveNav(0, 1)" aria-label="Lettera Destra">►</button>
+            <div></div><button class="btn-dpad" onclick="moveNav(1, 0)" aria-label="Parola Successiva">▼</button><div></div>
+        </div>
+
+        <div id="wheel-pointer"></div>
+        <div id="wheel-visual"></div>
+        <div id="wheel-status-text" style="font-size: 1.5em; font-weight: bold; color: lime; margin: 10px;">PREMI G</div>
 
         <div id="controls">
             <button id="btn-spin" class="btn-primary" onclick="doSpin()">1. GIRA (G)</button>
             <button id="btn-vowel" class="btn-secondary" onclick="openInput('vowel')">2. VOCALE (V)</button>
-            <button id="btn-solve" style="background:red; color:white;" onclick="openInput('solve')">3. RISOLVI (S)</button>
+            <button id="btn-solve" class="btn-danger" onclick="openInput('solve')">3. RISOLVI (S)</button>
             <br>
-            <div style="color:#aaa; margin-top:10px;">
-                Usa le <strong>FRECCE</strong> per leggere il tabellone.<br>
-                Premi <strong>Ctrl+I</strong> per il riepilogo.<br>
-                Premi <strong>T</strong> per l'argomento.
-            </div>
+            <button onclick="readRevealedLetters()">LETTERE (L)</button>
+            <button onclick="openInspector()">ISPETTORE (I)</button>
         </div>
 
         <div id="host-controls" class="hidden" style="border-top: 1px solid #555; margin-top: 20px; padding-top: 10px;">
-            <button onclick="startNewRound()" style="background: #444; color: #fff;">NUOVO ROUND (N)</button>
+            <button onclick="startNewRound()" style="background: #444; color: #fff;">FORZA NUOVO ROUND (H)</button>
         </div>
     </div>
 
     <div id="input-area" class="hidden">
-        <h2 id="input-title" style="color:#ffd700">INSERISCI</h2>
+        <h2 id="input-title" style="color:#ffd700">...</h2>
         <input id="game-input" type="text" autocomplete="off">
         <div style="margin-top: 20px;">
-            <button onclick="submitInput()" class="btn-primary">CONFERMA (Invio)</button>
-            <button onclick="closeInput()" class="btn-secondary">ANNULLA (Esc)</button>
+            <button onclick="submitInput()" class="btn-primary">CONFERMA (INVIO)</button>
+            <button onclick="closeInput()" class="btn-secondary">ANNULLA (ESC)</button>
         </div>
     </div>
 
+    <div id="inspector-overlay" class="hidden" role="dialog" aria-label="Ispettore">
+        <div id="inspector-content" tabindex="-1"></div>
+        <button onclick="closeInspector()" class="btn-secondary" style="margin-top:20px;">CHIUDI (ESC)</button>
+    </div>
+
     <script>
-        // --- AUDIO ---
+        // --- AUDIO ENGINE SINTETICO (No file esterni, 250ms speed) ---
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         function playTone(type) {
             if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -136,28 +162,29 @@
             const now = audioCtx.currentTime;
             
             if (type === 'spin') {
-                osc.frequency.setValueAtTime(200, now);
-                osc.type = 'square';
-                gain.gain.setValueAtTime(0.1, now);
-                osc.stop(now + 0.05);
+                osc.frequency.setValueAtTime(200, now); osc.type = 'square';
+                gain.gain.setValueAtTime(0.05, now); osc.stop(now + 0.05);
             } else if (type === 'hit') {
-                osc.frequency.setValueAtTime(800, now);
-                osc.type = 'sine';
-                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
-                osc.stop(now + 0.5);
+                osc.frequency.setValueAtTime(1000, now); osc.type = 'triangle'; // Ding cristallino
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3); osc.stop(now + 0.3);
             } else if (type === 'miss') {
-                osc.frequency.setValueAtTime(150, now);
-                osc.type = 'sawtooth';
-                gain.gain.linearRampToValueAtTime(0.001, now + 0.3);
-                osc.stop(now + 0.3);
+                osc.frequency.setValueAtTime(100, now); osc.type = 'sawtooth'; // Buzzer
+                gain.gain.linearRampToValueAtTime(0.001, now + 0.4); osc.stop(now + 0.4);
             } else if (type === 'win') {
-                osc.frequency.setValueAtTime(500, now);
-                osc.frequency.setValueAtTime(800, now + 0.2);
-                osc.type = 'triangle';
-                gain.gain.setValueAtTime(0.2, now);
-                osc.stop(now + 0.6);
+                // Jingle
+                osc.frequency.setValueAtTime(400, now); osc.frequency.setValueAtTime(600, now+0.1);
+                osc.frequency.setValueAtTime(800, now+0.2); osc.type = 'sine';
+                gain.gain.setValueAtTime(0.3, now); osc.stop(now + 0.6);
             }
             osc.start(now);
+        }
+
+        function playMultiHit(count) {
+            let i = 0;
+            function loop() {
+                if(i < count) { playTone('hit'); i++; setTimeout(loop, 250); } // 250ms velocità richiesta
+            }
+            loop();
         }
 
         // --- SUPABASE ---
@@ -165,33 +192,33 @@
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Y3drcGRqYnlzbml2a25uaW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MzAwNDksImV4cCI6MjA3OTIwNjA0OX0.R8wkMJEmsP8cTVUUOcWtD4Rrg_ZhuOE-PYBJ56eGqMU';
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        // --- DATI ---
-        const NATO = {'A':'Ancona','B':'Bologna','C':'Como','D':'Domodossola','E':'Empoli','F':'Firenze','G':'Genova','H':'Hotel','I':'Imola','J':'Jolly','K':'Kappa','L':'Livorno','M':'Milano','N':'Napoli','O':'Otranto','P':'Palermo','Q':'Quadro','R':'Roma','S':'Savona','T':'Torino','U':'Udine','V':'Venezia','W':'Washington','X':'Xilofono','Y':'Yogurt','Z':'Zara','À':'A accentata','È':'E accentata','Ì':'I accentata','Ò':'O accentata','Ù':'U accentata'};
-        const WHEEL_VALUES = [100, 200, 300, 500, 1000, 2000, 'PASSA', 'BANCAROTTA', 'JOLLY'];
+        // --- DATI & COSTANTI ---
+        const NATO = {'A':'Ancona','B':'Bologna','C':'Como','D':'Domodossola','E':'Empoli','F':'Firenze','G':'Genova','H':'Hotel','I':'Imola','J':'Jolly','K':'Kappa','L':'Livorno','M':'Milano','N':'Napoli','O':'Otranto','P':'Palermo','Q':'Quadro','R':'Roma','S':'Savona','T':'Torino','U':'Udine','V':'Venezia','W':'Washington','X':'Xilofono','Y':'Yogurt','Z':'Zara', 'À':'A accentata', 'È':'E accentata', 'Ì':'I accentata', 'Ò':'O accentata', 'Ù':'U accentata'};
+        // Aggiunto settore MISTERO
+        const WHEEL_VALUES = [100, 200, 300, 500, 1000, 'PASSA', 'BANCAROTTA', 'MISTERO', 200, 400];
         
         let myId, myIndex, roomId, isHost = false;
         let currentFrase = null, currentStanza = null;
         let lastTimestamp = "";
-        let isSpinning = false;
-        let inputMode = null;
+        let isSpinning = false, inputMode = null;
         let wheelAngle = 0;
+        let parsedBoard = [], navWordIdx = 0, navCharIdx = 0;
 
-        // --- NAVIGAZIONE TABELLONE (LOGICA V36) ---
-        let parsedBoard = []; // Struttura: [{wordStr: "CIAO", chars: [{char:'C', revealed:true}...]}]
-        let navWordIdx = 0;
-        let navCharIdx = 0;
+        // Helper Normalizzazione (Soluzione Elastica)
+        function cleanStr(str) {
+            return str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/g, "");
+        }
 
         function speak(text) {
             const el = document.getElementById('sr-announcer');
-            el.textContent = '';
-            setTimeout(() => el.textContent = text, 50);
+            el.textContent = ''; setTimeout(() => el.textContent = text, 50);
         }
 
-        // --- INIZIALIZZAZIONE ---
+        // --- AVVIO ---
         async function joinGame(create) {
             const name = document.getElementById('inp-name').value.trim().toUpperCase();
             const code = document.getElementById('inp-code').value.trim().toUpperCase();
-            if(!name) return speak("Inserisci nome");
+            if(!name) return speak("Manca il nome");
 
             let stanza;
             if (create) {
@@ -201,7 +228,7 @@
                 stanza = error ? (await supabase.from('stanze').select('*').eq('codice',code).single()).data : data;
             } else {
                 const { data } = await supabase.from('stanze').select('*').eq('codice',code).single();
-                if(!data) return speak("Stanza inesistente");
+                if(!data) return speak("Stanza non trovata");
                 stanza = data;
             }
             roomId = stanza.id;
@@ -209,7 +236,7 @@
             await supabase.from('giocatori').delete().eq('stanza_id', roomId).eq('nome', name);
             const { count } = await supabase.from('giocatori').select('*', { count: 'exact', head: true }).eq('stanza_id', roomId);
             myIndex = count || 0;
-            isHost = (myIndex === 0);
+            isHost = (myIndex === 0); // Democratica: il primo è host
 
             const { data: player } = await supabase.from('giocatori').insert({
                 stanza_id: roomId, nome: name, indice: myIndex, is_host: isHost
@@ -220,10 +247,8 @@
             document.getElementById('game-panel').classList.remove('hidden');
             if(isHost) document.getElementById('host-controls').classList.remove('hidden');
             
-            speak(`Benvenuto ${name}. Usa le frecce per leggere il tabellone.`);
-            
-            setupRealtime();
-            fetchFullState();
+            speak(`Benvenuto ${name}. Sei l'Host: ${isHost ? 'Sì' : 'No'}.`);
+            setupRealtime(); fetchFullState();
         }
 
         function setupRealtime() {
@@ -237,35 +262,40 @@
         }
 
         function updateUI(stanza) {
-            const oldFraseId = currentFrase ? currentFrase.id : -1;
             currentStanza = stanza;
-            currentFrase = stanza.frasi;
+            
+            // Nuovo Round Check
+            if (!currentFrase || currentFrase.id !== stanza.frasi.id) {
+                currentFrase = stanza.frasi;
+                navWordIdx = 0; navCharIdx = 0;
+                speak("Nuovo Round! Argomento: " + currentFrase.categoria);
+            }
 
-            // Audio ed Eventi
+            // Audio Eventi
             if (stanza.azione_timestamp && stanza.azione_timestamp !== lastTimestamp) {
                 lastTimestamp = stanza.azione_timestamp;
                 if(stanza.ultimo_messaggio) speak(stanza.ultimo_messaggio);
                 
                 if(stanza.ultima_azione === 'gira_ruota') doVisualSpin();
-                if(stanza.ultima_azione === 'chiama_lettera' && stanza.ultimo_messaggio.includes('Ce ne sono')) playTone('hit');
-                if(stanza.ultima_azione === 'chiama_lettera' && stanza.ultimo_messaggio.includes("Non c'è")) playTone('miss');
+                // Suoni multipli se trovate lettere
+                if(stanza.ultima_azione === 'chiama_lettera') {
+                    const match = stanza.ultimo_messaggio.match(/Ce ne sono (\d+)/);
+                    if(match) playMultiHit(parseInt(match[1])); 
+                    else if(stanza.ultimo_messaggio.includes("Non c'è")) playTone('miss');
+                }
                 if(stanza.ultima_azione === 'vittoria') playTone('win');
+                if(stanza.ultima_azione === 'errore') playTone('miss');
             }
 
-            if (currentFrase.id !== oldFraseId) {
-                speak("Nuovo Round: " + currentFrase.categoria);
-                navWordIdx = 0; navCharIdx = 0; // Reset cursore
-            }
-
-            document.getElementById('live-category').textContent = "ARGOMENTO: " + currentFrase.categoria;
-            document.getElementById('wheel-status-text').textContent = stanza.montepremi_round > 0 ? `IN PALIO: €${stanza.montepremi_round}` : "GIRA LA RUOTA";
+            document.getElementById('live-category').textContent = currentFrase.categoria;
+            document.getElementById('wheel-status-text').textContent = stanza.montepremi_round > 0 ? `IN PALIO: €${stanza.montepremi_round}` : "GIRA";
             
-            // Rendering Tabellone & Parsing per Navigazione
             parseAndRenderBoard(currentFrase.soluzione, stanza.lettere_rivelate);
 
             const isMyTurn = (stanza.id_giocatore_corrente === myIndex);
-            document.getElementById('turn-indicator').textContent = isMyTurn ? "È IL TUO TURNO" : "Turno avversario";
-            document.getElementById('turn-indicator').style.color = isMyTurn ? "#00ff00" : "#ffffff";
+            const turnTxt = isMyTurn ? "È IL TUO TURNO" : "Turno avversario";
+            document.getElementById('turn-indicator').textContent = turnTxt;
+            document.getElementById('turn-indicator').style.color = isMyTurn ? "#00ff00" : "#fff";
 
             const busy = isSpinning || inputMode;
             document.getElementById('btn-spin').disabled = !isMyTurn || busy;
@@ -276,21 +306,18 @@
             if(me) document.getElementById('my-score').textContent = `Tu: €${me.punteggio_totale} (Jolly: ${me.jolly})`;
         }
 
-        // --- TABELLONE & NAVIGAZIONE (LOGICA V36 REINTEGRATA) ---
-        
+        // --- LOGICA TABELLONE ---
         function parseAndRenderBoard(text, revealed) {
             const container = document.getElementById('board-container');
             container.innerHTML = '';
             parsedBoard = [];
             
-            // Parsing in Parole
             const words = text.toUpperCase().split(' ');
             let globalIdx = 0;
 
             words.forEach(wStr => {
                 let wordObj = { wordStr: wStr, chars: [] };
-                const row = document.createElement('div');
-                row.className = 'board-row';
+                const row = document.createElement('div'); row.className = 'board-row';
 
                 for (let i = 0; i < wStr.length; i++) {
                     const ch = wStr[i];
@@ -299,145 +326,123 @@
                     
                     wordObj.chars.push({ char: ch, isRevealed: isRevealed, isLetter: !!isLetter });
                     
-                    // Render visuale
                     const div = document.createElement('div');
-                    div.className = 'tile';
-                    // Se è nascosta, mettiamo classe empty
-                    if(isLetter && !isRevealed) {
-                        div.className += ' empty';
-                        div.textContent = ''; 
-                    } else {
-                        div.textContent = ch;
-                    }
+                    div.className = 'tile' + (isLetter && !isRevealed ? ' empty' : ' revealed');
+                    div.textContent = (isLetter && !isRevealed) ? '' : ch;
                     
-                    // ID per evidenziare il cursore
-                    div.id = `tile-${parsedBoard.length}-${i}`;
+                    div.id = `tile-${parsedBoard.length}-${i}`; // ID per cursore
                     row.appendChild(div);
-                    
                     if(isLetter) globalIdx++;
                 }
                 container.appendChild(row);
                 parsedBoard.push(wordObj);
             });
-            
-            updateCursorVisual();
+            highlightCursor();
         }
 
+        // --- NAVIGAZIONE D-PAD / FRECCE ---
         function moveNav(dWord, dChar) {
             if (parsedBoard.length === 0) return;
             
-            // Calcola nuova posizione
             let newW = navWordIdx + dWord;
             let newC = navCharIdx + dChar;
 
-            // Limiti Parole
             if (newW < 0) newW = 0;
             if (newW >= parsedBoard.length) newW = parsedBoard.length - 1;
 
-            // Cambio Parola: resetto char a 0
             if (newW !== navWordIdx) {
-                navWordIdx = newW;
-                navCharIdx = 0;
+                navWordIdx = newW; navCharIdx = 0; // Reset char su cambio parola
             } else {
-                // Spostamento Carattere
                 const wLen = parsedBoard[navWordIdx].chars.length;
                 if (newC < 0) newC = 0;
                 if (newC >= wLen) newC = wLen - 1;
                 navCharIdx = newC;
             }
-
-            readCurrentPosition();
-            updateCursorVisual();
+            highlightCursor();
+            readCurrentPos();
         }
 
-        function readCurrentPosition() {
+        function highlightCursor() {
+            document.querySelectorAll('.cursor').forEach(el => el.classList.remove('cursor'));
+            const el = document.getElementById(`tile-${navWordIdx}-${navCharIdx}`);
+            if(el) el.classList.add('cursor');
+        }
+
+        function readCurrentPos() {
             const w = parsedBoard[navWordIdx];
             const c = w.chars[navCharIdx];
-            
             let msg = "";
-            // Se cambio parola o sono all'inizio, dico "Parola X"
             if (navCharIdx === 0) msg += `Parola ${navWordIdx + 1}. `;
             
-            if (!c.isLetter) {
-                msg += c.char; // Punteggiatura
-            } else if (c.isRevealed) {
-                msg += `${c.char}, ${NATO[c.char] || ''}.`;
-            } else {
-                msg += "Nascosta.";
-            }
+            if (!c.isLetter) msg += c.char; 
+            else if (c.isRevealed) msg += `${c.char}, ${NATO[c.char] || ''}.`;
+            else msg += "Nascosta.";
             
-            msg += ` ${navCharIdx + 1} di ${w.chars.length}.`;
             speak(msg);
         }
 
-        function updateCursorVisual() {
-            // Rimuovi highlight precedenti
-            document.querySelectorAll('.nav-highlight').forEach(el => el.classList.remove('nav-highlight'));
-            // Aggiungi al corrente
-            const el = document.getElementById(`tile-${navWordIdx}-${navCharIdx}`);
-            if(el) el.classList.add('nav-highlight');
+        function readRevealedLetters() {
+            const rev = currentStanza.lettere_rivelate || [];
+            if(rev.length === 0) return speak("Nessuna lettera presente.");
+            let found = new Set();
+            let idx = 0;
+            parsedBoard.forEach(w => w.chars.forEach(c => {
+                if(c.isLetter) {
+                    if(c.isRevealed) found.add(c.char);
+                    idx++;
+                }
+            }));
+            speak("Presenti: " + Array.from(found).sort().map(c => `${c} di ${NATO[c]||c}`).join(', '));
         }
 
-        function readFullSummary() {
-            let text = `Riepilogo: ${currentFrase.categoria}. `;
+        function openInspector() {
+            const div = document.getElementById('inspector-content');
+            let html = `<h2 style="color:#ffd700;">${currentFrase.categoria}</h2>`;
             parsedBoard.forEach((w, i) => {
-                text += `Parola ${i+1}: `;
-                let hiddenCount = 0;
-                w.chars.forEach(c => {
-                    if(c.isRevealed) text += c.char;
-                    else { text += "_"; hiddenCount++; }
-                });
-                text += `. `;
+                let s = "";
+                w.chars.forEach(c => s += c.isRevealed ? c.char + " " : "_ ");
+                html += `<p>Parola ${i+1}: ${s}</p>`;
             });
-            speak(text);
+            div.innerHTML = html;
+            document.getElementById('inspector-overlay').classList.remove('hidden');
+            div.focus();
+            speak("Ispettore. Usa frecce Su e Giù.");
         }
 
-        // --- INPUT TASTIERA (GESTIONE FRECCE) ---
-        document.addEventListener('keydown', (e) => {
-            // Se siamo nell'input testuale, le frecce servono a muoversi nel testo
-            if (inputMode) {
-                if (e.key === 'Escape') closeInput();
-                if (e.key === 'Enter') submitInput();
-                return;
-            }
-
-            const k = e.key;
-            
-            // NAVIGAZIONE TABELLONE
-            if (k === 'ArrowRight') { e.preventDefault(); moveNav(0, 1); }
-            if (k === 'ArrowLeft') { e.preventDefault(); moveNav(0, -1); }
-            if (k === 'ArrowDown') { e.preventDefault(); moveNav(1, 0); }
-            if (k === 'ArrowUp') { e.preventDefault(); moveNav(-1, 0); }
-
-            // COMANDI GIOCO
-            if (k.toLowerCase() === 'g') doSpin();
-            if (k.toLowerCase() === 'v') openInput('vowel');
-            if (k.toLowerCase() === 's') openInput('solve');
-            if (k.toLowerCase() === 't') readTopic();
-            if (k.toLowerCase() === 'l') readFullSummary(); // Ctrl+I o L per riepilogo
-            if (k.toLowerCase() === 'i' && e.ctrlKey) { e.preventDefault(); readFullSummary(); }
-            if (k.toLowerCase() === 'n' && isHost) startNewRound();
-        });
-
-        // --- AZIONI GIOCO (Standard) ---
+        // --- AZIONI GIOCO ---
         async function doSpin() {
             if(isSpinning) return speak("Aspetta.");
-            speak("Giro la ruota...");
-            playTone('spin');
+            speak("Giro la ruota..."); playTone('spin');
             isSpinning = true; document.getElementById('btn-spin').disabled = true;
             
-            const val = WHEEL_VALUES[Math.floor(Math.random()*WHEEL_VALUES.length)];
-            const msg = `${document.getElementById('inp-name').value} ha girato: ${val}`;
+            // MISTERO LOGIC
+            let val = WHEEL_VALUES[Math.floor(Math.random()*WHEEL_VALUES.length)];
+            let extraMsg = "";
+            
+            if (val === 'MISTERO') {
+                const mysteryOpts = ['BANCAROTTA', 500, 1000, 'JOLLY'];
+                val = mysteryOpts[Math.floor(Math.random()*mysteryOpts.length)];
+                extraMsg = " È uscito MISTERO... contenuto: " + val;
+            }
+
+            const msg = `${document.getElementById('inp-name').value} gira: ${val}.${extraMsg}`;
             
             await supabase.from('stanze').update({
                 montepremi_round: (typeof val==='number'?val:0), ultima_azione: 'gira_ruota', ultimo_messaggio: msg, azione_timestamp: new Date().toISOString()
             }).eq('id', roomId);
 
-            if(typeof val !== 'number' && val !== 'JOLLY') {
+            // Bancarotta/Passa/Jolly gestione
+            if(typeof val !== 'number') {
                 setTimeout(async()=>{
-                    speak(val + ". Passo turno."); playTone('miss');
                     if(val==='BANCAROTTA') await supabase.from('giocatori').update({punteggio_totale:0}).eq('id',myId);
-                    await supabase.from('stanze').update({id_giocatore_corrente:(myIndex+1)%2, montepremi_round:0}).eq('id',roomId);
+                    if(val==='JOLLY') {
+                        const me = currentStanza.giocatori.find(p=>p.id===myId);
+                        await supabase.from('giocatori').update({jolly: me.jolly+1}).eq('id',myId);
+                        speak("Hai vinto un Jolly! Rigira."); // Jolly non passa turno
+                    } else {
+                        speak(val + ". Passo.");
+                        await supabase.from('stanze').update({id_giocatore_corrente:(myIndex+1)%2, montepremi_round:0}).eq('id',roomId);
+                    }
                 }, 3000);
             }
             setTimeout(()=>isSpinning=false, 3000);
@@ -449,41 +454,35 @@
             let t=0; const i = setInterval(()=>{ playTone('spin'); t++; if(t>10) clearInterval(i); }, 200);
         }
 
-        function openInput(mode) {
-            inputMode = mode;
-            document.getElementById('input-area').classList.remove('hidden');
-            const inp = document.getElementById('game-input'); inp.value=''; inp.focus();
-            const titles = { 'letter': 'CONSONANTE', 'vowel': 'VOCALE', 'solve': 'SOLUZIONE' };
-            document.getElementById('input-title').textContent = titles[mode];
-            speak("Inserisci " + titles[mode]);
-        }
-        function closeInput() { document.getElementById('input-area').classList.add('hidden'); inputMode=null; }
-
         async function submitInput() {
-            const txt = document.getElementById('game-input').value.toUpperCase().trim();
+            const txt = document.getElementById('game-input').value.trim().toUpperCase();
             if(!txt) return;
             const mode = inputMode; closeInput();
             speak("Controllo " + txt);
 
+            // SOLUZIONE ELASTICA (Punto 4)
             if(mode === 'solve') {
                 const real = currentFrase.soluzione.toUpperCase();
-                if(txt === real) {
+                if(cleanStr(txt) === cleanStr(real)) {
                     speak("VITTORIA!");
-                    await supabase.from('stanze').update({stato:'finito', ultima_azione:'vittoria', ultimo_messaggio:`VITTORIA! Soluzione: ${real}`, azione_timestamp: new Date().toISOString(), lettere_rivelate: Array.from({length:real.length},(_,i)=>i)}).eq('id', roomId);
+                    await supabase.from('stanze').update({
+                        stato:'finito', ultima_azione:'vittoria', ultimo_messaggio:`SOLUZIONE CORRETTA! Era: ${real}`, azione_timestamp:new Date().toISOString(),
+                        lettere_rivelate: Array.from({length:real.length},(_,i)=>i)
+                    }).eq('id', roomId);
                 } else {
-                    speak("Sbagliato."); playTone('miss');
-                    await supabase.from('stanze').update({id_giocatore_corrente:(myIndex+1)%2, ultima_azione:'errore', ultimo_messaggio:`${document.getElementById('inp-name').value} ha sbagliato soluzione`, azione_timestamp:new Date().toISOString()}).eq('id',roomId);
+                    speak("Errato."); 
+                    await supabase.from('stanze').update({id_giocatore_corrente:(myIndex+1)%2, ultima_azione:'errore', ultimo_messaggio:`Errore soluzione di ${document.getElementById('inp-name').value}`, azione_timestamp:new Date().toISOString()}).eq('id',roomId);
                 }
                 return;
             }
 
+            // LETTERA
             const char = txt.charAt(0);
             const sol = currentFrase.soluzione.toUpperCase();
             let found = []; let globalIdx = 0;
-            // Calcolo indici globali corretti ignorando spazi
             for(let i=0; i<sol.length; i++) {
                 if(sol[i].match(/[A-ZÀ-Ù]/)) {
-                    if(sol[i] === char) found.push(globalIdx);
+                    if(cleanStr(sol[i]) === cleanStr(char)) found.push(globalIdx);
                     globalIdx++;
                 }
             }
@@ -492,35 +491,57 @@
             const count = found.length;
             let msg="", next=myIndex;
 
-            if(mode==='vowel') {
-                const me = currentStanza.giocatori.find(p=>p.id===myId);
-                if(me.punteggio_totale<500) { speak("Soldi insufficienti"); return; }
-                await supabase.from('giocatori').update({punteggio_totale:me.punteggio_totale-500}).eq('id',myId);
+            // Controllo Duplicati (Punto 4)
+            if(count > 0 && found.every(idx => oldRev.includes(idx))) {
+                msg = `${char} già chiamata!`; 
+                next = (myIndex+1)%2;
+            } 
+            else if (count > 0) {
+                msg = `Trovate ${count} ${char}`;
+                if(mode==='letter') {
+                    // Incasso e Azzero Ruota (Punto 4)
+                    const val = currentStanza.montepremi_round||0;
+                    const me = currentStanza.giocatori.find(p=>p.id===myId);
+                    await supabase.from('giocatori').update({punteggio_totale:me.punteggio_totale+(val*count)}).eq('id',myId);
+                    await supabase.from('stanze').update({montepremi_round:0}).eq('id',roomId);
+                }
+            } else {
+                msg = `${char} non c'è.`; next = (myIndex+1)%2;
             }
-
-            if(count>0) {
-                if(found.some(idx=>!oldRev.includes(idx))) {
-                    msg = `Trovate ${count} ${char}`;
-                    if(mode==='letter') {
-                       const val = currentStanza.montepremi_round||0;
-                       const me = currentStanza.giocatori.find(p=>p.id===myId);
-                       await supabase.from('giocatori').update({punteggio_totale:me.punteggio_totale+(val*count)}).eq('id',myId);
-                    }
-                } else { msg=`${char} già chiamata`; next=(myIndex+1)%2; }
-            } else { msg=`${char} non c'è`; next=(myIndex+1)%2; }
 
             const newRev = [...new Set([...oldRev, ...found])];
             await supabase.from('stanze').update({lettere_rivelate:newRev, id_giocatore_corrente:next, ultima_azione:'chiama_lettera', ultimo_messaggio:msg, azione_timestamp:new Date().toISOString()}).eq('id', roomId);
         }
 
+        function openInput(mode) { inputMode = mode; document.getElementById('input-area').classList.remove('hidden'); document.getElementById('game-input').value=''; document.getElementById('game-input').focus(); document.getElementById('input-title').textContent = mode.toUpperCase(); }
+        function closeInput() { document.getElementById('input-area').classList.add('hidden'); inputMode=null; document.getElementById('btn-spin').focus(); }
+        
         async function startNewRound() {
-            speak("Nuovo Round...");
             const { data: frasi } = await supabase.from('frasi').select('id');
+            // Qui si potrebbe aggiungere logica "No Ripetizioni" se avessimo storico
             const rid = frasi[Math.floor(Math.random()*frasi.length)].id;
             await supabase.from('stanze').update({frase_corrente_id:rid, stato:'gioco', lettere_rivelate:[], montepremi_round:0, ultima_azione:'nuovo_round', ultimo_messaggio:'Nuovo Round!', azione_timestamp:new Date().toISOString()}).eq('id', roomId);
         }
 
-        function readTopic() { speak("Argomento: " + currentFrase.categoria); }
+        // Shortcuts Globali
+        document.addEventListener('keydown', (e) => {
+            if(inputMode) { if(e.key==='Escape') closeInput(); if(e.key==='Enter') submitInput(); return; }
+            if(!document.getElementById('inspector-overlay').classList.contains('hidden')) { if(e.key==='Escape') document.getElementById('inspector-overlay').classList.add('hidden'); return; }
+
+            const k = e.key.toLowerCase();
+            if(k==='g' && e.ctrlKey) { e.preventDefault(); doSpin(); }
+            if(k==='v' && e.ctrlKey) { e.preventDefault(); openInput('vowel'); }
+            if(k==='s' && e.ctrlKey) { e.preventDefault(); openInput('solve'); }
+            if(k==='l' && e.ctrlKey) { e.preventDefault(); readRevealedLetters(); }
+            if(k==='i' && e.ctrlKey) { e.preventDefault(); openInspector(); }
+            if(k==='h' && e.ctrlKey && isHost) { e.preventDefault(); startNewRound(); }
+            
+            // Navigazione Frecce
+            if(e.key==='ArrowRight') moveNav(0,1);
+            if(e.key==='ArrowLeft') moveNav(0,-1);
+            if(e.key==='ArrowDown') moveNav(1,0);
+            if(e.key==='ArrowUp') moveNav(-1,0);
+        });
     </script>
 </body>
 </html>

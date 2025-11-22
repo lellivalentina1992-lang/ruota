@@ -734,13 +734,13 @@
         p.textContent = msg;
         log.appendChild(p);
         log.scrollTop = log.scrollHeight;
+        speak(msg);
     }
 
     function setStatusMessage(msg) {
         document.getElementById('status-message').textContent = msg;
         document.getElementById('last-action').textContent = msg;
         addLog(msg);
-        speak(msg);
     }
 
     function updateRoomInfoText() {
@@ -954,12 +954,16 @@
         const joinBtn = document.getElementById('btn-join');
         const extraInfo = document.getElementById('room-extra-info');
 
+        // Mantieni i valori per informazione, ma blocca
         nameInput.value = name;
         codeInput.value = code;
         nameInput.disabled = true;
         codeInput.disabled = true;
         createBtn.disabled = true;
         joinBtn.disabled = true;
+
+        // Nascondi completamente il blocco di configurazione
+        document.getElementById('room-config').style.display = 'none';
 
         extraInfo.textContent = `Stanza attiva: ${code}. Tu sei ${name}${isHost ? ' (host)' : ''}.`;
         document.getElementById('connection-status').textContent = 'Connesso alla stanza.';
@@ -973,6 +977,26 @@
             azione_timestamp: Date.now().toString(),
             ...extra
         }).eq('id', myRoomId);
+    }
+
+    // Elimina eventuali duplicati con lo stesso nome nella stessa stanza
+    async function ensureUniqueNames(players) {
+        const byName = {};
+        const toDelete = [];
+        players.forEach(p => {
+            const key = (p.nome || '').trim().toUpperCase();
+            if (!key) return;
+            if (!byName[key]) {
+                byName[key] = p;
+            } else {
+                toDelete.push(p.id);
+            }
+        });
+        if (toDelete.length) {
+            await supabase.from('giocatori').delete().in('id', toDelete);
+            return players.filter(p => !toDelete.includes(p.id));
+        }
+        return players;
     }
 
     async function createOrJoinRoom(isCreate) {
@@ -992,6 +1016,7 @@
         myIndex = null;
 
         if (isCreate) {
+            // CREAZIONE NUOVA STANZA
             const { data: room, error } = await supabase.from('stanze').insert({
                 codice: code,
                 stato: 'attesa'
@@ -1020,6 +1045,7 @@
             afterJoin(name, code, true);
 
         } else {
+            // ENTRA IN STANZA ESISTENTE
             const { data: room, error } = await supabase.from('stanze')
                 .select('*')
                 .eq('codice', code)
@@ -1030,7 +1056,8 @@
                 return;
             }
             myRoomId = room.id;
-            const { data: players, error: errPl } = await supabase.from('giocatori')
+
+            const { data: playersRaw, error: errPl } = await supabase.from('giocatori')
                 .select('*')
                 .eq('stanza_id', myRoomId)
                 .order('indice');
@@ -1039,7 +1066,27 @@
                 alert('Errore nel recupero dei giocatori.');
                 return;
             }
+            // Pulisci eventuali duplicati, poi controlla se esiste già un giocatore con il tuo nome
+            const players = await ensureUniqueNames(playersRaw || []);
 
+            const existing = players.find(p => (p.nome || '').trim() === name);
+            if (existing) {
+                // RICONNESSIONE: NON CREO UN NUOVO GIOCATORE
+                myId = existing.id;
+                myIndex = existing.indice;
+                roomState = room;
+                setStatusMessage(`Ti sei ricollegato alla stanza ${code} come ${name} (indice ${myIndex}).`);
+                afterJoin(name, code, existing.is_host);
+                subscribeToChanges();
+                await refreshRoom();
+                await refreshPlayers();
+                updateRoomInfoText();
+                setConnectionStatus(true);
+                updateHostControls();
+                return;
+            }
+
+            // Nessun giocatore con lo stesso nome: ne creo uno nuovo
             const newIndex = (players || []).length;
             const { data: player, error: errP } = await supabase.from('giocatori').insert({
                 stanza_id: myRoomId,
@@ -1054,11 +1101,12 @@
             }
             myId = player.id;
             myIndex = player.indice;
+            roomState = room;
             setStatusMessage(`Sei entrato nella stanza ${code} con indice ${myIndex}.`);
             afterJoin(name, code, false);
         }
 
-        roomState = {};
+        roomState = roomState || {};
         subscribeToChanges();
         await refreshRoom();
         await refreshPlayers();
@@ -1099,7 +1147,7 @@
 
     async function refreshPlayers() {
         if (!myRoomId) return;
-        const { data: players, error } = await supabase.from('giocatori')
+        const { data: playersRaw, error } = await supabase.from('giocatori')
             .select('*')
             .eq('stanza_id', myRoomId)
             .order('indice');
@@ -1107,7 +1155,8 @@
             console.error('Errore nel refresh dei giocatori:', error);
             return;
         }
-        renderPlayers(players || []);
+        const players = await ensureUniqueNames(playersRaw || []);
+        renderPlayers(players);
         setTurnInfo();
         updateHostControls();
     }
@@ -1393,11 +1442,6 @@
         let newChiamate = [...called, val];
 
         if (indexes.length === 0) {
-            const missSound = document.getElementById('sound-miss');
-            if (missSound) {
-                missSound.currentTime = 0;
-                missSound.play().catch(()=>{});
-            }
             setStatusMessage(`La lettera ${val} non è presente. Turno perso.`);
             const updatedCalled = [...newChiamate];
             await supabase.from('stanze').update({
@@ -1405,12 +1449,6 @@
             }).eq('id', myRoomId);
             await pass();
             return;
-        }
-
-        const hitSound = document.getElementById('sound-hit');
-        if (hitSound) {
-            hitSound.currentTime = 0;
-            hitSound.play().catch(()=>{});
         }
 
         indexes.forEach(i => {
@@ -1505,11 +1543,6 @@
             await broadcast('solve_wrong', 'Soluzione errata.');
             await pass();
         }
-        setControls('main');
-    }
-
-    async function useJolly() {
-        setStatusMessage('Funzione Jolly ancora da completare in questa versione.');
         setControls('main');
     }
 
@@ -1610,7 +1643,7 @@
                     msg += 'Valore ruota ' + roomState.montepremi_round + '. ';
                 }
                 if (isMyTurn()) msg += 'È il tuo turno. ';
-                else msg += 'Attenzione: non è il tuo turno. ';
+                else msg += 'Non è il tuo turno. ';
             }
             speak(msg);
         } else if (e.key === 'F3') {

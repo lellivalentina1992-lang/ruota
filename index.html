@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>La Ruota - V. Automatica</title>
+    <title>La Ruota - 10 Round Auto</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
@@ -26,7 +26,7 @@
         .container { max-width: 1000px; margin: 0 auto; padding-bottom: 100px; }
         
         /* Pannelli */
-        #setup-panel, #game-panel { 
+        #setup-panel, #game-panel, #end-panel { 
             border: 2px solid #ffd700; padding: 20px; margin-top: 20px; 
             background: #1e1e1e; border-radius: 15px;
         }
@@ -79,6 +79,9 @@
         }
         #inspector-content { background: #222; border: 2px solid #ffd700; padding: 20px; width: 85%; max-height: 80%; overflow-y: auto; text-align: left; color: #fff; font-size: 1.4em; line-height: 1.6; }
         input { font-size: 1.8em; padding: 10px; text-align: center; width: 80%; max-width: 400px; background: #333; color: white; border: 2px solid #ffd700; }
+        
+        /* Classifica Finale */
+        #ranking-list li { font-size: 1.5em; margin: 15px 0; list-style: none; border-bottom: 1px solid #555; padding: 10px; }
     </style>
 </head>
 <body>
@@ -88,8 +91,7 @@
     <audio id="snd-spin" src="ruota.wav"></audio>
     <audio id="snd-hit" src="lettera presente.wav"></audio>
     <audio id="snd-miss" src="lettera assente.wav"></audio>
-
-    <h1 style="color:#ffd700;">LA RUOTA</h1>
+    <audio id="snd-win" src="vittoria.wav"></audio> <h1 style="color:#ffd700;">LA RUOTA</h1>
 
     <div id="setup-panel" class="container">
         <h2>BENVENUTO</h2>
@@ -102,7 +104,10 @@
     <div id="game-panel" class="container hidden">
         
         <div style="display:flex; justify-content:space-between; background:#000; padding:10px; border-radius:5px;">
-            <span id="turn-indicator" style="font-size:1.2em;">...</span>
+            <div style="text-align: left;">
+                <span id="round-indicator" style="color:#ffcc00; font-weight:bold; font-size:1.2em;">ROUND 1 / 10</span><br>
+                <span id="turn-indicator" style="font-size:1.2em;">...</span>
+            </div>
             <div style="text-align: right;">
                 <span id="my-score" style="color:#ffd700; font-size:1.2em; display:block;">Tu: €0</span>
                 <span id="my-role" style="color:#aaa; font-size:0.8em;">...</span>
@@ -134,11 +139,13 @@
                 <strong>Ctrl+I:</strong> Ispettore | <strong>Ctrl+L:</strong> Lettere uscite
             </div>
         </div>
+    </div>
 
-        <div id="host-controls" class="hidden" style="border-top: 1px solid #555; margin-top: 20px; padding-top: 10px;">
-            <p style="color:#aaa; font-size:0.9em;">COMANDI HOST:</p>
-            <button onclick="startNewRound()" style="background: #444; color: #fff;">FORZA NUOVO ROUND (H)</button>
-        </div>
+    <div id="end-panel" class="container hidden">
+        <h2 style="color:#ffd700; font-size:2.5em;">PARTITA TERMINATA</h2>
+        <p>Ecco la classifica finale:</p>
+        <ul id="ranking-list" style="padding:0;"></ul>
+        <button onclick="location.reload()" class="btn-primary" style="margin-top:30px;">TORNA AL MENU</button>
     </div>
 
     <div id="input-area" class="hidden">
@@ -214,7 +221,12 @@
         let isSpinning = false, inputMode = null;
         let wheelAngle = 0;
         let parsedBoard = [], navWordIdx = 0, navCharIdx = 0;
-        let autoFixTimeout = null; // Per timer anti-zombie
+        let autoFixTimeout = null; 
+        
+        // NUOVA VARIABILE PER CONTROLLARE I ROUND
+        let currentRoundNumber = 1;
+        const MAX_ROUNDS = 10;
+        let isTransitioning = false; // Per evitare doppi caricamenti
 
         function cleanStr(str) { 
             if(!str) return "";
@@ -229,7 +241,6 @@
 
             let stanza;
             if (create) {
-                // Reset brutale di tutto per evitare bug
                 await supabase.from('stanze').delete().eq('codice', code); 
                 
                 const { data: frasi } = await supabase.from('frasi').select('id');
@@ -241,7 +252,10 @@
                     frase_corrente_id:rid, 
                     lettere_chiamate:[], 
                     lettere_rivelate:[],
-                    id_giocatore_corrente: 0 
+                    id_giocatore_corrente: 0,
+                    // Nota: usiamo il campo 'montepremi_round' per sincronizzare il numero del round tra i giocatori!
+                    // Reset: 10000 + RoundNum (es. 10001 = Round 1). Hack per non toccare il DB.
+                    montepremi_round: 10001 
                 }).select().single();
                 stanza = data;
             } else {
@@ -251,10 +265,8 @@
             }
             roomId = stanza.id;
 
-            // Rimuovi me stesso se esistevo già (pulizia preventiva)
             await supabase.from('giocatori').delete().eq('stanza_id', roomId).eq('nome', name);
             
-            // LOGICA SEDIE INTELLIGENTE
             const { data: existingPlayers } = await supabase.from('giocatori').select('indice').eq('stanza_id', roomId);
             const occupiedIndices = existingPlayers.map(p => p.indice);
             
@@ -269,17 +281,15 @@
             }).select().single();
             myId = player.id;
 
-            // SETUP PULIZIA AUTOMATICA ALL'USCITA
             window.addEventListener('beforeunload', async () => {
                 await supabase.from('giocatori').delete().eq('id', myId);
             });
 
             document.getElementById('setup-panel').classList.add('hidden');
             document.getElementById('game-panel').classList.remove('hidden');
-            if(isHost) document.getElementById('host-controls').classList.remove('hidden');
             
             document.getElementById('my-role').textContent = `Sei il Giocatore ${myIndex + 1}`;
-            speak(`Benvenuto ${name}. Sei il Giocatore ${myIndex + 1}.`);
+            speak(`Benvenuto ${name}. Inizia la partita a ${MAX_ROUNDS} round.`);
             
             setupRealtime(); fetchFullState();
         }
@@ -297,27 +307,48 @@
         function updateUI(stanza) {
             currentStanza = stanza;
             
-            // --- AUTO-FIX: CONTROLLO COERENZA TURNI (IL CUORE DELLA SOLUZIONE) ---
-            // Se il DB dice che è il turno del Giocatore X, ma il Giocatore X non esiste...
+            // --- GESTIONE AUTOMATICA FINE PARTITA (Host Only) ---
+            if (stanza.stato === 'finito' && isHost && !isTransitioning) {
+                isTransitioning = true;
+                const delay = 8000; // 8 secondi per leggere la soluzione
+                const msg = `Frase risolta! Caricamento prossimo round tra 8 secondi...`;
+                speak(msg);
+                
+                setTimeout(() => {
+                    nextRoundOrEnd();
+                }, delay);
+            }
+
+            // --- GESTIONE FINE PARTITA (Tutti i client) ---
+            if (stanza.stato === 'terminata') {
+                showEndScreen(stanza.giocatori);
+                return;
+            }
+
+            // --- SINCRONIZZAZIONE ROUND (HACK) ---
+            // Se montepremi_round > 10000, lo usiamo per settare il round
+            if (stanza.montepremi_round > 10000) {
+                currentRoundNumber = stanza.montepremi_round - 10000;
+                // Resettiamo visivamente il montepremi a 0 per il gioco
+                stanza.montepremi_round = 0; 
+            }
+            document.getElementById('round-indicator').textContent = `ROUND ${currentRoundNumber} / ${MAX_ROUNDS}`;
+
+            // --- AUTO-FIX: CONTROLLO COERENZA TURNI ---
             const numRealPlayers = stanza.giocatori.length;
             const turnIndex = stanza.id_giocatore_corrente;
-            
-            // Se il turno punta a un indice inesistente (es: Gioc 2 quando c'è solo Gioc 1)
-            // OPPURE se non c'è nessun giocatore con quell'indice
             const activePlayerExists = stanza.giocatori.some(p => p.indice === turnIndex);
 
-            if (!activePlayerExists && isHost) {
-                console.warn("Turno incoerente rilevato! Fix automatico in corso...");
-                // Forza il turno al primo giocatore disponibile (o 0)
+            // Applichiamo il fix solo se NON siamo in stato 'finito' (perché in 'finito' il turno non conta)
+            if (stanza.stato !== 'finito' && !activePlayerExists && isHost) {
                 const nextSafeIndex = stanza.giocatori.length > 0 ? stanza.giocatori[0].indice : 0;
                 supabase.from('stanze').update({
                     id_giocatore_corrente: nextSafeIndex,
-                    ultimo_messaggio: "Riassegnazione automatica turno (giocatore assente)."
+                    ultimo_messaggio: "Riassegnazione automatica turno."
                 }).eq('id', roomId).then(() => {});
-                return; // Esce e aspetta il prossimo aggiornamento corretto
             }
 
-            // --- LOGICA UI STANDARD ---
+            // --- UI ---
             if (!inputMode) {
                 document.getElementById('input-area').classList.add('hidden');
             }
@@ -325,9 +356,10 @@
             if (!currentFrase || currentFrase.id !== stanza.frasi.id) {
                 currentFrase = stanza.frasi;
                 navWordIdx = 0; navCharIdx = 0;
+                isTransitioning = false; // Reset transizione per nuovo round
                 
                 const fullText = currentFrase.soluzione;
-                let speakText = "Nuovo Round: " + currentFrase.categoria;
+                let speakText = `Round ${currentRoundNumber}. Argomento: ` + currentFrase.categoria;
                 if (fullText.includes(" - ")) speakText += ". Titolo: " + fullText.split(" - ")[0];
                 speak(speakText);
             }
@@ -342,10 +374,9 @@
                     else if(stanza.ultimo_messaggio.toLowerCase().includes("non c'è") || stanza.ultimo_messaggio.toLowerCase().includes("già chiamata")) playAudio('snd-miss');
                 }
                 if(stanza.ultima_azione === 'errore') playAudio('snd-miss');
-                if(stanza.ultima_azione === 'vittoria') playAudio('snd-hit');
+                if(stanza.ultima_azione === 'vittoria') playAudio('snd-win');
             }
 
-            // Sottotitolo
             const fullSoluzione = currentFrase.soluzione;
             let displayHint = ""; 
             if (fullSoluzione.includes(" - ")) {
@@ -357,39 +388,41 @@
 
             document.getElementById('live-category').textContent = "ARGOMENTO: " + currentFrase.categoria;
             document.getElementById('round-hint').textContent = displayHint; 
-            document.getElementById('wheel-status-text').textContent = stanza.montepremi_round > 0 ? `IN PALIO: €${stanza.montepremi_round}` : "GIRA";
+            
+            // Visualizza montepremi solo se < 10000 (il valore > 10000 è il segnale di sync round)
+            const displayMoney = (stanza.montepremi_round > 10000) ? 0 : stanza.montepremi_round;
+            document.getElementById('wheel-status-text').textContent = displayMoney > 0 ? `IN PALIO: €${displayMoney}` : "GIRA";
             
             parseAndRenderBoard(currentPuzzleText, stanza.lettere_rivelate);
 
-            // GESTIONE TURNO
             const isMyTurn = (stanza.id_giocatore_corrente === myIndex);
-            const turnText = isMyTurn ? "È IL TUO TURNO" : `Turno del Gioc. ${stanza.id_giocatore_corrente + 1}`;
+            
+            // Se finito, nessuno ha il turno
+            const turnText = (stanza.stato === 'finito') ? "FRASE RISOLTA!" : (isMyTurn ? "È IL TUO TURNO" : `Turno del Gioc. ${stanza.id_giocatore_corrente + 1}`);
             
             document.getElementById('turn-indicator').textContent = turnText;
             document.getElementById('turn-indicator').style.color = isMyTurn ? "#00ff00" : "#fff";
 
-            // --- TIMER ANTI-ZOMBIE (Se un altro giocatore non gioca per 60s, l'host prende il controllo) ---
-            if (isHost && !isMyTurn && numRealPlayers > 0) {
+            // --- TIMER ANTI-ZOMBIE ---
+            if (isHost && !isMyTurn && numRealPlayers > 0 && stanza.stato !== 'finito') {
                 if (autoFixTimeout) clearTimeout(autoFixTimeout);
-                // Calcola tempo dall'ultima azione
                 const lastActionTime = new Date(stanza.azione_timestamp).getTime();
                 const now = new Date().getTime();
-                if ((now - lastActionTime) > 60000) { // 60 secondi di inattività
+                if ((now - lastActionTime) > 60000) { 
                     speak("Giocatore inattivo rilevato. Recupero il turno.");
                     supabase.from('stanze').update({ id_giocatore_corrente: myIndex }).eq('id', roomId).then(()=>{});
                 }
             }
-            // -------------------------------------------------------------
 
-            const haveMoney = stanza.montepremi_round > 0;
+            const haveMoney = displayMoney > 0;
             const btnManual = document.getElementById('btn-manual-cons');
-            const busy = isSpinning || inputMode;
+            const busy = isSpinning || inputMode || stanza.stato === 'finito';
 
             setBtnState('btn-spin', !isMyTurn || busy || haveMoney);
             setBtnState('btn-vowel', !isMyTurn || busy);
-            setBtnState('btn-solve', isSpinning); 
+            setBtnState('btn-solve', busy ? true : isSpinning); // Solve abilitato nel mio turno, ma disabilitato se finito
 
-            if (isMyTurn && haveMoney && !inputMode && !isSpinning) {
+            if (isMyTurn && haveMoney && !inputMode && !isSpinning && stanza.stato !== 'finito') {
                 btnManual.classList.remove('hidden');
             } else {
                 btnManual.classList.add('hidden');
@@ -397,6 +430,55 @@
 
             const me = stanza.giocatori.find(p => p.indice === myIndex);
             if(me) document.getElementById('my-score').textContent = `Tu: €${me.punteggio_totale} (Jolly: ${me.jolly})`;
+        }
+
+        // --- AVANZAMENTO ROUND ---
+        async function nextRoundOrEnd() {
+            if (currentRoundNumber >= MAX_ROUNDS) {
+                // PARTITA FINITA
+                await supabase.from('stanze').update({
+                    stato: 'terminata',
+                    ultimo_messaggio: 'PARTITA CONCLUSA! Guarda la classifica.',
+                    azione_timestamp: new Date().toISOString()
+                }).eq('id', roomId);
+            } else {
+                // PROSSIMO ROUND
+                const nextRound = currentRoundNumber + 1;
+                const { data: frasi } = await supabase.from('frasi').select('id');
+                const rid = frasi[Math.floor(Math.random()*frasi.length)].id;
+                
+                await supabase.from('stanze').update({
+                    frase_corrente_id: rid,
+                    stato: 'gioco',
+                    lettere_rivelate: [],
+                    lettere_chiamate: [],
+                    // Usiamo questo campo per dire a tutti "Siamo al round X"
+                    montepremi_round: 10000 + nextRound, 
+                    id_giocatore_corrente: 0, // Reset turno a Gioc 1
+                    ultima_azione: 'nuovo_round',
+                    ultimo_messaggio: `Inizia il Round ${nextRound}!`,
+                    azione_timestamp: new Date().toISOString()
+                }).eq('id', roomId);
+            }
+        }
+
+        function showEndScreen(players) {
+            document.getElementById('game-panel').classList.add('hidden');
+            document.getElementById('end-panel').classList.remove('hidden');
+            
+            // Ordina giocatori per punteggio
+            players.sort((a,b) => b.punteggio_totale - a.punteggio_totale);
+            
+            const ul = document.getElementById('ranking-list');
+            ul.innerHTML = "";
+            
+            let html = "";
+            players.forEach((p, idx) => {
+                const medal = idx === 0 ? "🥇" : (idx === 1 ? "🥈" : "🥉");
+                html += `<li>${medal} <strong>${p.nome}</strong>: €${p.punteggio_totale}</li>`;
+            });
+            ul.innerHTML = html;
+            speak("Partita terminata. " + (players[0].nome + " vince con " + players[0].punteggio_totale + " euro."));
         }
 
         // --- TABELLONE ---
@@ -570,9 +652,9 @@
             
             try {
                 if(wasSolving) {
-                    document.getElementById('btn-solve').focus();
+                    if(!isBtnDisabled('btn-solve')) document.getElementById('btn-solve').focus();
                 } else {
-                    const haveMoney = currentStanza && currentStanza.montepremi_round > 0;
+                    const haveMoney = currentStanza && currentStanza.montepremi_round > 0 && currentStanza.montepremi_round < 10000;
                     if(haveMoney) {
                         const btnManual = document.getElementById('btn-manual-cons');
                         if(btnManual) {
@@ -614,6 +696,7 @@
                             lettere_rivelate:Array.from({length:currentPuzzleText.length},(_,i)=>i),
                             montepremi_round: 0
                         }).eq('id', roomId);
+                        // LA LOGICA AUTOMATICA (Host Only) scatterà in updateUI
                     } else {
                         await supabase.from('stanze').update({
                             id_giocatore_corrente:(myIndex+1)%numPlayers,
@@ -666,8 +749,11 @@
                     msg = `Ne ho trovate ${count}`;
                     if(mode==='letter') {
                         const val = currentStanza.montepremi_round||0;
+                        // Ignoriamo valori strani di sync (>10000)
+                        const realVal = (val > 10000) ? 0 : val;
+                        
                         const me = currentStanza.giocatori.find(p=>p.id===myId);
-                        await supabase.from('giocatori').update({punteggio_totale:me.punteggio_totale+(val*count)}).eq('id',myId);
+                        await supabase.from('giocatori').update({punteggio_totale:me.punteggio_totale+(realVal*count)}).eq('id',myId);
                         await supabase.from('stanze').update({montepremi_round:0}).eq('id',roomId);
                     }
                 } else {
@@ -709,7 +795,12 @@
         }
         function closeInspector() { 
             document.getElementById('inspector-overlay').classList.add('hidden'); 
-            document.getElementById('btn-spin').focus(); 
+            // Se c'è un input aperto, torniamo lì
+            if(inputMode) {
+                 document.getElementById('game-input').focus();
+            } else {
+                 document.getElementById('btn-spin').focus(); 
+            }
         }
 
         function readRevealedLetters() {
@@ -720,52 +811,42 @@
             speak("Lettere chiamate: " + text);
         }
 
-        async function startNewRound() {
-            const { data: frasi } = await supabase.from('frasi').select('id');
-            const rid = frasi[Math.floor(Math.random()*frasi.length)].id;
-            await supabase.from('stanze').update({
-                frase_corrente_id:rid,
-                stato:'gioco',
-                lettere_rivelate:[],
-                lettere_chiamate:[],
-                montepremi_round:0, 
-                id_giocatore_corrente: 0,
-                ultima_azione:'nuovo_round',
-                ultimo_messaggio:'Nuovo Round (Turno resettato)!',
-                azione_timestamp:new Date().toISOString()
-            }).eq('id', roomId);
-        }
-
+        // --- GESTIONE TASTIERA ---
         document.addEventListener('keydown', (e) => {
             if(!e.key) return;
+            const k = e.key.toLowerCase();
 
-            if(e.ctrlKey && e.key.toLowerCase() === 's') {
-                e.preventDefault();
-                if(inputMode) closeInput(); 
-                if(!document.getElementById('inspector-overlay').classList.contains('hidden')) closeInspector();
-                openInput('solve');
-                return;
+            // 1. SHORTCUT GLOBALI (Priorità Assoluta)
+            if(e.ctrlKey) {
+                if(k==='i') { e.preventDefault(); openInspector(); return; }
+                if(k==='l') { e.preventDefault(); readRevealedLetters(); return; }
+                
+                if(k==='s') {
+                    e.preventDefault();
+                    if(inputMode) closeInput(); 
+                    if(!document.getElementById('inspector-overlay').classList.contains('hidden')) closeInspector();
+                    openInput('solve');
+                    return;
+                }
+                
+                if(!inputMode) {
+                     if(k==='g') { e.preventDefault(); doSpin(); return; }
+                     if(k==='v') { e.preventDefault(); openInput('vowel'); return; }
+                }
             }
 
+            // 2. INPUT APERTO
             if(inputMode || !document.getElementById('inspector-overlay').classList.contains('hidden')) {
                 if(e.key==='Escape') { closeInput(); closeInspector(); }
                 if(e.key==='Enter' && inputMode) submitInput();
-                return;
+                return; 
             }
 
-            const k = e.key.toLowerCase();
+            // 3. NAVIGAZIONE TABELLONE
             if(e.key==='ArrowRight') { e.preventDefault(); e.ctrlKey ? moveWordNav(1) : moveNav(1); }
             if(e.key==='ArrowLeft') { e.preventDefault(); e.ctrlKey ? moveWordNav(-1) : moveNav(-1); }
             if(e.key==='ArrowDown') { e.preventDefault(); moveWordNav(1); }
             if(e.key==='ArrowUp') { e.preventDefault(); moveWordNav(-1); }
-
-            if(e.ctrlKey) {
-                if(k==='g') { e.preventDefault(); doSpin(); }
-                if(k==='v') { e.preventDefault(); openInput('vowel'); }
-                if(k==='i') { e.preventDefault(); openInspector(); }
-                if(k==='l') { e.preventDefault(); readRevealedLetters(); }
-                if(k==='h' && isHost) { e.preventDefault(); startNewRound(); }
-            }
         });
     </script>
 </body>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>La Ruota - V. Blindata</title>
+    <title>La Ruota - V. Automatica</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
@@ -136,7 +136,8 @@
         </div>
 
         <div id="host-controls" class="hidden" style="border-top: 1px solid #555; margin-top: 20px; padding-top: 10px;">
-            <button onclick="startNewRound()" style="background: #444; color: #fff;">FORZA NUOVO ROUND / RESET TURNO (H)</button>
+            <p style="color:#aaa; font-size:0.9em;">COMANDI HOST:</p>
+            <button onclick="startNewRound()" style="background: #444; color: #fff;">FORZA NUOVO ROUND (H)</button>
         </div>
     </div>
 
@@ -213,6 +214,7 @@
         let isSpinning = false, inputMode = null;
         let wheelAngle = 0;
         let parsedBoard = [], navWordIdx = 0, navCharIdx = 0;
+        let autoFixTimeout = null; // Per timer anti-zombie
 
         function cleanStr(str) { 
             if(!str) return "";
@@ -227,7 +229,7 @@
 
             let stanza;
             if (create) {
-                // Se creo stanza, resetto tutto per quel codice per evitare bug
+                // Reset brutale di tutto per evitare bug
                 await supabase.from('stanze').delete().eq('codice', code); 
                 
                 const { data: frasi } = await supabase.from('frasi').select('id');
@@ -239,7 +241,7 @@
                     frase_corrente_id:rid, 
                     lettere_chiamate:[], 
                     lettere_rivelate:[],
-                    id_giocatore_corrente: 0 // Reset turno a 0
+                    id_giocatore_corrente: 0 
                 }).select().single();
                 stanza = data;
             } else {
@@ -249,20 +251,16 @@
             }
             roomId = stanza.id;
 
-            // Rimuovi me stesso se esistevo già
+            // Rimuovi me stesso se esistevo già (pulizia preventiva)
             await supabase.from('giocatori').delete().eq('stanza_id', roomId).eq('nome', name);
             
-            // LOGICA SEDIE
+            // LOGICA SEDIE INTELLIGENTE
             const { data: existingPlayers } = await supabase.from('giocatori').select('indice').eq('stanza_id', roomId);
             const occupiedIndices = existingPlayers.map(p => p.indice);
             
-            if (!occupiedIndices.includes(0)) {
-                myIndex = 0; // Prendo il posto 1
-            } else if (!occupiedIndices.includes(1)) {
-                myIndex = 1; // Prendo il posto 2
-            } else {
-                myIndex = occupiedIndices.length; // Spettatore
-            }
+            if (!occupiedIndices.includes(0)) myIndex = 0;
+            else if (!occupiedIndices.includes(1)) myIndex = 1;
+            else myIndex = occupiedIndices.length;
             
             isHost = (myIndex === 0); 
 
@@ -270,6 +268,11 @@
                 stanza_id: roomId, nome: name, indice: myIndex, is_host: isHost
             }).select().single();
             myId = player.id;
+
+            // SETUP PULIZIA AUTOMATICA ALL'USCITA
+            window.addEventListener('beforeunload', async () => {
+                await supabase.from('giocatori').delete().eq('id', myId);
+            });
 
             document.getElementById('setup-panel').classList.add('hidden');
             document.getElementById('game-panel').classList.remove('hidden');
@@ -294,6 +297,27 @@
         function updateUI(stanza) {
             currentStanza = stanza;
             
+            // --- AUTO-FIX: CONTROLLO COERENZA TURNI (IL CUORE DELLA SOLUZIONE) ---
+            // Se il DB dice che è il turno del Giocatore X, ma il Giocatore X non esiste...
+            const numRealPlayers = stanza.giocatori.length;
+            const turnIndex = stanza.id_giocatore_corrente;
+            
+            // Se il turno punta a un indice inesistente (es: Gioc 2 quando c'è solo Gioc 1)
+            // OPPURE se non c'è nessun giocatore con quell'indice
+            const activePlayerExists = stanza.giocatori.some(p => p.indice === turnIndex);
+
+            if (!activePlayerExists && isHost) {
+                console.warn("Turno incoerente rilevato! Fix automatico in corso...");
+                // Forza il turno al primo giocatore disponibile (o 0)
+                const nextSafeIndex = stanza.giocatori.length > 0 ? stanza.giocatori[0].indice : 0;
+                supabase.from('stanze').update({
+                    id_giocatore_corrente: nextSafeIndex,
+                    ultimo_messaggio: "Riassegnazione automatica turno (giocatore assente)."
+                }).eq('id', roomId).then(() => {});
+                return; // Esce e aspetta il prossimo aggiornamento corretto
+            }
+
+            // --- LOGICA UI STANDARD ---
             if (!inputMode) {
                 document.getElementById('input-area').classList.add('hidden');
             }
@@ -304,9 +328,7 @@
                 
                 const fullText = currentFrase.soluzione;
                 let speakText = "Nuovo Round: " + currentFrase.categoria;
-                if (fullText.includes(" - ")) {
-                    speakText += ". Titolo: " + fullText.split(" - ")[0];
-                }
+                if (fullText.includes(" - ")) speakText += ". Titolo: " + fullText.split(" - ")[0];
                 speak(speakText);
             }
 
@@ -316,25 +338,21 @@
 
                 if(stanza.ultima_azione === 'chiama_lettera') {
                     const match = stanza.ultimo_messaggio.match(/Trovate (\d+)/i);
-                    if(match) { playMultiHit(parseInt(match[1])); }
-                    else if(stanza.ultimo_messaggio.toLowerCase().includes("non c'è") || stanza.ultimo_messaggio.toLowerCase().includes("già chiamata")) {
-                        playAudio('snd-miss');
-                    }
+                    if(match) playMultiHit(parseInt(match[1]));
+                    else if(stanza.ultimo_messaggio.toLowerCase().includes("non c'è") || stanza.ultimo_messaggio.toLowerCase().includes("già chiamata")) playAudio('snd-miss');
                 }
                 if(stanza.ultima_azione === 'errore') playAudio('snd-miss');
                 if(stanza.ultima_azione === 'vittoria') playAudio('snd-hit');
             }
 
-            // GESTIONE SOTTOTITOLO
+            // Sottotitolo
             const fullSoluzione = currentFrase.soluzione;
             let displayHint = ""; 
             if (fullSoluzione.includes(" - ")) {
                 const parts = fullSoluzione.split(" - ");
-                displayHint = parts[0];       
-                currentPuzzleText = parts[1]; 
+                displayHint = parts[0]; currentPuzzleText = parts[1]; 
             } else {
-                displayHint = "";             
-                currentPuzzleText = fullSoluzione;
+                displayHint = ""; currentPuzzleText = fullSoluzione;
             }
 
             document.getElementById('live-category').textContent = "ARGOMENTO: " + currentFrase.categoria;
@@ -343,14 +361,25 @@
             
             parseAndRenderBoard(currentPuzzleText, stanza.lettere_rivelate);
 
-            // GESTIONE TURNO RIGOROSA
+            // GESTIONE TURNO
             const isMyTurn = (stanza.id_giocatore_corrente === myIndex);
-            
-            // Debug testuale per capire chi deve giocare
             const turnText = isMyTurn ? "È IL TUO TURNO" : `Turno del Gioc. ${stanza.id_giocatore_corrente + 1}`;
             
             document.getElementById('turn-indicator').textContent = turnText;
             document.getElementById('turn-indicator').style.color = isMyTurn ? "#00ff00" : "#fff";
+
+            // --- TIMER ANTI-ZOMBIE (Se un altro giocatore non gioca per 60s, l'host prende il controllo) ---
+            if (isHost && !isMyTurn && numRealPlayers > 0) {
+                if (autoFixTimeout) clearTimeout(autoFixTimeout);
+                // Calcola tempo dall'ultima azione
+                const lastActionTime = new Date(stanza.azione_timestamp).getTime();
+                const now = new Date().getTime();
+                if ((now - lastActionTime) > 60000) { // 60 secondi di inattività
+                    speak("Giocatore inattivo rilevato. Recupero il turno.");
+                    supabase.from('stanze').update({ id_giocatore_corrente: myIndex }).eq('id', roomId).then(()=>{});
+                }
+            }
+            // -------------------------------------------------------------
 
             const haveMoney = stanza.montepremi_round > 0;
             const btnManual = document.getElementById('btn-manual-cons');
@@ -498,7 +527,7 @@
                 }, 500);
             } else if(val !== 0) {
                 setTimeout(async()=>{
-                    // CORREZIONE 1: Calcolo dinamico giocatori per Passa/Bancarotta
+                    // CALCOLO DINAMICO
                     const numPlayers = currentStanza.giocatori.length;
 
                     if(val==='BANCAROTTA') {
@@ -571,7 +600,7 @@
                 document.getElementById('input-area').classList.add('hidden'); 
                 inputMode = null;
 
-                // CORREZIONE 2: Calcolo dinamico giocatori in submit
+                // CALCOLO DINAMICO
                 const numPlayers = currentStanza.giocatori.length;
 
                 // --- SOLUZIONE ---
@@ -587,7 +616,6 @@
                         }).eq('id', roomId);
                     } else {
                         await supabase.from('stanze').update({
-                            // Turno passa se errore soluzione
                             id_giocatore_corrente:(myIndex+1)%numPlayers,
                             ultima_azione:'errore',
                             ultimo_messaggio:`Soluzione errata: ${txt}`,
@@ -615,7 +643,6 @@
 
                 if (alreadyCalled) {
                     await supabase.from('stanze').update({
-                        // Turno passa se già chiamata
                         id_giocatore_corrente: (myIndex+1)%numPlayers,
                         ultima_azione: 'chiama_lettera',
                         ultimo_messaggio: `Lettera ${char} già chiamata!`,
@@ -644,7 +671,6 @@
                         await supabase.from('stanze').update({montepremi_round:0}).eq('id',roomId);
                     }
                 } else {
-                    // Turno passa se lettera assente
                     msg = `La ${char} non c'è.`; 
                     next = (myIndex+1)%numPlayers;
                 }
@@ -703,7 +729,7 @@
                 lettere_rivelate:[],
                 lettere_chiamate:[],
                 montepremi_round:0, 
-                id_giocatore_corrente: 0, // Reset turno a Giocatore 1
+                id_giocatore_corrente: 0,
                 ultima_azione:'nuovo_round',
                 ultimo_messaggio:'Nuovo Round (Turno resettato)!',
                 azione_timestamp:new Date().toISOString()

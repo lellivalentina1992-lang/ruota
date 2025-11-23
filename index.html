@@ -3,71 +3,142 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>La Ruota - V. TIMER FIX</title>
+    <title>La Ruota - TV Edition</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <style>
-        /* --- STILE AD ALTO CONTRASTO --- */
+        /* --- VARIABILI GRAFICHE (TEMA TV DEFAULT) --- */
+        :root {
+            --bg-body: linear-gradient(135deg, #0f2027, #203a43, #2c5364); /* Blu studio TV */
+            --font-main: 'Verdana', sans-serif;
+            --col-text: #ffffff;
+            --col-border: #ffffff; 
+            --col-focus: #ffd700;
+            --bg-panel: rgba(0, 0, 0, 0.6); /* Pannelli semi-trasparenti */
+            --bg-tile-empty: #004d00;
+            --bg-tile-revealed: #ffffff;
+            --col-tile-text: #000000;
+            --shadow-card: 0 8px 16px rgba(0,0,0,0.5); /* Ombre 3D */
+            --border-radius: 15px;
+            --border-width: 2px;
+            --wheel-border: #ddd;
+            --transition-speed: 0.3s;
+        }
+
+        /* --- TEMA ALTO CONTRASTO (PER IPOVEDENTI) --- */
+        body.high-contrast {
+            --bg-body: #000000; /* Nero puro */
+            --col-text: #ffffff;
+            --col-border: #ffd700; /* Giallo acceso */
+            --col-focus: #00ffff;
+            --bg-panel: #1e1e1e;
+            --bg-tile-empty: #006600;
+            --bg-tile-revealed: #ffffff;
+            --col-tile-text: #000000;
+            --shadow-card: none; /* Niente ombre */
+            --border-radius: 0px; /* Spigoli vivi */
+            --border-width: 3px;
+            --wheel-border: #ffffff;
+            --transition-speed: 0s;
+        }
+
+        /* --- STILI BASE --- */
         body {
-            background-color: #000000; 
-            color: #ffffff; 
-            font-family: 'Verdana', sans-serif; 
+            background: var(--bg-body);
+            color: var(--col-text);
+            font-family: var(--font-main);
             margin: 0; padding: 10px;
             text-align: center;
             overflow-x: hidden;
+            min-height: 100vh;
+            transition: background 0.5s;
         }
-        
-        *:focus { outline: 4px solid #ffd700 !important; box-shadow: 0 0 15px #ffd700; }
+
+        /* Accessibilità */
+        *:focus { outline: 4px solid var(--col-focus) !important; box-shadow: 0 0 15px var(--col-focus); }
         .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); }
         .hidden { display: none !important; }
+
+        /* Pulsante Switch Tema (Visibile in alto) */
+        #contrast-toggle-btn {
+            display: block; width: 100%; max-width: 300px; margin: 0 auto 10px auto;
+            padding: 10px; background: #000; color: #ffd700; border: 2px solid #fff;
+            font-weight: bold; cursor: pointer; text-transform: uppercase;
+        }
+        body.high-contrast #contrast-toggle-btn { background: #ffd700; color: #000; border: 4px solid #fff; }
 
         /* Layout */
         .container { max-width: 1000px; margin: 0 auto; padding-bottom: 100px; }
         
         /* Pannelli */
         #setup-panel, #game-panel, #end-panel, #round-over-panel { 
-            border: 2px solid #ffd700; padding: 20px; margin-top: 20px; 
-            background: #1e1e1e; border-radius: 15px;
+            border: var(--border-width) solid var(--col-border); 
+            padding: 20px; margin-top: 20px; 
+            background: var(--bg-panel); 
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-card);
+            backdrop-filter: blur(5px); /* Effetto vetro nel tema TV */
         }
+        body.high-contrast #setup-panel { backdrop-filter: none; }
         
-        /* Tabellone Pulito */
+        /* Tabellone */
         #board-container {
             display: flex; flex-direction: column; align-items: center; gap: 10px;
             background: #053305; border: 5px solid #fff; padding: 25px; margin: 20px 0;
             border-radius: 10px; min-height: 150px;
+            box-shadow: inset 0 0 30px #000;
         }
         .board-row { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
         
+        /* Caselle con Effetto Flip 3D */
         .tile {
-            width: 45px; height: 65px; background: #fff; color: #000;
+            width: 45px; height: 65px; 
+            background: var(--bg-tile-revealed); color: var(--col-tile-text);
             font-weight: 900; font-size: 2.2em; display: flex; align-items: center; justify-content: center;
             border: 2px solid #333;
+            transition: transform 0.6s, background-color 0.3s;
+            transform-style: preserve-3d;
         }
-        .tile.empty { background: #006600; color: transparent; border: 1px solid #fff; opacity: 0.8; }
         
+        /* Stato vuoto */
+        .tile.empty { 
+            background: var(--bg-tile-empty); 
+            color: transparent; 
+            border: 1px solid rgba(255,255,255,0.3); 
+            transform: rotateY(0deg); /* Lato dorso */
+        }
+        /* Stato rivelato */
+        .tile:not(.empty) {
+            transform: rotateY(360deg); /* Animazione capriola */
+        }
+        /* Disabilita animazione in alto contrasto */
+        body.high-contrast .tile { transition: none !important; transform: none !important; }
+
         /* Cursori Navigazione */
-        .tile.cursor-char { border: 4px solid #00ffff; transform: scale(1.2); z-index: 10; }
+        .tile.cursor-char { border: 4px solid #00ffff; z-index: 10; transform: scale(1.1) rotateY(360deg); }
+        body.high-contrast .tile.cursor-char { transform: scale(1.2); } /* No rotazione in HC */
         .board-row.cursor-word { border: 3px solid #ffd700; padding: 4px; border-radius: 5px; }
 
         /* Ruota Visiva */
         #wheel-visual {
             width: 220px; height: 220px; margin: 20px auto;
-            border-radius: 50%; border: 8px solid #fff;
+            border-radius: 50%; border: 8px solid var(--wheel-border);
             background: conic-gradient(#ff0000, #ffa500, #ffff00, #008000, #0000ff, #4b0082, #ee82ee);
             transition: transform 3.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+            box-shadow: var(--shadow-card);
         }
-        #wheel-pointer { width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-top: 30px solid #fff; margin: 0 auto -20px auto; position: relative; z-index: 10; }
+        #wheel-pointer { width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-top: 30px solid #fff; margin: 0 auto -20px auto; position: relative; z-index: 10; filter: drop-shadow(0 2px 2px #000); }
 
         /* Pulsanti */
-        button { padding: 12px 20px; font-size: 1.1em; cursor: pointer; font-weight: bold; margin: 5px; border-radius: 8px; border: 2px solid #fff; text-transform: uppercase; }
+        button { padding: 12px 20px; font-size: 1.1em; cursor: pointer; font-weight: bold; margin: 5px; border-radius: 8px; border: 2px solid #fff; text-transform: uppercase; box-shadow: 0 4px 0 #000; transition: transform 0.1s; }
+        button:active { transform: translateY(4px); box-shadow: none; }
         .btn-primary { background: #ffcc00; color: #000; }
         .btn-secondary { background: #00ccff; color: #000; }
         .btn-danger { background: #ff0000; color: #fff; }
         
-        /* Stile disabilitato */
-        .disabled-btn { background: #444 !important; color: #888 !important; border-color: #666 !important; cursor: not-allowed; }
-
+        .disabled-btn { background: #444 !important; color: #888 !important; border-color: #666 !important; cursor: not-allowed; box-shadow: none; transform: none; }
+        
         .btn-blink { animation: blinker 1.5s linear infinite; background: #00ff00; color: #000; border-color: #fff; }
         @keyframes blinker { 50% { opacity: 0.5; } }
         
@@ -80,21 +151,16 @@
         #inspector-content { background: #222; border: 2px solid #ffd700; padding: 20px; width: 85%; max-height: 80%; overflow-y: auto; text-align: left; color: #fff; font-size: 1.4em; line-height: 1.6; }
         input { font-size: 1.8em; padding: 10px; text-align: center; width: 80%; max-width: 400px; background: #333; color: white; border: 2px solid #ffd700; }
         
-        /* Score Box */
-        .score-display { display: inline-block; padding: 5px 15px; border: 1px solid #555; border-radius: 5px; margin: 0 5px; }
+        .score-display { display: inline-block; padding: 5px 15px; border: 1px solid #555; border-radius: 5px; margin: 0 5px; background: #000; }
         
-        /* Timer - FIX VISIBILITÀ */
+        /* Timer */
         #timer-box { 
-            display: inline-block; /* Non più absolute */
-            position: relative;
-            margin: 0 auto 15px auto; /* Spazio sotto */
-            font-size: 2.5em; /* Più grande */
-            color: #ff0000; 
-            font-weight: bold; 
-            border: 3px solid #ff0000; 
-            padding: 10px 20px; 
-            border-radius: 50px; 
-            background: #000; 
+            display: inline-block; position: relative;
+            margin: 0 auto 15px auto; font-size: 2.5em; 
+            color: #ff0000; font-weight: bold; 
+            border: 3px solid #ff0000; padding: 10px 20px; 
+            border-radius: 50px; background: #000; 
+            box-shadow: 0 0 15px #ff0000;
         }
     </style>
 </head>
@@ -102,12 +168,16 @@
 
     <div id="sr-announcer" class="sr-only" aria-live="assertive"></div>
 
+    <button id="contrast-toggle-btn" onclick="toggleContrast()">
+        Attiva Modalità Alto Contrasto (C)
+    </button>
+
     <audio id="snd-spin" src="ruota.wav"></audio>
     <audio id="snd-hit" src="lettera presente.wav"></audio>
     <audio id="snd-miss" src="lettera assente.wav"></audio>
     <audio id="snd-win" src="lettera presente.wav"></audio>
 
-    <h1 style="color:#ffd700;">LA RUOTA</h1>
+    <h1 style="color:#ffd700; text-shadow: 2px 2px 0 #000;">LA RUOTA</h1>
 
     <div id="setup-panel" class="container">
         <h2>BENVENUTO</h2>
@@ -121,7 +191,7 @@
         
         <div id="timer-box">120</div>
 
-        <div style="background:#000; padding:15px; border-radius:5px; border-bottom: 1px solid #333;">
+        <div style="background:rgba(0,0,0,0.8); padding:15px; border-radius:5px; border-bottom: 1px solid #333;">
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
                 <div style="text-align: left;">
                     <span id="round-indicator" style="color:#aaa; font-size: 0.9em;">ROUND 1/10</span><br>
@@ -140,14 +210,14 @@
             </div>
         </div>
 
-        <h2 id="live-category" style="color:#00ffff; font-size: 1.8em; margin: 15px 0 5px 0;">...</h2>
-        <h3 id="round-hint" style="color:#ffd700; font-size: 1.4em; margin: 0 0 15px 0; min-height: 1.5em;"></h3>
+        <h2 id="live-category" style="color:#00ffff; font-size: 1.8em; margin: 15px 0 5px 0; text-shadow: 1px 1px 2px black;">...</h2>
+        <h3 id="round-hint" style="color:#ffd700; font-size: 1.4em; margin: 0 0 15px 0; min-height: 1.5em; text-shadow: 1px 1px 2px black;"></h3>
 
         <div id="board-container" aria-hidden="true" tabindex="-1"></div>
         
         <div id="wheel-pointer"></div>
         <div id="wheel-visual"></div>
-        <div id="wheel-status-text" style="font-size: 1.5em; font-weight: bold; color: lime; margin: 10px;">PREMI G</div>
+        <div id="wheel-status-text" style="font-size: 1.5em; font-weight: bold; color: lime; margin: 10px; text-shadow: 1px 1px #000;">PREMI G</div>
 
         <div id="controls">
             <button id="btn-spin" class="btn-primary" onclick="doSpin()">1. GIRA (G)</button>
@@ -160,9 +230,9 @@
             </button>
             <br>
 
-            <div style="color:#aaa; margin-top:10px;">
+            <div style="color:#fff; margin-top:10px; background:rgba(0,0,0,0.5); padding:5px; border-radius:5px;">
                 <strong>Frecce:</strong> Naviga | <strong>Ctrl+Frecce:</strong> Parola<br>
-                <strong>Ctrl+I:</strong> Ispettore | <strong>Ctrl+L:</strong> Lettere uscite
+                <strong>Ctrl+I:</strong> Ispettore | <strong>Ctrl+L:</strong> Lettere presenti
             </div>
         </div>
     </div>
@@ -224,6 +294,30 @@
             setTimeout(() => el.textContent = text, 50); 
         }
 
+        // --- GESTIONE TEMA (NUOVO) ---
+        function toggleContrast() {
+            const body = document.body;
+            const btn = document.getElementById('contrast-toggle-btn');
+            body.classList.toggle('high-contrast');
+            
+            const isHigh = body.classList.contains('high-contrast');
+            localStorage.setItem('highContrast', isHigh);
+            
+            if(isHigh) {
+                btn.textContent = "DISATTIVA ALTO CONTRASTO (C)";
+                speak("Modalità Alto Contrasto Attivata.");
+            } else {
+                btn.textContent = "ATTIVA ALTO CONTRASTO (C)";
+                speak("Modalità Standard TV Attivata.");
+            }
+        }
+
+        // Carica preferenza
+        if(localStorage.getItem('highContrast') === 'true') {
+            document.body.classList.add('high-contrast');
+            document.getElementById('contrast-toggle-btn').textContent = "DISATTIVA ALTO CONTRASTO (C)";
+        }
+
         // --- GESTIONE BOTTONI ACCESSIBILE ---
         function setBtnState(id, isDisabled) {
             const btn = document.getElementById(id);
@@ -266,8 +360,7 @@
         let pollingInterval = null;
         let timerInterval = null;
         
-        // --- LOGICA TIMER AGGIORNATA ---
-        const TURN_LIMIT_SEC = 120; // 120 Secondi base
+        const TURN_LIMIT_SEC = 120; 
 
         let isFetching = false;
         let isProcessingInput = false;
@@ -355,7 +448,6 @@
             const now = new Date().getTime();
             const secondsPassed = Math.floor((now - lastAction) / 1000);
             
-            // Logica 30 secondi extra se in modalità risoluzione
             let currentLimit = TURN_LIMIT_SEC;
             if (inputMode === 'solve') {
                 currentLimit += 30;
@@ -364,16 +456,13 @@
             const secondsLeft = currentLimit - secondsPassed;
 
             const timerBox = document.getElementById('timer-box');
-            // FIX: Ora il timer è sempre visibile, aggiorniamo solo il testo
             timerBox.textContent = secondsLeft > 0 ? secondsLeft : 0;
             
-            // Suono a 60 secondi
             if (secondsLeft === 60) {
                 playAudio('snd-hit');
             }
 
             if(currentStanza.id_giocatore_corrente === myIndex && secondsLeft <= 0 && !isSpinning) {
-                // Chiude finestra input se aperta
                 if(inputMode) {
                     closeInput();
                     speak("Tempo scaduto! Finestra chiusa.");
@@ -435,9 +524,6 @@
             document.getElementById('round-over-panel').classList.add('hidden');
             document.getElementById('game-panel').classList.remove('hidden');
             
-            // Nota: NON nascondiamo forzatamente input-area qui, lo gestisce checkTurnTimer o le funzioni di input
-
-            // --- LOGICA PARSING ---
             if (!currentFrase || currentFrase.id !== stanza.frasi.id) {
                 currentFrase = stanza.frasi;
                 navWordIdx = 0; navCharIdx = 0;
@@ -473,7 +559,6 @@
 
             document.getElementById('round-indicator').textContent = `ROUND ${stanza.round_giocati || 1} / 10`;
 
-            // FEEDBACK AZIONI + SILENT LOAD FIX
             if (stanza.azione_timestamp && stanza.azione_timestamp !== lastTimestamp) {
                 const isFirstLoad = (lastTimestamp === "");
                 lastTimestamp = stanza.azione_timestamp;
@@ -557,6 +642,7 @@
                     wordObj.chars.push({ char: ch, isRevealed: isRevealed, isLetter: !!isLetter });
                     
                     const div = document.createElement('div');
+                    // GESTIONE CLASSI PER STILE
                     div.className = 'tile' + (isLetter && !isRevealed ? ' empty' : ' revealed');
                     div.textContent = (isLetter && !isRevealed) ? '' : ch;
                     div.id = `tile-${parsedBoard.length}-${j}`;
@@ -870,18 +956,11 @@
             speak("Ispettore aperto. " + fullRead);
         }
         
-        // --- FUNZIONE AGGIORNATA PER IL FIX ---
         function closeInspector() { 
-            // 1. Nascondi overlay
             document.getElementById('inspector-overlay').classList.add('hidden');
-            
-            // 2. Svuota il contenuto per pulire il buffer dello screen reader
             document.getElementById('inspector-content').innerHTML = ""; 
-
-            // 3. Interrompi immediatamente la lettura con un messaggio breve
             speak("Ispettore chiuso."); 
             
-            // 4. Gestione focus
             if(inputMode) {
                 const area = document.getElementById('input-area');
                 area.classList.remove('hidden');
@@ -895,12 +974,19 @@
             }
         }
 
+        // --- FIX RICHIESTO: SOLO LETTERE PRESENTI ---
         function readRevealedLetters() {
-            const calls = [...(currentStanza.lettere_chiamate || [])];
-            if (calls.length === 0) return speak("Nessuna lettera uscita.");
-            calls.sort(); 
-            const text = calls.map(c => `${c}, ${NATO[c] || c}.`).join(" ");
-            speak("Lettere chiamate: " + text);
+            const calls = currentStanza.lettere_chiamate || [];
+            const sol = cleanStr(currentPuzzleText).toUpperCase();
+            
+            // Filtra: tieni solo quelle che sono davvero nella soluzione
+            const hits = calls.filter(c => sol.includes(c));
+
+            if (hits.length === 0) return speak("Nessuna lettera presente scoperta.");
+
+            hits.sort(); 
+            const text = hits.map(c => `${c}, ${NATO[c] || c}`).join(". ");
+            speak("Lettere presenti sul tabellone: " + text);
         }
 
         async function startNewRound() {
@@ -943,6 +1029,11 @@
                 if(k==='s') { e.preventDefault(); if(inputMode) closeInput(); openInput('solve'); return; }
                 if(k==='g' && !inputMode) { e.preventDefault(); doSpin(); return; }
                 if(k==='v' && !inputMode) { e.preventDefault(); openInput('vowel'); return; }
+            }
+            
+            // Scorciatoia per cambio tema
+            if(e.key.toLowerCase() === 'c' && !inputMode) {
+                toggleContrast();
             }
 
             if(e.key === 'Escape') {

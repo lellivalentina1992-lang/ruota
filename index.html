@@ -95,7 +95,7 @@
         <h2>BENVENUTO</h2>
         <input id="inp-name" type="text" placeholder="IL TUO NOME"><br><br>
         <input id="inp-code" type="text" value="STANZA1"><br><br>
-        <button onclick="joinGame(true)" class="btn-primary">CREA STANZA</button>
+        <button onclick="joinGame(true)" class="btn-primary">CREA STANZA (RESET)</button>
         <button onclick="joinGame(false)" class="btn-secondary">ENTRA</button>
     </div>
 
@@ -103,7 +103,10 @@
         
         <div style="display:flex; justify-content:space-between; background:#000; padding:10px; border-radius:5px;">
             <span id="turn-indicator" style="font-size:1.2em;">...</span>
-            <span id="my-score" style="color:#ffd700; font-size:1.2em;">Tu: €0</span>
+            <div style="text-align: right;">
+                <span id="my-score" style="color:#ffd700; font-size:1.2em; display:block;">Tu: €0</span>
+                <span id="my-role" style="color:#aaa; font-size:0.8em;">...</span>
+            </div>
         </div>
 
         <h2 id="live-category" style="color:#00ffff; font-size: 1.8em; margin: 15px 0 5px 0;">...</h2>
@@ -133,7 +136,7 @@
         </div>
 
         <div id="host-controls" class="hidden" style="border-top: 1px solid #555; margin-top: 20px; padding-top: 10px;">
-            <button onclick="startNewRound()" style="background: #444; color: #fff;">FORZA NUOVO ROUND (H)</button>
+            <button onclick="startNewRound()" style="background: #444; color: #fff;">FORZA NUOVO ROUND / RESET TURNO (H)</button>
         </div>
     </div>
 
@@ -205,7 +208,7 @@
         
         let myId, myIndex, roomId, isHost = false;
         let currentFrase = null, currentStanza = null;
-        let currentPuzzleText = ""; // Contiene SOLO la parte da indovinare
+        let currentPuzzleText = ""; 
         let lastTimestamp = "";
         let isSpinning = false, inputMode = null;
         let wheelAngle = 0;
@@ -224,12 +227,21 @@
 
             let stanza;
             if (create) {
+                // Se creo stanza, resetto tutto per quel codice per evitare bug
+                await supabase.from('stanze').delete().eq('codice', code); 
+                
                 const { data: frasi } = await supabase.from('frasi').select('id');
                 const rid = frasi[Math.floor(Math.random()*frasi.length)].id;
+                
                 const { data, error } = await supabase.from('stanze').insert({
-                    codice:code, stato:'attesa', frase_corrente_id:rid, lettere_chiamate:[], lettere_rivelate:[]
+                    codice:code, 
+                    stato:'attesa', 
+                    frase_corrente_id:rid, 
+                    lettere_chiamate:[], 
+                    lettere_rivelate:[],
+                    id_giocatore_corrente: 0 // Reset turno a 0
                 }).select().single();
-                stanza = error ? (await supabase.from('stanze').select('*').eq('codice',code).single()).data : data;
+                stanza = data;
             } else {
                 const { data } = await supabase.from('stanze').select('*').eq('codice',code).single();
                 if(!data) return speak("Stanza non trovata");
@@ -237,9 +249,21 @@
             }
             roomId = stanza.id;
 
+            // Rimuovi me stesso se esistevo già
             await supabase.from('giocatori').delete().eq('stanza_id', roomId).eq('nome', name);
-            const { count } = await supabase.from('giocatori').select('*', { count: 'exact', head: true }).eq('stanza_id', roomId);
-            myIndex = count || 0;
+            
+            // LOGICA MIGLIORATA: Controlla quale "sedia" (0 o 1) è libera
+            const { data: existingPlayers } = await supabase.from('giocatori').select('indice').eq('stanza_id', roomId);
+            const occupiedIndices = existingPlayers.map(p => p.indice);
+            
+            if (!occupiedIndices.includes(0)) {
+                myIndex = 0; // Prendo il posto 1
+            } else if (!occupiedIndices.includes(1)) {
+                myIndex = 1; // Prendo il posto 2
+            } else {
+                myIndex = occupiedIndices.length; // Spettatore
+            }
+            
             isHost = (myIndex === 0); 
 
             const { data: player } = await supabase.from('giocatori').insert({
@@ -251,7 +275,9 @@
             document.getElementById('game-panel').classList.remove('hidden');
             if(isHost) document.getElementById('host-controls').classList.remove('hidden');
             
-            speak(`Benvenuto ${name}.`);
+            document.getElementById('my-role').textContent = `Sei il Giocatore ${myIndex + 1}`;
+            speak(`Benvenuto ${name}. Sei il Giocatore ${myIndex + 1}.`);
+            
             setupRealtime(); fetchFullState();
         }
 
@@ -268,7 +294,6 @@
         function updateUI(stanza) {
             currentStanza = stanza;
             
-            // Se il gioco pensa che NON stiamo scrivendo, chiudiamo l'input per sicurezza
             if (!inputMode) {
                 document.getElementById('input-area').classList.add('hidden');
             }
@@ -277,7 +302,6 @@
                 currentFrase = stanza.frasi;
                 navWordIdx = 0; navCharIdx = 0;
                 
-                // Audio iniziale: dice categoria ed eventuale sottotitolo
                 const fullText = currentFrase.soluzione;
                 let speakText = "Nuovo Round: " + currentFrase.categoria;
                 if (fullText.includes(" - ")) {
@@ -301,36 +325,37 @@
                 if(stanza.ultima_azione === 'vittoria') playAudio('snd-hit');
             }
 
-            // --- GESTIONE TITOLO E FRASE DA INDOVINARE ---
-            // Se c'è " - ", separiamo. Altrimenti tutto è puzzle.
+            // GESTIONE SOTTOTITOLO
             const fullSoluzione = currentFrase.soluzione;
             let displayHint = ""; 
-            
             if (fullSoluzione.includes(" - ")) {
                 const parts = fullSoluzione.split(" - ");
-                displayHint = parts[0];       // Es: "PARIGI: LOUVRE"
-                currentPuzzleText = parts[1]; // Es: "CUSTODISCE IL..."
+                displayHint = parts[0];       
+                currentPuzzleText = parts[1]; 
             } else {
-                displayHint = "";             // Nessun hint extra
+                displayHint = "";             
                 currentPuzzleText = fullSoluzione;
             }
 
             document.getElementById('live-category').textContent = "ARGOMENTO: " + currentFrase.categoria;
-            document.getElementById('round-hint').textContent = displayHint; // Mostra il sottotitolo visibile
+            document.getElementById('round-hint').textContent = displayHint; 
             document.getElementById('wheel-status-text').textContent = stanza.montepremi_round > 0 ? `IN PALIO: €${stanza.montepremi_round}` : "GIRA";
             
-            // Renderizziamo SOLO la parte del puzzle (senza titolo visibile)
             parseAndRenderBoard(currentPuzzleText, stanza.lettere_rivelate);
 
+            // GESTIONE TURNO RIGOROSA
             const isMyTurn = (stanza.id_giocatore_corrente === myIndex);
-            document.getElementById('turn-indicator').textContent = isMyTurn ? "È IL TUO TURNO" : "Turno avversario";
+            
+            // Debug testuale per capire chi deve giocare
+            const turnText = isMyTurn ? "È IL TUO TURNO" : `Turno del Gioc. ${stanza.id_giocatore_corrente + 1}`;
+            
+            document.getElementById('turn-indicator').textContent = turnText;
             document.getElementById('turn-indicator').style.color = isMyTurn ? "#00ff00" : "#fff";
 
             const haveMoney = stanza.montepremi_round > 0;
             const btnManual = document.getElementById('btn-manual-cons');
             const busy = isSpinning || inputMode;
 
-            // Gestione Pulsanti
             setBtnState('btn-spin', !isMyTurn || busy || haveMoney);
             setBtnState('btn-vowel', !isMyTurn || busy);
             setBtnState('btn-solve', isSpinning); 
@@ -359,7 +384,6 @@
                 for (let i = 0; i < wStr.length; i++) {
                     const ch = wStr[i];
                     const isLetter = ch.match(/[A-ZÀ-Ù0-9]/); 
-                    // Se non è lettera, è sempre rivelata. Se è lettera, controlliamo l'indice
                     const isRevealed = !isLetter || revealed.includes(globalIdx);
                     wordObj.chars.push({ char: ch, isRevealed: isRevealed, isLetter: !!isLetter });
                     
@@ -509,7 +533,6 @@
 
         function closeInput() { 
             document.getElementById('input-area').classList.add('hidden'); 
-            
             const wasSolving = (inputMode === 'solve');
             inputMode = null; 
             
@@ -542,20 +565,17 @@
                 const txt = document.getElementById('game-input').value.trim().toUpperCase();
                 if(!txt) return;
                 const mode = inputMode; 
-                
                 document.getElementById('input-area').classList.add('hidden'); 
                 inputMode = null;
 
                 // --- SOLUZIONE ---
                 if(mode === 'solve') {
-                    // Confrontiamo solo con la parte HIDDEN (currentPuzzleText)
                     if(cleanStr(txt) === cleanStr(currentPuzzleText)) {
                         await supabase.from('stanze').update({
                             stato:'finito',
                             ultima_azione:'vittoria',
                             ultimo_messaggio:`VITTORIA! La soluzione era: ${currentPuzzleText}`,
                             azione_timestamp:new Date().toISOString(),
-                            // Rivela tutte le lettere del PUZZLE
                             lettere_rivelate:Array.from({length:currentPuzzleText.length},(_,i)=>i),
                             montepremi_round: 0
                         }).eq('id', roomId);
@@ -571,9 +591,8 @@
                     return;
                 }
 
-                // --- LETTERE (VOCALI E CONSONANTI) ---
+                // --- LETTERE ---
                 const char = txt.charAt(0);
-                // Usiamo currentPuzzleText per cercare la lettera, NON la stringa completa del DB
                 const sol = currentPuzzleText.toUpperCase();
                 let found = [], globalIdx = 0;
                 
@@ -640,7 +659,6 @@
         function openInspector() {
             const div = document.getElementById('inspector-content');
             let html = `<h2 style="color:#ffd700;">${currentFrase.categoria}</h2>`;
-            // Se c'è un titolo visibile (es. Vasco Rossi), lo mostriamo anche nell'ispettore
             if(document.getElementById('round-hint').textContent) {
                 html += `<h3 style="color:#00ffff;">${document.getElementById('round-hint').textContent}</h3>`;
             }
@@ -675,8 +693,9 @@
                 lettere_rivelate:[],
                 lettere_chiamate:[],
                 montepremi_round:0, 
+                id_giocatore_corrente: 0, // Reset turno a Giocatore 1
                 ultima_azione:'nuovo_round',
-                ultimo_messaggio:'Nuovo Round!',
+                ultimo_messaggio:'Nuovo Round (Turno resettato)!',
                 azione_timestamp:new Date().toISOString()
             }).eq('id', roomId);
         }

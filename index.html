@@ -239,14 +239,14 @@
                 speak("Nuovo Round: " + currentFrase.categoria);
             }
 
-            // Audio & Messaggi (Solo se cambia timestamp)
+            // --- GESTIONE AUDIO E MESSAGGI ---
             if (stanza.azione_timestamp && stanza.azione_timestamp !== lastTimestamp) {
                 lastTimestamp = stanza.azione_timestamp;
                 
-                if(stanza.ultima_azione !== 'gira_ruota') {
-                    if(stanza.ultimo_messaggio) speak(stanza.ultimo_messaggio);
-                }
+                // MODIFICA 1: Ora legge SEMPRE l'ultimo messaggio, anche dopo aver girato la ruota
+                if(stanza.ultimo_messaggio) speak(stanza.ultimo_messaggio);
 
+                // Suoni specifici
                 if(stanza.ultima_azione === 'chiama_lettera') {
                     const match = stanza.ultimo_messaggio.match(/Ce ne sono (\d+)/);
                     if(match) playMultiHit(parseInt(match[1])); 
@@ -265,12 +265,11 @@
             document.getElementById('turn-indicator').textContent = isMyTurn ? "È IL TUO TURNO" : "Turno avversario";
             document.getElementById('turn-indicator').style.color = isMyTurn ? "#00ff00" : "#fff";
 
-            // --- FIX FONDAMENTALE PER INPUT ---
-            // Se è il mio turno, c'è un montepremi, non sto già scrivendo e non sto girando...
-            // APRI L'INPUT AUTOMATICAMENTE
+            // --- APERTURA AUTOMATICA INPUT (CORRETTA) ---
+            // Se è il mio turno, c'è un montepremi, non sto scrivendo e la ruota LOCALE ha finito
             if (isMyTurn && stanza.montepremi_round > 0 && !inputMode && !isSpinning) {
-                // Piccolo delay per non sovrapporsi alla voce del risultato
-                setTimeout(() => openInput('letter'), 500); 
+                // Delay di 1 secondo per lasciare a NVDA il tempo di leggere il premio
+                setTimeout(() => openInput('letter'), 1000); 
             }
 
             const busy = isSpinning || inputMode;
@@ -359,26 +358,22 @@
             }
         }
 
-        // --- AZIONI DI GIOCO SINCRONIZZATE ---
+        // --- AZIONI DI GIOCO SINCRONIZZATE (CORRETTO) ---
         async function doSpin() {
             if(isSpinning) return speak("Aspetta.");
             
-            // 1. Avvio Locale (Audio + Animazione)
             speak("La ruota gira..."); 
-            playAudio('snd-spin'); // Suono locale
+            playAudio('snd-spin'); 
             
             isSpinning = true; 
             document.getElementById('btn-spin').disabled = true;
             
-            // Animazione Visuale
             wheelAngle += (1000 + Math.random()*500);
             document.getElementById('wheel-visual').style.transform = `rotate(${wheelAngle}deg)`;
 
-            // 2. ATTESA (Sincronizzazione)
-            // Aspetto 3.5 secondi che il suono e l'animazione finiscano PRIMA di aggiornare il DB
+            // Attesa sincronizzata con l'audio
             await new Promise(r => setTimeout(r, 3500));
 
-            // 3. Calcolo Risultato
             let val = WHEEL_VALUES[Math.floor(Math.random()*WHEEL_VALUES.length)];
             let extra = "";
 
@@ -386,7 +381,7 @@
                 const opts = ['BANCAROTTA', 'PASSA', 'RADDOPPIA', 'JOLLY'];
                 const mysteryRes = opts[Math.floor(Math.random()*opts.length)];
                 val = mysteryRes; 
-                extra = "Mistero svela... " + val + "!";
+                extra = ". Il mistero svela... " + val + "!";
                 if(val === 'RADDOPPIA') {
                     const me = currentStanza.giocatori.find(p=>p.id===myId);
                     await supabase.from('giocatori').update({punteggio_totale: me.punteggio_totale * 2}).eq('id', myId);
@@ -394,9 +389,12 @@
                 }
             }
 
-            const msg = `${document.getElementById('inp-name').value} ha girato: ${val} ${extra}`;
+            const msg = `${document.getElementById('inp-name').value} ha girato: ${val}${extra}`;
             
-            // 4. INVIO AL DB (Questo farà parlare la voce)
+            // FIX: Sblocchiamo "isSpinning" PRIMA di chiamare il database.
+            // Così quando la risposta arriva, updateUI vedrà che isSpinning è false e aprirà l'input.
+            isSpinning = false;
+
             await supabase.from('stanze').update({
                 montepremi_round: (typeof val==='number'?val:0), 
                 ultima_azione: 'gira_ruota', 
@@ -404,9 +402,7 @@
                 azione_timestamp: new Date().toISOString()
             }).eq('id', roomId);
 
-            isSpinning = false;
-
-            // 5. Gestione Turno (Bancarotta/Passa)
+            // Gestione Turno per casi speciali (Bancarotta/Passa)
             if(typeof val !== 'number' && val !== 0) {
                 setTimeout(async()=>{
                     if(val==='BANCAROTTA') {

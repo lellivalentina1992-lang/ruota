@@ -84,7 +84,6 @@
 
     <div id="sr-announcer" class="sr-only" aria-live="assertive"></div>
 
-    <!-- SOLO I TUOI TRE SUONI -->
     <audio id="snd-spin" src="ruota.wav"></audio>
     <audio id="snd-hit" src="lettera presente.wav"></audio>
     <audio id="snd-miss" src="lettera assente.wav"></audio>
@@ -156,7 +155,9 @@
             const aud = document.getElementById(id);
             if(aud) {
                 aud.currentTime = 0;
-                aud.play().catch(e => console.log("Audio error (controlla i file):", e));
+                // Tentativo di play. Se il browser blocca l'audio senza interazione, 
+                // questo catch lo intercetta ma non ferma il gioco.
+                aud.play().catch(e => console.log("Audio error (controlla i file o i permessi):", e));
             }
         }
 
@@ -167,7 +168,7 @@
                 if(i < count) { 
                     playAudio('snd-hit'); 
                     i++; 
-                    setTimeout(loop, 600); 
+                    setTimeout(loop, 600); // Pausa di 600ms tra un bip e l'altro
                 }
             }
             loop();
@@ -257,9 +258,16 @@
                 if(stanza.ultimo_messaggio) speak(stanza.ultimo_messaggio);
 
                 if(stanza.ultima_azione === 'chiama_lettera') {
-                    const match = stanza.ultimo_messaggio.match(/Ce ne sono (\d+)/);
-                    if(match) playMultiHit(parseInt(match[1])); 
-                    else if(stanza.ultimo_messaggio.includes("Non c'è") || stanza.ultimo_messaggio.includes("Già chiamata")) playAudio('snd-miss');
+                    // MODIFICA AUDIO: Riconosce "Trovate X" invece di "Ce ne sono X"
+                    // Case insensitive flag 'i' aggiunto per sicurezza
+                    const match = stanza.ultimo_messaggio.match(/Trovate (\d+)/i);
+                    
+                    if(match) {
+                        playMultiHit(parseInt(match[1])); 
+                    }
+                    else if(stanza.ultimo_messaggio.toLowerCase().includes("non c'è") || stanza.ultimo_messaggio.toLowerCase().includes("già chiamata")) {
+                        playAudio('snd-miss');
+                    }
                 }
                 if(stanza.ultima_azione === 'errore') playAudio('snd-miss');
                 if(stanza.ultima_azione === 'vittoria') playAudio('snd-hit');
@@ -324,15 +332,29 @@
             highlightNav();
         }
 
+        // MODIFICA NAVIGAZIONE: Impedisce il salto tra parole con le frecce destra/sinistra
         function moveNav(dChar) {
             if (parsedBoard.length === 0) return;
             document.querySelectorAll('.cursor-word').forEach(el => el.classList.remove('cursor-word'));
+            
             let newC = navCharIdx + dChar;
             const wLen = parsedBoard[navWordIdx].chars.length;
-            if (newC < 0) { if (navWordIdx > 0) { navWordIdx--; navCharIdx = parsedBoard[navWordIdx].chars.length - 1; } } 
-            else if (newC >= wLen) { if (navWordIdx < parsedBoard.length - 1) { navWordIdx++; navCharIdx = 0; } } 
-            else { navCharIdx = newC; }
-            highlightNav(); readSingleChar();
+
+            // Se si prova ad andare prima dell'inizio, resta a 0
+            if (newC < 0) { 
+                newC = 0; 
+            } 
+            // Se si prova ad andare dopo la fine, resta all'ultima lettera
+            else if (newC >= wLen) { 
+                newC = wLen - 1; 
+            } 
+            
+            // Aggiorna solo se è cambiato qualcosa (evita ripetizioni se siamo già al muro)
+            if(newC !== navCharIdx) {
+                navCharIdx = newC;
+                highlightNav(); 
+                readSingleChar();
+            }
         }
 
         function moveWordNav(dWord) {
@@ -363,9 +385,14 @@
             w.chars.forEach(c => { if(c.isLetter && !c.isRevealed) missing++; });
             if (missing === 0) speak(`Parola ${navWordIdx+1}: ${w.wordStr}`);
             else {
-                let spelling = "";
-                w.chars.forEach(c => { if(!c.isLetter) spelling += c.char; else if(c.isRevealed) spelling += c.char + ", "; else spelling += "Nascosta, "; });
-                speak(`Parola ${navWordIdx+1}. Mancano ${missing} lettere. ${spelling}`);
+                // Lettura ottimizzata per screen reader della parola con buchi
+                let reading = "";
+                w.chars.forEach(c => {
+                     if(!c.isLetter) reading += c.char; 
+                     else if(c.isRevealed) reading += c.char; 
+                     else reading += "_"; // Underscore viene letto bene
+                });
+                speak(`Parola ${navWordIdx+1}. Mancano ${missing} lettere. ${reading}`);
             }
         }
 
@@ -513,6 +540,7 @@
             let msg="", next=myIndex;
 
             if (count > 0) {
+                // Messaggio standardizzato per il regex audio
                 msg = `Trovate ${count} ${char}`;
                 if(mode==='letter') {
                     const val = currentStanza.montepremi_round||0;
@@ -536,16 +564,27 @@
             }).eq('id', roomId);
         }
 
+        // MODIFICA ISPETTORE: Formattazione richiesta
         function openInspector() {
             const div = document.getElementById('inspector-content');
             let html = `<h2 style="color:#ffd700;">${currentFrase.categoria}</h2>`;
+            
             parsedBoard.forEach((w, i) => {
-                let s = ""; w.chars.forEach(c => s += c.isRevealed ? c.char + " " : "_ ");
-                html += `<p>Parola ${i+1}: ${s}</p>`;
+                let s = "";
+                // Costruisce la stringa senza spazi intermedi
+                w.chars.forEach(c => {
+                    // Se rivelata usa la lettera, altrimenti underscore
+                    s += c.isRevealed ? c.char : "_";
+                });
+                
+                // Esempio output: "7 lettere: R_ST_RE"
+                html += `<p>${w.chars.length} lettere: ${s}</p>`;
             });
+            
             div.innerHTML = html;
             document.getElementById('inspector-overlay').classList.remove('hidden');
-            div.focus(); speak("Ispettore aperto.");
+            div.focus(); 
+            speak("Ispettore aperto.");
         }
         function closeInspector() { document.getElementById('inspector-overlay').classList.add('hidden'); document.getElementById('btn-spin').focus(); }
 

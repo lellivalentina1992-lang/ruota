@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>La Ruota - V. Stabile</title>
+    <title>La Ruota - V. Corretta</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
@@ -65,11 +65,12 @@
         .btn-secondary { background: #00ccff; color: #000; }
         .btn-danger { background: #ff0000; color: #fff; }
         
+        /* Stile disabilitato custom per mantenere il focus visibile */
+        .disabled-btn { background: #444 !important; color: #888 !important; border-color: #666 !important; cursor: not-allowed; }
+
         .btn-blink { animation: blinker 1.5s linear infinite; background: #00ff00; color: #000; border-color: #fff; }
         @keyframes blinker { 50% { opacity: 0.5; } }
         
-        button:disabled { background: #444; color: #888; border-color: #666; cursor: not-allowed; animation: none; }
-
         /* Overlay Input */
         #input-area, #inspector-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -150,25 +151,41 @@
     </div>
 
     <script>
-        // --- GESTIONE AUDIO LOCALE ---
+        // --- UTILITA' ---
         function playAudio(id) {
             const aud = document.getElementById(id);
-            if(aud) {
-                aud.currentTime = 0;
-                aud.play().catch(e => console.log("Audio error:", e));
-            }
+            if(aud) { aud.currentTime = 0; aud.play().catch(e => console.log(e)); }
         }
 
         function playMultiHit(count) {
             let i = 0;
             function loop() {
-                if(i < count) { 
-                    playAudio('snd-hit'); 
-                    i++; 
-                    setTimeout(loop, 200); 
-                }
+                if(i < count) { playAudio('snd-hit'); i++; setTimeout(loop, 200); }
             }
             loop();
+        }
+
+        function speak(text) { 
+            const el = document.getElementById('sr-announcer'); 
+            el.textContent = ''; 
+            setTimeout(() => el.textContent = text, 50); 
+        }
+
+        // --- GESTIONE BOTTONI ACCESSIBILE ---
+        function setBtnState(id, isDisabled) {
+            const btn = document.getElementById(id);
+            if(!btn) return;
+            if(isDisabled) {
+                btn.classList.add('disabled-btn');
+                btn.setAttribute('aria-disabled', 'true');
+            } else {
+                btn.classList.remove('disabled-btn');
+                btn.setAttribute('aria-disabled', 'false');
+            }
+        }
+
+        function isBtnDisabled(id) {
+            return document.getElementById(id).getAttribute('aria-disabled') === 'true';
         }
 
         // --- SUPABASE ---
@@ -177,7 +194,12 @@
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         // --- DATI ---
-        const NATO = {'A':'Ancona','B':'Bologna','C':'Como','D':'Domodossola','E':'Empoli','F':'Firenze','G':'Genova','H':'Hotel','I':'Imola','J':'Jolly','K':'Kappa','L':'Livorno','M':'Milano','N':'Napoli','O':'Otranto','P':'Palermo','Q':'Quadro','R':'Roma','S':'Savona','T':'Torino','U':'Udine','V':'Venezia','W':'Washington','X':'Xilofono','Y':'Yogurt','Z':'Zara'};
+        const NATO = {
+            'A':'Ancona','B':'Bologna','C':'Como','D':'Domodossola','E':'Empoli','F':'Firenze',
+            'G':'Genova','H':'Hotel','I':'Imola','J':'Jolly','K':'Kappa','L':'Livorno','M':'Milano',
+            'N':'Napoli','O':'Otranto','P':'Palermo','Q':'Quadro','R':'Roma','S':'Savona',
+            'T':'Torino','U':'Udine','V':'Venezia','W':'Washington','X':'Xilofono','Y':'Yogurt','Z':'Zara'
+        };
         const WHEEL_VALUES = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 2000, 3000, 'MISTERO', 'PASSA', 'BANCAROTTA'];
         
         let myId, myIndex, roomId, isHost = false;
@@ -187,18 +209,12 @@
         let wheelAngle = 0;
         let parsedBoard = [], navWordIdx = 0, navCharIdx = 0;
 
-        // --- PULIZIA TESTO INTELLIGENTE ---
         function cleanStr(str) { 
             if(!str) return "";
-            return str.toLowerCase()
-                      .normalize("NFD")
-                      .replace(/[\u0300-\u036f]/g, "") 
-                      .replace(/[^a-z0-9]/g, "");     
+            return str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");     
         }
         
-        function speak(text) { const el = document.getElementById('sr-announcer'); el.textContent = ''; setTimeout(() => el.textContent = text, 50); }
-
-        // --- AVVIO ---
+        // --- LOGICA DI GIOCO ---
         async function joinGame(create) {
             const name = document.getElementById('inp-name').value.trim().toUpperCase();
             const code = document.getElementById('inp-code').value.trim().toUpperCase();
@@ -250,10 +266,9 @@
         function updateUI(stanza) {
             currentStanza = stanza;
             
-            // --- FIX VITTORIA: SE IL GIOCO È FINITO, CHIUDI TUTTO ---
-            if(stanza.stato === 'finito' && inputMode) {
-                closeInput();
-            }
+            // --- FIX VITTORIA ---
+            // Se lo stato è finito, chiudiamo forzatamente l'input per evitare che copra la vittoria
+            if(stanza.stato === 'finito' && inputMode) closeInput();
 
             if (!currentFrase || currentFrase.id !== stanza.frasi.id) {
                 currentFrase = stanza.frasi;
@@ -289,11 +304,10 @@
             const btnManual = document.getElementById('btn-manual-cons');
             const busy = isSpinning || inputMode;
 
-            // LOGICA BOTTONI
-            document.getElementById('btn-spin').disabled = !isMyTurn || busy || haveMoney;
-            document.getElementById('btn-vowel').disabled = !isMyTurn || busy;
-            // Risolvi attivo tranne se la ruota gira (ma si può premere se si hanno soldi)
-            document.getElementById('btn-solve').disabled = isSpinning;
+            // Aggiorna stato pulsanti (visivamente e ARIA)
+            setBtnState('btn-spin', !isMyTurn || busy || haveMoney);
+            setBtnState('btn-vowel', !isMyTurn || busy);
+            setBtnState('btn-solve', isSpinning);
 
             if (isMyTurn && haveMoney && !inputMode && !isSpinning) {
                 btnManual.classList.remove('hidden');
@@ -360,11 +374,16 @@
             else { const el = document.getElementById(`tile-${navWordIdx}-${navCharIdx}`); if(el) el.classList.add('cursor-char'); }
         }
 
+        // --- LETTURA CARATTERI (CORRETTO BUG NUMERI) ---
         function readSingleChar() {
-            const c = parsedBoard[navWordIdx].chars[navCharIdx];
-            if (!c.isLetter) speak(c.char);
-            else if (c.isRevealed) speak(`${c.char}, ${NATO[c.char]||''}.`);
-            else speak("Nascosta.");
+            const w = parsedBoard[navWordIdx];
+            const c = w.chars[navCharIdx];
+            // Calcolo posizione: Es. "3 di 5"
+            const pos = (navCharIdx + 1) + " di " + w.chars.length;
+            
+            if (!c.isLetter) speak(pos + ". " + c.char); // Es: "5 di 5. Apostrofo" (in realtà legge il simbolo)
+            else if (c.isRevealed) speak(`${pos}. ${c.char}, ${NATO[c.char]||''}.`);
+            else speak(`${pos}. Nascosta.`);
         }
 
         function readWholeWord() {
@@ -381,14 +400,16 @@
 
         // --- GIOCO ---
         async function doSpin() {
+            if(isBtnDisabled('btn-spin')) return;
+            
             if(isSpinning) return speak("Aspetta.");
             speak("La ruota gira..."); 
             playAudio('snd-spin'); 
             isSpinning = true; 
             
-            document.getElementById('btn-spin').disabled = true;
-            document.getElementById('btn-solve').disabled = true; 
-            document.getElementById('btn-vowel').disabled = true;
+            setBtnState('btn-spin', true);
+            setBtnState('btn-solve', true);
+            setBtnState('btn-vowel', true);
             
             wheelAngle += (1000 + Math.random()*500);
             document.getElementById('wheel-visual').style.transform = `rotate(${wheelAngle}deg)`;
@@ -411,8 +432,7 @@
 
             const msg = `${document.getElementById('inp-name').value} ha girato: ${val}${extra}`;
             isSpinning = false;
-            
-            document.getElementById('btn-solve').disabled = false;
+            setBtnState('btn-solve', false);
 
             await supabase.from('stanze').update({
                 montepremi_round: (typeof val==='number'?val:0), 
@@ -442,8 +462,11 @@
             }
         }
 
-        // --- GESTIONE INPUT (CORRETTO PER BUG "FINESTRA BLOCCATA") ---
+        // --- GESTIONE INPUT ---
         function openInput(mode) {
+            if(mode === 'vowel' && isBtnDisabled('btn-vowel')) return;
+            if(mode === 'solve' && isBtnDisabled('btn-solve')) return;
+
             inputMode = mode; 
             const area = document.getElementById('input-area');
             const inp = document.getElementById('game-input');
@@ -458,30 +481,24 @@
         }
 
         function closeInput() { 
-            // 1. Forza la chiusura visiva IMMEDIATA
-            const area = document.getElementById('input-area');
-            area.classList.add('hidden'); 
+            // Chiude IMMEDIATAMENTE l'overlay
+            document.getElementById('input-area').classList.add('hidden'); 
             
-            // 2. Prova a gestire il focus, ma ignora errori se il gioco è finito
+            // Gestione sicura del focus
             try {
                 const wasSolving = (inputMode === 'solve');
                 inputMode = null; 
-                
                 if(wasSolving) {
                     document.getElementById('btn-solve').focus();
                 } else {
                     const btnSpin = document.getElementById('btn-spin');
-                    if(btnSpin && !btnSpin.disabled) {
+                    if(btnSpin && !isBtnDisabled('btn-spin')) {
                         btnSpin.focus();
                     } else {
-                        const btnSolve = document.getElementById('btn-solve');
-                        if(btnSolve) btnSolve.focus(); 
+                        document.getElementById('btn-solve').focus(); 
                     }
                 }
-            } catch(e) {
-                console.log("Focus error ignored during close", e);
-                inputMode = null; // Assicuriamoci che inputMode sia resettato
-            }
+            } catch(e) { inputMode = null; }
         }
 
         async function submitInput() {
@@ -489,8 +506,8 @@
             if(!txt) return;
             const mode = inputMode; 
             
-            // CHIUDI PRIMA DI TUTTO
-            closeInput();
+            // --- FIX CRITICO: CHIUDI SUBITO ---
+            closeInput(); 
             
             if(mode === 'solve') {
                 const real = currentFrase.soluzione.toUpperCase();
@@ -591,8 +608,11 @@
         }
 
         function readRevealedLetters() {
-            const calls = currentStanza.lettere_chiamate || [];
-            speak(calls.length ? "Uscite: " + calls.join(", ") : "Nessuna lettera uscita.");
+            const calls = [...(currentStanza.lettere_chiamate || [])];
+            if (calls.length === 0) return speak("Nessuna lettera uscita.");
+            calls.sort(); 
+            const text = calls.map(c => `${c}, ${NATO[c] || c}.`).join(" ");
+            speak("Lettere chiamate: " + text);
         }
 
         async function startNewRound() {

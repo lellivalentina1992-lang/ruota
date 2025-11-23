@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>La Ruota - V. Soluzione Smart</title>
+    <title>La Ruota - V. Stabile</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
@@ -187,13 +187,13 @@
         let wheelAngle = 0;
         let parsedBoard = [], navWordIdx = 0, navCharIdx = 0;
 
-        // --- PULIZIA TESTO INTELLIGENTE (Nuova versione) ---
-        // Rimuove accenti, spazi, apostrofi e simboli, tiene solo lettere e numeri
+        // --- PULIZIA TESTO INTELLIGENTE ---
         function cleanStr(str) { 
+            if(!str) return "";
             return str.toLowerCase()
                       .normalize("NFD")
-                      .replace(/[\u0300-\u036f]/g, "") // Via gli accenti
-                      .replace(/[^a-z0-9]/g, "");     // Via punteggiatura e spazi
+                      .replace(/[\u0300-\u036f]/g, "") 
+                      .replace(/[^a-z0-9]/g, "");     
         }
         
         function speak(text) { const el = document.getElementById('sr-announcer'); el.textContent = ''; setTimeout(() => el.textContent = text, 50); }
@@ -250,6 +250,11 @@
         function updateUI(stanza) {
             currentStanza = stanza;
             
+            // --- FIX VITTORIA: SE IL GIOCO È FINITO, CHIUDI TUTTO ---
+            if(stanza.stato === 'finito' && inputMode) {
+                closeInput();
+            }
+
             if (!currentFrase || currentFrase.id !== stanza.frasi.id) {
                 currentFrase = stanza.frasi;
                 navWordIdx = 0; navCharIdx = 0;
@@ -284,18 +289,12 @@
             const btnManual = document.getElementById('btn-manual-cons');
             const busy = isSpinning || inputMode;
 
-            // LOGICA BOTTONI AGGIORNATA
-            // 1. GIRA: Solo se è il mio turno, non sto facendo altro e NON ho soldi in sospeso
+            // LOGICA BOTTONI
             document.getElementById('btn-spin').disabled = !isMyTurn || busy || haveMoney;
-            
-            // 2. VOCALE: Solo se è il mio turno e non sto facendo altro
             document.getElementById('btn-vowel').disabled = !isMyTurn || busy;
-            
-            // 3. RISOLVI: Sempre attivo, tranne se la ruota sta fisicamente girando.
-            //    Così puoi risolvere anche se hai soldi in sospeso o se non è il tuo turno (a seconda delle regole, ma qui lo lasciamo libero).
+            // Risolvi attivo tranne se la ruota gira (ma si può premere se si hanno soldi)
             document.getElementById('btn-solve').disabled = isSpinning;
 
-            // Pulsante inserimento manuale consonante (appare solo se hai girato e hai soldi)
             if (isMyTurn && haveMoney && !inputMode && !isSpinning) {
                 btnManual.classList.remove('hidden');
             } else {
@@ -319,7 +318,6 @@
                 const row = document.createElement('div'); row.className = 'board-row';
                 for (let i = 0; i < wStr.length; i++) {
                     const ch = wStr[i];
-                    // Accettiamo lettere e numeri nel tabellone
                     const isLetter = ch.match(/[A-ZÀ-Ù0-9]/); 
                     const isRevealed = !isLetter || revealed.includes(globalIdx);
                     wordObj.chars.push({ char: ch, isRevealed: isRevealed, isLetter: !!isLetter });
@@ -388,7 +386,6 @@
             playAudio('snd-spin'); 
             isSpinning = true; 
             
-            // Disabilita tutto mentre gira
             document.getElementById('btn-spin').disabled = true;
             document.getElementById('btn-solve').disabled = true; 
             document.getElementById('btn-vowel').disabled = true;
@@ -415,7 +412,6 @@
             const msg = `${document.getElementById('inp-name').value} ha girato: ${val}${extra}`;
             isSpinning = false;
             
-            // Riabilita Risolvi subito dopo lo spin (verrà gestito anche da updateUI ma lo forziamo qui per sicurezza)
             document.getElementById('btn-solve').disabled = false;
 
             await supabase.from('stanze').update({
@@ -446,7 +442,7 @@
             }
         }
 
-        // --- GESTIONE INPUT ---
+        // --- GESTIONE INPUT (CORRETTO PER BUG "FINESTRA BLOCCATA") ---
         function openInput(mode) {
             inputMode = mode; 
             const area = document.getElementById('input-area');
@@ -462,24 +458,29 @@
         }
 
         function closeInput() { 
-            document.getElementById('input-area').classList.add('hidden'); 
+            // 1. Forza la chiusura visiva IMMEDIATA
+            const area = document.getElementById('input-area');
+            area.classList.add('hidden'); 
             
-            // --- FOCUS MANAGER ---
-            // Se chiudo la finestra input, devo rimettere il focus su qualcosa di sensato.
-            const wasSolving = (inputMode === 'solve');
-            inputMode = null; 
-            
-            if(wasSolving) {
-                // Se stavo risolvendo, torno al pulsante risolvi
-                document.getElementById('btn-solve').focus();
-            } else {
-                // Altrimenti provo GIRA, se disabilitato vado su RISOLVI che è sempre attivo
-                const btnSpin = document.getElementById('btn-spin');
-                if(!btnSpin.disabled) {
-                    btnSpin.focus();
+            // 2. Prova a gestire il focus, ma ignora errori se il gioco è finito
+            try {
+                const wasSolving = (inputMode === 'solve');
+                inputMode = null; 
+                
+                if(wasSolving) {
+                    document.getElementById('btn-solve').focus();
                 } else {
-                    document.getElementById('btn-solve').focus(); 
+                    const btnSpin = document.getElementById('btn-spin');
+                    if(btnSpin && !btnSpin.disabled) {
+                        btnSpin.focus();
+                    } else {
+                        const btnSolve = document.getElementById('btn-solve');
+                        if(btnSolve) btnSolve.focus(); 
+                    }
                 }
+            } catch(e) {
+                console.log("Focus error ignored during close", e);
+                inputMode = null; // Assicuriamoci che inputMode sia resettato
             }
         }
 
@@ -487,11 +488,12 @@
             const txt = document.getElementById('game-input').value.trim().toUpperCase();
             if(!txt) return;
             const mode = inputMode; 
+            
+            // CHIUDI PRIMA DI TUTTO
             closeInput();
             
             if(mode === 'solve') {
                 const real = currentFrase.soluzione.toUpperCase();
-                // Usa cleanStr per il confronto tollerante
                 if(cleanStr(txt) === cleanStr(real)) {
                     await supabase.from('stanze').update({
                         stato:'finito',
@@ -518,15 +520,12 @@
             let found = [], globalIdx = 0;
             for(let i=0; i<sol.length; i++) {
                 if(sol[i].match(/[A-ZÀ-Ù0-9]/)) { 
-                    // Qui usiamo cleanStr per confrontare anche le lettere accentate nel tabellone
-                    // Es: Se la parola ha "È", e io scrivo "E", cleanStr le rende uguali
                     if(cleanStr(sol[i]) === cleanStr(char)) found.push(globalIdx);
                     globalIdx++;
                 }
             }
 
             const oldCalls = currentStanza.lettere_chiamate || [];
-            // Controllo duplicati usando cleanStr per evitare di chiamare E ed È come diverse
             const alreadyCalled = oldCalls.some(c => cleanStr(c) === cleanStr(char));
 
             if (alreadyCalled) {
@@ -551,7 +550,7 @@
             let msg="", next=myIndex;
 
             if (count > 0) {
-                msg = `Ne ho trovate ${count}`; // Messaggio breve per screen reader
+                msg = `Ne ho trovate ${count}`;
                 if(mode==='letter') {
                     const val = currentStanza.montepremi_round||0;
                     const me = currentStanza.giocatori.find(p=>p.id===myId);

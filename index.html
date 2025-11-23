@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>La Ruota - V. Corretta</title>
+    <title>La Ruota - V. Blindata</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
@@ -266,9 +266,12 @@
         function updateUI(stanza) {
             currentStanza = stanza;
             
-            // --- FIX VITTORIA ---
-            // Se lo stato è finito, chiudiamo forzatamente l'input per evitare che copra la vittoria
-            if(stanza.stato === 'finito' && inputMode) closeInput();
+            // --- FIX ASSOLUTO FINESTRE BLOCCATE ---
+            // Se il gioco pensa che NON stiamo scrivendo (inputMode è null),
+            // forza la chiusura della finestra.
+            if (!inputMode) {
+                document.getElementById('input-area').classList.add('hidden');
+            }
 
             if (!currentFrase || currentFrase.id !== stanza.frasi.id) {
                 currentFrase = stanza.frasi;
@@ -305,6 +308,7 @@
             const busy = isSpinning || inputMode;
 
             // Aggiorna stato pulsanti (visivamente e ARIA)
+            // IMPORTANTE: Se haveMoney è vero, NON puoi girare. Devi per forza chiamare lettera.
             setBtnState('btn-spin', !isMyTurn || busy || haveMoney);
             setBtnState('btn-vowel', !isMyTurn || busy);
             setBtnState('btn-solve', isSpinning);
@@ -374,14 +378,14 @@
             else { const el = document.getElementById(`tile-${navWordIdx}-${navCharIdx}`); if(el) el.classList.add('cursor-char'); }
         }
 
-        // --- LETTURA CARATTERI (CORRETTO BUG NUMERI) ---
+        // --- LETTURA CARATTERI (NUMERI E SIMBOLI) ---
         function readSingleChar() {
             const w = parsedBoard[navWordIdx];
             const c = w.chars[navCharIdx];
             // Calcolo posizione: Es. "3 di 5"
             const pos = (navCharIdx + 1) + " di " + w.chars.length;
             
-            if (!c.isLetter) speak(pos + ". " + c.char); // Es: "5 di 5. Apostrofo" (in realtà legge il simbolo)
+            if (!c.isLetter) speak(pos + ". " + c.char); 
             else if (c.isRevealed) speak(`${pos}. ${c.char}, ${NATO[c.char]||''}.`);
             else speak(`${pos}. Nascosta.`);
         }
@@ -481,113 +485,136 @@
         }
 
         function closeInput() { 
-            // Chiude IMMEDIATAMENTE l'overlay
+            // 1. CHIUDI SUBITO
             document.getElementById('input-area').classList.add('hidden'); 
             
-            // Gestione sicura del focus
+            // 2. LOGICA FOCUS E "ANNULLA"
             try {
                 const wasSolving = (inputMode === 'solve');
                 inputMode = null; 
+                
                 if(wasSolving) {
                     document.getElementById('btn-solve').focus();
                 } else {
-                    const btnSpin = document.getElementById('btn-spin');
-                    if(btnSpin && !isBtnDisabled('btn-spin')) {
-                        btnSpin.focus();
+                    // SE ABBIAMO SOLDI (currentStanza.montepremi_round > 0), 
+                    // NON POSSIAMO GIRARE. DOBBIAMO INSERIRE LETTERA.
+                    // Quindi il focus va sul pulsante manuale.
+                    const haveMoney = currentStanza && currentStanza.montepremi_round > 0;
+                    if(haveMoney) {
+                        const btnManual = document.getElementById('btn-manual-cons');
+                        if(btnManual) {
+                            btnManual.focus();
+                            speak("Devi inserire una consonante.");
+                        }
                     } else {
-                        document.getElementById('btn-solve').focus(); 
+                        // Altrimenti vai su Gira
+                        const btnSpin = document.getElementById('btn-spin');
+                        if(btnSpin && !isBtnDisabled('btn-spin')) {
+                            btnSpin.focus();
+                        } else {
+                            document.getElementById('btn-solve').focus(); 
+                        }
                     }
                 }
             } catch(e) { inputMode = null; }
         }
 
         async function submitInput() {
-            const txt = document.getElementById('game-input').value.trim().toUpperCase();
-            if(!txt) return;
-            const mode = inputMode; 
-            
-            // --- FIX CRITICO: CHIUDI SUBITO ---
-            closeInput(); 
-            
-            if(mode === 'solve') {
-                const real = currentFrase.soluzione.toUpperCase();
-                if(cleanStr(txt) === cleanStr(real)) {
+            // TRY-CATCH GLOBALE PER EVITARE BLOCCHI
+            try {
+                const txt = document.getElementById('game-input').value.trim().toUpperCase();
+                if(!txt) return;
+                const mode = inputMode; 
+                
+                // CHIUSURA FORZATA
+                document.getElementById('input-area').classList.add('hidden'); 
+                inputMode = null;
+
+                if(mode === 'solve') {
+                    const real = currentFrase.soluzione.toUpperCase();
+                    if(cleanStr(txt) === cleanStr(real)) {
+                        await supabase.from('stanze').update({
+                            stato:'finito',
+                            ultima_azione:'vittoria',
+                            ultimo_messaggio:`VITTORIA! Era: ${real}`,
+                            azione_timestamp:new Date().toISOString(),
+                            lettere_rivelate:Array.from({length:real.length},(_,i)=>i),
+                            montepremi_round: 0
+                        }).eq('id', roomId);
+                    } else {
+                        await supabase.from('stanze').update({
+                            id_giocatore_corrente:(myIndex+1)%2,
+                            ultima_azione:'errore',
+                            ultimo_messaggio:`Soluzione errata: ${txt}`,
+                            azione_timestamp:new Date().toISOString(),
+                            montepremi_round: 0
+                        }).eq('id',roomId);
+                    }
+                    return;
+                }
+
+                const char = txt.charAt(0);
+                const sol = currentFrase.soluzione.toUpperCase();
+                let found = [], globalIdx = 0;
+                for(let i=0; i<sol.length; i++) {
+                    if(sol[i].match(/[A-ZÀ-Ù0-9]/)) { 
+                        if(cleanStr(sol[i]) === cleanStr(char)) found.push(globalIdx);
+                        globalIdx++;
+                    }
+                }
+
+                const oldCalls = currentStanza.lettere_chiamate || [];
+                const alreadyCalled = oldCalls.some(c => cleanStr(c) === cleanStr(char));
+
+                if (alreadyCalled) {
                     await supabase.from('stanze').update({
-                        stato:'finito',
-                        ultima_azione:'vittoria',
-                        ultimo_messaggio:`VITTORIA! Era: ${real}`,
-                        azione_timestamp:new Date().toISOString(),
-                        lettere_rivelate:Array.from({length:real.length},(_,i)=>i),
-                        montepremi_round: 0
+                        id_giocatore_corrente: (myIndex+1)%2,
+                        ultima_azione: 'chiama_lettera',
+                        ultimo_messaggio: `Lettera ${char} già chiamata!`,
+                        azione_timestamp: new Date().toISOString()
                     }).eq('id', roomId);
+                    return;
+                }
+                const newCalls = [...new Set([...oldCalls, char])];
+
+                if(mode==='vowel') {
+                    const me = currentStanza.giocatori.find(p=>p.id===myId);
+                    if(me.punteggio_totale < 500) { speak("Servono 500€."); return; } 
+                    await supabase.from('giocatori').update({punteggio_totale:me.punteggio_totale-500}).eq('id',myId);
+                }
+
+                const oldRev = currentStanza.lettere_rivelate || [];
+                const count = found.length;
+                let msg="", next=myIndex;
+
+                if (count > 0) {
+                    msg = `Ne ho trovate ${count}`;
+                    if(mode==='letter') {
+                        const val = currentStanza.montepremi_round||0;
+                        const me = currentStanza.giocatori.find(p=>p.id===myId);
+                        await supabase.from('giocatori').update({punteggio_totale:me.punteggio_totale+(val*count)}).eq('id',myId);
+                        await supabase.from('stanze').update({montepremi_round:0}).eq('id',roomId);
+                    }
                 } else {
-                    await supabase.from('stanze').update({
-                        id_giocatore_corrente:(myIndex+1)%2,
-                        ultima_azione:'errore',
-                        ultimo_messaggio:`Soluzione errata: ${txt}`,
-                        azione_timestamp:new Date().toISOString(),
-                        montepremi_round: 0
-                    }).eq('id',roomId);
+                    msg = `La ${char} non c'è.`; next = (myIndex+1)%2;
                 }
-                return;
-            }
 
-            const char = txt.charAt(0);
-            const sol = currentFrase.soluzione.toUpperCase();
-            let found = [], globalIdx = 0;
-            for(let i=0; i<sol.length; i++) {
-                if(sol[i].match(/[A-ZÀ-Ù0-9]/)) { 
-                    if(cleanStr(sol[i]) === cleanStr(char)) found.push(globalIdx);
-                    globalIdx++;
-                }
-            }
-
-            const oldCalls = currentStanza.lettere_chiamate || [];
-            const alreadyCalled = oldCalls.some(c => cleanStr(c) === cleanStr(char));
-
-            if (alreadyCalled) {
+                const newRev = [...new Set([...oldRev, ...found])];
+                
                 await supabase.from('stanze').update({
-                    id_giocatore_corrente: (myIndex+1)%2,
-                    ultima_azione: 'chiama_lettera',
-                    ultimo_messaggio: `Lettera ${char} già chiamata!`,
+                    lettere_rivelate: newRev, 
+                    lettere_chiamate: newCalls,
+                    id_giocatore_corrente: next, 
+                    ultima_azione: 'chiama_lettera', 
+                    ultimo_messaggio: msg, 
                     azione_timestamp: new Date().toISOString()
                 }).eq('id', roomId);
-                return;
+
+            } catch(e) {
+                console.error("Errore input", e);
+                // In caso di errore gravissimo, assicurati che la finestra sia chiusa
+                document.getElementById('input-area').classList.add('hidden'); 
             }
-            const newCalls = [...new Set([...oldCalls, char])];
-
-            if(mode==='vowel') {
-                const me = currentStanza.giocatori.find(p=>p.id===myId);
-                if(me.punteggio_totale < 500) { speak("Servono 500€."); return; } 
-                await supabase.from('giocatori').update({punteggio_totale:me.punteggio_totale-500}).eq('id',myId);
-            }
-
-            const oldRev = currentStanza.lettere_rivelate || [];
-            const count = found.length;
-            let msg="", next=myIndex;
-
-            if (count > 0) {
-                msg = `Ne ho trovate ${count}`;
-                if(mode==='letter') {
-                    const val = currentStanza.montepremi_round||0;
-                    const me = currentStanza.giocatori.find(p=>p.id===myId);
-                    await supabase.from('giocatori').update({punteggio_totale:me.punteggio_totale+(val*count)}).eq('id',myId);
-                    await supabase.from('stanze').update({montepremi_round:0}).eq('id',roomId);
-                }
-            } else {
-                msg = `La ${char} non c'è.`; next = (myIndex+1)%2;
-            }
-
-            const newRev = [...new Set([...oldRev, ...found])];
-            
-            await supabase.from('stanze').update({
-                lettere_rivelate: newRev, 
-                lettere_chiamate: newCalls,
-                id_giocatore_corrente: next, 
-                ultima_azione: 'chiama_lettera', 
-                ultimo_messaggio: msg, 
-                azione_timestamp: new Date().toISOString()
-            }).eq('id', roomId);
         }
 
         function openInspector() {

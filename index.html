@@ -84,10 +84,12 @@
 
     <div id="sr-announcer" class="sr-only" aria-live="assertive"></div>
 
+    <!-- SOLO I TUOI TRE SUONI -->
     <audio id="snd-spin" src="ruota.wav"></audio>
     <audio id="snd-hit" src="lettera presente.wav"></audio>
     <audio id="snd-miss" src="lettera assente.wav"></audio>
-    <audio id="snd-ding" src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg"></audio> <h1 style="color:#ffd700;">LA RUOTA</h1>
+
+    <h1 style="color:#ffd700;">LA RUOTA</h1>
 
     <div id="setup-panel" class="container">
         <h2>BENVENUTO</h2>
@@ -158,6 +160,7 @@
             }
         }
 
+        // Ripete il suono "lettera presente" tante volte quante occorrenze
         function playMultiHit(count) {
             let i = 0;
             function loop() {
@@ -271,17 +274,15 @@
             document.getElementById('turn-indicator').textContent = isMyTurn ? "È IL TUO TURNO" : "Turno avversario";
             document.getElementById('turn-indicator').style.color = isMyTurn ? "#00ff00" : "#fff";
 
-            // --- LOGICA INPUT MIGLIORATA ---
+            // --- LOGICA INPUT ---
             const haveMoney = stanza.montepremi_round > 0;
             const btnManual = document.getElementById('btn-manual-cons');
             
-            // Pulsanti principali
             const busy = isSpinning || inputMode;
             document.getElementById('btn-spin').disabled = !isMyTurn || busy || haveMoney;
             document.getElementById('btn-vowel').disabled = !isMyTurn || busy;
             document.getElementById('btn-solve').disabled = !isMyTurn || busy;
 
-            // Se ho soldi, mostro il pulsante manuale per sicurezza
             if (isMyTurn && haveMoney && !inputMode && !isSpinning) {
                 btnManual.classList.remove('hidden');
             } else {
@@ -397,7 +398,7 @@
             }
 
             const msg = `${document.getElementById('inp-name').value} ha girato: ${val}${extra}`;
-            isSpinning = false; // Sblocca prima del DB
+            isSpinning = false;
 
             await supabase.from('stanze').update({
                 montepremi_round: (typeof val==='number'?val:0), 
@@ -406,7 +407,6 @@
                 azione_timestamp: new Date().toISOString()
             }).eq('id', roomId);
 
-            // Se hai vinto una somma in euro, apri SUBITO l'input per la consonante
             if (typeof val === 'number' && val > 0) {
                 setTimeout(() => {
                     if (!inputMode) openInput('letter');
@@ -430,7 +430,7 @@
             }
         }
 
-        // --- GESTIONE INPUT (FIX FOCUS) ---
+        // --- GESTIONE INPUT ---
         function openInput(mode) {
             inputMode = mode; 
             const area = document.getElementById('input-area');
@@ -440,17 +440,12 @@
             document.getElementById('input-title').textContent = titles[mode];
             speak("Inserisci " + titles[mode]);
 
-            // Mostra l'overlay
             area.classList.remove('hidden');
             inp.value=''; 
             
-            // FIX: Ritardo per garantire il focus su dispositivi lenti/NVDA
             setTimeout(() => {
                 inp.focus();
-                // Suono di conferma apertura input
-                const ding = document.getElementById('snd-ding');
-                if(ding) { ding.currentTime=0; ding.play().catch(()=>{}); }
-            }, 300);
+            }, 100);
         }
 
         function closeInput() { 
@@ -577,7 +572,6 @@
         document.addEventListener('keydown', (e) => {
             if(!e.key) return;
 
-            // Se siamo dentro l'input o nell'ispettore
             if(inputMode || !document.getElementById('inspector-overlay').classList.contains('hidden')) {
                 if(e.key==='Escape') { closeInput(); closeInspector(); }
                 if(e.key==='Enter' && inputMode) submitInput();

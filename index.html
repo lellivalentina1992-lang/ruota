@@ -106,7 +106,8 @@
             <span id="my-score" style="color:#ffd700; font-size:1.2em;">Tu: €0</span>
         </div>
 
-        <h2 id="live-category" style="color:#00ffff; font-size: 1.8em; margin: 15px 0;">...</h2>
+        <h2 id="live-category" style="color:#00ffff; font-size: 1.8em; margin: 15px 0 5px 0;">...</h2>
+        <h3 id="round-hint" style="color:#ffd700; font-size: 1.4em; margin: 0 0 15px 0; min-height: 1.5em;"></h3>
 
         <div id="board-container" aria-hidden="true" tabindex="-1"></div>
         
@@ -204,6 +205,7 @@
         
         let myId, myIndex, roomId, isHost = false;
         let currentFrase = null, currentStanza = null;
+        let currentPuzzleText = ""; // Contiene SOLO la parte da indovinare
         let lastTimestamp = "";
         let isSpinning = false, inputMode = null;
         let wheelAngle = 0;
@@ -274,7 +276,14 @@
             if (!currentFrase || currentFrase.id !== stanza.frasi.id) {
                 currentFrase = stanza.frasi;
                 navWordIdx = 0; navCharIdx = 0;
-                speak("Nuovo Round: " + currentFrase.categoria);
+                
+                // Audio iniziale: dice categoria ed eventuale sottotitolo
+                const fullText = currentFrase.soluzione;
+                let speakText = "Nuovo Round: " + currentFrase.categoria;
+                if (fullText.includes(" - ")) {
+                    speakText += ". Titolo: " + fullText.split(" - ")[0];
+                }
+                speak(speakText);
             }
 
             if (stanza.azione_timestamp && stanza.azione_timestamp !== lastTimestamp) {
@@ -292,10 +301,26 @@
                 if(stanza.ultima_azione === 'vittoria') playAudio('snd-hit');
             }
 
+            // --- GESTIONE TITOLO E FRASE DA INDOVINARE ---
+            // Se c'è " - ", separiamo. Altrimenti tutto è puzzle.
+            const fullSoluzione = currentFrase.soluzione;
+            let displayHint = ""; 
+            
+            if (fullSoluzione.includes(" - ")) {
+                const parts = fullSoluzione.split(" - ");
+                displayHint = parts[0];       // Es: "PARIGI: LOUVRE"
+                currentPuzzleText = parts[1]; // Es: "CUSTODISCE IL..."
+            } else {
+                displayHint = "";             // Nessun hint extra
+                currentPuzzleText = fullSoluzione;
+            }
+
             document.getElementById('live-category').textContent = "ARGOMENTO: " + currentFrase.categoria;
+            document.getElementById('round-hint').textContent = displayHint; // Mostra il sottotitolo visibile
             document.getElementById('wheel-status-text').textContent = stanza.montepremi_round > 0 ? `IN PALIO: €${stanza.montepremi_round}` : "GIRA";
             
-            parseAndRenderBoard(currentFrase.soluzione, stanza.lettere_rivelate);
+            // Renderizziamo SOLO la parte del puzzle (senza titolo visibile)
+            parseAndRenderBoard(currentPuzzleText, stanza.lettere_rivelate);
 
             const isMyTurn = (stanza.id_giocatore_corrente === myIndex);
             document.getElementById('turn-indicator').textContent = isMyTurn ? "È IL TUO TURNO" : "Turno avversario";
@@ -308,9 +333,8 @@
             // Gestione Pulsanti
             setBtnState('btn-spin', !isMyTurn || busy || haveMoney);
             setBtnState('btn-vowel', !isMyTurn || busy);
-            setBtnState('btn-solve', isSpinning); // Si può risolvere anche se si hanno soldi, ma non mentre gira
+            setBtnState('btn-solve', isSpinning); 
 
-            // Mostra/Nascondi bottone "Inserisci Consonante" se abbiamo soldi
             if (isMyTurn && haveMoney && !inputMode && !isSpinning) {
                 btnManual.classList.remove('hidden');
             } else {
@@ -335,6 +359,7 @@
                 for (let i = 0; i < wStr.length; i++) {
                     const ch = wStr[i];
                     const isLetter = ch.match(/[A-ZÀ-Ù0-9]/); 
+                    // Se non è lettera, è sempre rivelata. Se è lettera, controlliamo l'indice
                     const isRevealed = !isLetter || revealed.includes(globalIdx);
                     wordObj.chars.push({ char: ch, isRevealed: isRevealed, isLetter: !!isLetter });
                     
@@ -443,11 +468,10 @@
 
             if (typeof val === 'number' && val > 0) {
                 setTimeout(() => {
-                    // Controllo extra per sicurezza
                     if (!inputMode && currentStanza.id_giocatore_corrente === myIndex) {
                         openInput('letter');
                     }
-                }, 500); // Ritardo aumentato per chiarezza audio
+                }, 500);
             } else if(val !== 0) {
                 setTimeout(async()=>{
                     if(val==='BANCAROTTA') {
@@ -495,10 +519,9 @@
                 } else {
                     const haveMoney = currentStanza && currentStanza.montepremi_round > 0;
                     if(haveMoney) {
-                        // Se abbiamo soldi dobbiamo inserire consonante
                         const btnManual = document.getElementById('btn-manual-cons');
                         if(btnManual) {
-                            btnManual.classList.remove('hidden'); // Sicurezza
+                            btnManual.classList.remove('hidden'); 
                             btnManual.focus();
                             speak("Finestra chiusa. Devi inserire una consonante.");
                         }
@@ -523,15 +546,17 @@
                 document.getElementById('input-area').classList.add('hidden'); 
                 inputMode = null;
 
+                // --- SOLUZIONE ---
                 if(mode === 'solve') {
-                    const real = currentFrase.soluzione.toUpperCase();
-                    if(cleanStr(txt) === cleanStr(real)) {
+                    // Confrontiamo solo con la parte HIDDEN (currentPuzzleText)
+                    if(cleanStr(txt) === cleanStr(currentPuzzleText)) {
                         await supabase.from('stanze').update({
                             stato:'finito',
                             ultima_azione:'vittoria',
-                            ultimo_messaggio:`VITTORIA! Era: ${real}`,
+                            ultimo_messaggio:`VITTORIA! La soluzione era: ${currentPuzzleText}`,
                             azione_timestamp:new Date().toISOString(),
-                            lettere_rivelate:Array.from({length:real.length},(_,i)=>i),
+                            // Rivela tutte le lettere del PUZZLE
+                            lettere_rivelate:Array.from({length:currentPuzzleText.length},(_,i)=>i),
                             montepremi_round: 0
                         }).eq('id', roomId);
                     } else {
@@ -546,9 +571,12 @@
                     return;
                 }
 
+                // --- LETTERE (VOCALI E CONSONANTI) ---
                 const char = txt.charAt(0);
-                const sol = currentFrase.soluzione.toUpperCase();
+                // Usiamo currentPuzzleText per cercare la lettera, NON la stringa completa del DB
+                const sol = currentPuzzleText.toUpperCase();
                 let found = [], globalIdx = 0;
+                
                 for(let i=0; i<sol.length; i++) {
                     if(sol[i].match(/[A-ZÀ-Ù0-9]/)) { 
                         if(cleanStr(sol[i]) === cleanStr(char)) found.push(globalIdx);
@@ -612,6 +640,10 @@
         function openInspector() {
             const div = document.getElementById('inspector-content');
             let html = `<h2 style="color:#ffd700;">${currentFrase.categoria}</h2>`;
+            // Se c'è un titolo visibile (es. Vasco Rossi), lo mostriamo anche nell'ispettore
+            if(document.getElementById('round-hint').textContent) {
+                html += `<h3 style="color:#00ffff;">${document.getElementById('round-hint').textContent}</h3>`;
+            }
             parsedBoard.forEach((w, i) => {
                 let s = "";
                 w.chars.forEach(c => { s += c.isRevealed ? c.char : "_"; });

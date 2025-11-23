@@ -406,7 +406,7 @@
             
             if (!inputMode) document.getElementById('input-area').classList.add('hidden');
 
-            // LOGICA PARSING MUSICA (ARTISTA vs TITOLO)
+            // --- LOGICA PARSING AGGIORNATA ---
             if (!currentFrase || currentFrase.id !== stanza.frasi.id) {
                 currentFrase = stanza.frasi;
                 navWordIdx = 0; navCharIdx = 0;
@@ -415,15 +415,21 @@
                 let displayHint = "";
                 let puzzle = "";
 
-                if (fullSolutionText.includes(": ") && fullSolutionText.includes(" - ")) {
-                    const mainSplit = fullSolutionText.split(" - ");
-                    puzzle = mainSplit[1];
-                    const metaSplit = mainSplit[0].split(": ");
-                    displayHint = metaSplit[0]; // Solo ARTISTA
-                } else if (fullSolutionText.includes(" - ")) {
+                // Parsing Basato sul Trattino
+                if (fullSolutionText.includes(" - ")) {
                     const parts = fullSolutionText.split(" - ");
-                    displayHint = parts[0];
-                    puzzle = parts[1];
+                    const leftSide = parts[0]; // Es: "PARIGI: LOUVRE" o "VASCO: SENSO"
+                    const rightSide = parts[1]; // Es: "CUSTODISCE..." o "RICERCA..."
+
+                    puzzle = rightSide.trim();
+
+                    // Eccezione per la Musica: mostriamo solo l'artista (prima dei :)
+                    if (currentFrase.categoria === 'MUSICA' && leftSide.includes(": ")) {
+                        displayHint = leftSide.split(": ")[0].trim();
+                    } else {
+                        // Per tutto il resto (Mondo e Cultura, ecc), mostriamo tutto il blocco sinistro
+                        displayHint = leftSide.trim();
+                    }
                 } else {
                     displayHint = "";
                     puzzle = fullSolutionText;

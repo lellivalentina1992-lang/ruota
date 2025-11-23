@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>La Ruota - V. ULTIMATE</title>
+    <title>La Ruota - V. ULTIMATE FIX</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
@@ -859,14 +859,22 @@
             speak("Ispettore aperto. " + fullRead);
         }
         
+        // --- FUNZIONE AGGIORNATA PER IL FIX ---
         function closeInspector() { 
+            // 1. Nascondi overlay
             document.getElementById('inspector-overlay').classList.add('hidden');
             
+            // 2. Svuota il contenuto per pulire il buffer dello screen reader
+            document.getElementById('inspector-content').innerHTML = ""; 
+
+            // 3. Interrompi immediatamente la lettura con un messaggio breve
+            speak("Ispettore chiuso."); 
+            
+            // 4. Gestione focus
             if(inputMode) {
                 const area = document.getElementById('input-area');
                 area.classList.remove('hidden');
                 document.getElementById('game-input').focus();
-                speak("Ora scrivi.");
             } else {
                 if(!document.getElementById('btn-spin').disabled) {
                     document.getElementById('btn-spin').focus(); 

@@ -168,7 +168,7 @@
                 if(i < count) { 
                     playAudio('snd-hit'); 
                     i++; 
-                    setTimeout(loop, 600); // Pausa di 600ms tra un bip e l'altro
+                    setTimeout(loop, 200); // Pausa di 200ms tra un bip e l'altro
                 }
             }
             loop();
@@ -289,8 +289,7 @@
             const busy = isSpinning || inputMode;
             document.getElementById('btn-spin').disabled = !isMyTurn || busy || haveMoney;
             document.getElementById('btn-vowel').disabled = !isMyTurn || busy;
-            document.getElementById('btn-solve').disabled = !isMyTurn || busy;
-
+document.getElementById('btn-solve').disabled = !isMyTurn || isSpinning;
             if (isMyTurn && haveMoney && !inputMode && !isSpinning) {
                 btnManual.classList.remove('hidden');
             } else {

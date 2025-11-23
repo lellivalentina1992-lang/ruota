@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>La Ruota - V. Accessibile</title>
+    <title>La Ruota - V. Soluzione Smart</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
@@ -64,7 +64,7 @@
         .btn-primary { background: #ffcc00; color: #000; }
         .btn-secondary { background: #00ccff; color: #000; }
         .btn-danger { background: #ff0000; color: #fff; }
-        /* Pulsante manuale speciale */
+        
         .btn-blink { animation: blinker 1.5s linear infinite; background: #00ff00; color: #000; border-color: #fff; }
         @keyframes blinker { 50% { opacity: 0.5; } }
         
@@ -137,7 +137,7 @@
 
     <div id="input-area" class="hidden">
         <h2 id="input-title" style="color:#ffd700">...</h2>
-        <input id="game-input" type="text" autocomplete="off">
+        <input id="game-input" type="text" autocomplete="off" placeholder="Scrivi qui...">
         <div style="margin-top: 20px;">
             <button onclick="submitInput()" class="btn-primary">CONFERMA</button>
             <button onclick="closeInput()" class="btn-secondary">ANNULLA</button>
@@ -159,14 +159,13 @@
             }
         }
 
-        // Ripete il suono "lettera presente". VELOCITÀ AUMENTATA (200ms)
         function playMultiHit(count) {
             let i = 0;
             function loop() {
                 if(i < count) { 
                     playAudio('snd-hit'); 
                     i++; 
-                    setTimeout(loop, 200); // 200ms = Molto veloce
+                    setTimeout(loop, 200); 
                 }
             }
             loop();
@@ -188,7 +187,15 @@
         let wheelAngle = 0;
         let parsedBoard = [], navWordIdx = 0, navCharIdx = 0;
 
-        function cleanStr(str) { return str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/g, ""); }
+        // --- PULIZIA TESTO INTELLIGENTE (Nuova versione) ---
+        // Rimuove accenti, spazi, apostrofi e simboli, tiene solo lettere e numeri
+        function cleanStr(str) { 
+            return str.toLowerCase()
+                      .normalize("NFD")
+                      .replace(/[\u0300-\u036f]/g, "") // Via gli accenti
+                      .replace(/[^a-z0-9]/g, "");     // Via punteggiatura e spazi
+        }
+        
         function speak(text) { const el = document.getElementById('sr-announcer'); el.textContent = ''; setTimeout(() => el.textContent = text, 50); }
 
         // --- AVVIO ---
@@ -278,13 +285,17 @@
             const busy = isSpinning || inputMode;
 
             // LOGICA BOTTONI AGGIORNATA
+            // 1. GIRA: Solo se è il mio turno, non sto facendo altro e NON ho soldi in sospeso
             document.getElementById('btn-spin').disabled = !isMyTurn || busy || haveMoney;
+            
+            // 2. VOCALE: Solo se è il mio turno e non sto facendo altro
             document.getElementById('btn-vowel').disabled = !isMyTurn || busy;
             
-            // MODIFICA QUI: Risolvi è disabilitato SOLO se non è il turno o la ruota GIRA FISICAMENTE
-            // Ignora 'busy' (finestre aperte) per permettere di risolvere sempre
-            document.getElementById('btn-solve').disabled = !isMyTurn || isSpinning;
+            // 3. RISOLVI: Sempre attivo, tranne se la ruota sta fisicamente girando.
+            //    Così puoi risolvere anche se hai soldi in sospeso o se non è il tuo turno (a seconda delle regole, ma qui lo lasciamo libero).
+            document.getElementById('btn-solve').disabled = isSpinning;
 
+            // Pulsante inserimento manuale consonante (appare solo se hai girato e hai soldi)
             if (isMyTurn && haveMoney && !inputMode && !isSpinning) {
                 btnManual.classList.remove('hidden');
             } else {
@@ -308,7 +319,8 @@
                 const row = document.createElement('div'); row.className = 'board-row';
                 for (let i = 0; i < wStr.length; i++) {
                     const ch = wStr[i];
-                    const isLetter = ch.match(/[A-ZÀ-Ù]/);
+                    // Accettiamo lettere e numeri nel tabellone
+                    const isLetter = ch.match(/[A-ZÀ-Ù0-9]/); 
                     const isRevealed = !isLetter || revealed.includes(globalIdx);
                     wordObj.chars.push({ char: ch, isRevealed: isRevealed, isLetter: !!isLetter });
                     
@@ -375,8 +387,11 @@
             speak("La ruota gira..."); 
             playAudio('snd-spin'); 
             isSpinning = true; 
+            
+            // Disabilita tutto mentre gira
             document.getElementById('btn-spin').disabled = true;
-            document.getElementById('btn-solve').disabled = true; // Disabilita risolvi mentre gira
+            document.getElementById('btn-solve').disabled = true; 
+            document.getElementById('btn-vowel').disabled = true;
             
             wheelAngle += (1000 + Math.random()*500);
             document.getElementById('wheel-visual').style.transform = `rotate(${wheelAngle}deg)`;
@@ -399,7 +414,9 @@
 
             const msg = `${document.getElementById('inp-name').value} ha girato: ${val}${extra}`;
             isSpinning = false;
-            // Appena finito di girare, riabilita Risolvi nel prossimo updateUI
+            
+            // Riabilita Risolvi subito dopo lo spin (verrà gestito anche da updateUI ma lo forziamo qui per sicurezza)
+            document.getElementById('btn-solve').disabled = false;
 
             await supabase.from('stanze').update({
                 montepremi_round: (typeof val==='number'?val:0), 
@@ -410,7 +427,6 @@
 
             if (typeof val === 'number' && val > 0) {
                 setTimeout(() => {
-                    // Se non stiamo già inserendo qualcosa, apri la consonante
                     if (!inputMode) openInput('letter');
                 }, 200);
             } else if(val !== 0) {
@@ -447,31 +463,51 @@
 
         function closeInput() { 
             document.getElementById('input-area').classList.add('hidden'); 
-            inputMode=null; 
-            document.getElementById('btn-spin').focus(); 
+            
+            // --- FOCUS MANAGER ---
+            // Se chiudo la finestra input, devo rimettere il focus su qualcosa di sensato.
+            const wasSolving = (inputMode === 'solve');
+            inputMode = null; 
+            
+            if(wasSolving) {
+                // Se stavo risolvendo, torno al pulsante risolvi
+                document.getElementById('btn-solve').focus();
+            } else {
+                // Altrimenti provo GIRA, se disabilitato vado su RISOLVI che è sempre attivo
+                const btnSpin = document.getElementById('btn-spin');
+                if(!btnSpin.disabled) {
+                    btnSpin.focus();
+                } else {
+                    document.getElementById('btn-solve').focus(); 
+                }
+            }
         }
 
         async function submitInput() {
             const txt = document.getElementById('game-input').value.trim().toUpperCase();
             if(!txt) return;
-            const mode = inputMode; closeInput();
+            const mode = inputMode; 
+            closeInput();
             
             if(mode === 'solve') {
                 const real = currentFrase.soluzione.toUpperCase();
+                // Usa cleanStr per il confronto tollerante
                 if(cleanStr(txt) === cleanStr(real)) {
                     await supabase.from('stanze').update({
                         stato:'finito',
                         ultima_azione:'vittoria',
                         ultimo_messaggio:`VITTORIA! Era: ${real}`,
                         azione_timestamp:new Date().toISOString(),
-                        lettere_rivelate:Array.from({length:real.length},(_,i)=>i)
+                        lettere_rivelate:Array.from({length:real.length},(_,i)=>i),
+                        montepremi_round: 0
                     }).eq('id', roomId);
                 } else {
                     await supabase.from('stanze').update({
                         id_giocatore_corrente:(myIndex+1)%2,
                         ultima_azione:'errore',
-                        ultimo_messaggio:`Errore soluzione`,
-                        azione_timestamp:new Date().toISOString()
+                        ultimo_messaggio:`Soluzione errata: ${txt}`,
+                        azione_timestamp:new Date().toISOString(),
+                        montepremi_round: 0
                     }).eq('id',roomId);
                 }
                 return;
@@ -481,18 +517,23 @@
             const sol = currentFrase.soluzione.toUpperCase();
             let found = [], globalIdx = 0;
             for(let i=0; i<sol.length; i++) {
-                if(sol[i].match(/[A-ZÀ-Ù]/)) {
+                if(sol[i].match(/[A-ZÀ-Ù0-9]/)) { 
+                    // Qui usiamo cleanStr per confrontare anche le lettere accentate nel tabellone
+                    // Es: Se la parola ha "È", e io scrivo "E", cleanStr le rende uguali
                     if(cleanStr(sol[i]) === cleanStr(char)) found.push(globalIdx);
                     globalIdx++;
                 }
             }
 
             const oldCalls = currentStanza.lettere_chiamate || [];
-            if (oldCalls.includes(char)) {
+            // Controllo duplicati usando cleanStr per evitare di chiamare E ed È come diverse
+            const alreadyCalled = oldCalls.some(c => cleanStr(c) === cleanStr(char));
+
+            if (alreadyCalled) {
                 await supabase.from('stanze').update({
                     id_giocatore_corrente: (myIndex+1)%2,
                     ultima_azione: 'chiama_lettera',
-                    ultimo_messaggio: `Lettera ${char} già chiamata! Errore.`,
+                    ultimo_messaggio: `Lettera ${char} già chiamata!`,
                     azione_timestamp: new Date().toISOString()
                 }).eq('id', roomId);
                 return;
@@ -510,7 +551,7 @@
             let msg="", next=myIndex;
 
             if (count > 0) {
-                msg = `Trovate ${count} ${char}`;
+                msg = `Ne ho trovate ${count}`; // Messaggio breve per screen reader
                 if(mode==='letter') {
                     const val = currentStanza.montepremi_round||0;
                     const me = currentStanza.giocatori.find(p=>p.id===myId);
@@ -518,7 +559,7 @@
                     await supabase.from('stanze').update({montepremi_round:0}).eq('id',roomId);
                 }
             } else {
-                msg = `${char} non c'è.`; next = (myIndex+1)%2;
+                msg = `La ${char} non c'è.`; next = (myIndex+1)%2;
             }
 
             const newRev = [...new Set([...oldRev, ...found])];
@@ -545,11 +586,14 @@
             document.getElementById('inspector-overlay').classList.remove('hidden');
             div.focus(); speak("Ispettore aperto.");
         }
-        function closeInspector() { document.getElementById('inspector-overlay').classList.add('hidden'); document.getElementById('btn-spin').focus(); }
+        function closeInspector() { 
+            document.getElementById('inspector-overlay').classList.add('hidden'); 
+            document.getElementById('btn-spin').focus(); 
+        }
 
         function readRevealedLetters() {
             const calls = currentStanza.lettere_chiamate || [];
-            speak(calls.length ? "Già chiamate: " + calls.join(", ") : "Nessuna chiamata.");
+            speak(calls.length ? "Uscite: " + calls.join(", ") : "Nessuna lettera uscita.");
         }
 
         async function startNewRound() {
@@ -570,10 +614,9 @@
         document.addEventListener('keydown', (e) => {
             if(!e.key) return;
 
-            // NUOVO: Ctrl+S (Risolvi) funziona SEMPRE e sovrascrive qualsiasi cosa
             if(e.ctrlKey && e.key.toLowerCase() === 's') {
                 e.preventDefault();
-                if(inputMode) closeInput(); // Chiude eventuali box aperti
+                if(inputMode) closeInput(); 
                 if(!document.getElementById('inspector-overlay').classList.contains('hidden')) closeInspector();
                 openInput('solve');
                 return;
@@ -594,7 +637,6 @@
             if(e.ctrlKey) {
                 if(k==='g') { e.preventDefault(); doSpin(); }
                 if(k==='v') { e.preventDefault(); openInput('vowel'); }
-                // Ctrl+S è gestito sopra per priorità
                 if(k==='i') { e.preventDefault(); openInspector(); }
                 if(k==='l') { e.preventDefault(); readRevealedLetters(); }
                 if(k==='h' && isHost) { e.preventDefault(); startNewRound(); }

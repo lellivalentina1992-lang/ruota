@@ -108,7 +108,7 @@
 
     <div id="game-panel" class="container hidden">
         
-        <div id="timer-box" class="hidden">90</div>
+        <div id="timer-box" class="hidden">120</div>
 
         <div style="background:#000; padding:15px; border-radius:5px; border-bottom: 1px solid #333;">
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
@@ -254,7 +254,10 @@
         let parsedBoard = [], navWordIdx = 0, navCharIdx = 0;
         let pollingInterval = null;
         let timerInterval = null;
-        const TURN_LIMIT_SEC = 90;
+        
+        // --- LOGICA TIMER AGGIORNATA ---
+        const TURN_LIMIT_SEC = 120; // 120 Secondi base
+
         let isFetching = false;
         let isProcessingInput = false;
 
@@ -334,20 +337,37 @@
             if(stanza) updateUI(stanza);
         }
 
-        // --- LOGICA TIMER ---
         async function checkTurnTimer() {
             if(!currentStanza || currentStanza.stato !== 'gioco') return;
             
             const lastAction = new Date(currentStanza.azione_timestamp || currentStanza.created_at).getTime();
             const now = new Date().getTime();
             const secondsPassed = Math.floor((now - lastAction) / 1000);
-            const secondsLeft = TURN_LIMIT_SEC - secondsPassed;
+            
+            // Logica 30 secondi extra se in modalità risoluzione
+            let currentLimit = TURN_LIMIT_SEC;
+            if (inputMode === 'solve') {
+                currentLimit += 30;
+            }
+
+            const secondsLeft = currentLimit - secondsPassed;
 
             const timerBox = document.getElementById('timer-box');
             timerBox.textContent = secondsLeft > 0 ? secondsLeft : 0;
             timerBox.classList.remove('hidden');
 
+            // Suono a 60 secondi
+            if (secondsLeft === 60) {
+                playAudio('snd-hit');
+            }
+
             if(currentStanza.id_giocatore_corrente === myIndex && secondsLeft <= 0 && !isSpinning) {
+                // Chiude finestra input se aperta
+                if(inputMode) {
+                    closeInput();
+                    speak("Tempo scaduto! Finestra chiusa.");
+                }
+
                 const numPlayers = currentStanza.giocatori.length;
                 const nextPlayerIdx = (myIndex + 1) % numPlayers;
                 
@@ -404,9 +424,9 @@
             document.getElementById('round-over-panel').classList.add('hidden');
             document.getElementById('game-panel').classList.remove('hidden');
             
-            if (!inputMode) document.getElementById('input-area').classList.add('hidden');
+            // Nota: NON nascondiamo forzatamente input-area qui, lo gestisce checkTurnTimer o le funzioni di input
 
-            // --- LOGICA PARSING AGGIORNATA ---
+            // --- LOGICA PARSING ---
             if (!currentFrase || currentFrase.id !== stanza.frasi.id) {
                 currentFrase = stanza.frasi;
                 navWordIdx = 0; navCharIdx = 0;
@@ -415,19 +435,16 @@
                 let displayHint = "";
                 let puzzle = "";
 
-                // Parsing Basato sul Trattino
                 if (fullSolutionText.includes(" - ")) {
                     const parts = fullSolutionText.split(" - ");
-                    const leftSide = parts[0]; // Es: "PARIGI: LOUVRE" o "VASCO: SENSO"
-                    const rightSide = parts[1]; // Es: "CUSTODISCE..." o "RICERCA..."
-
+                    const leftSide = parts[0]; 
+                    const rightSide = parts[1]; 
+                    
                     puzzle = rightSide.trim();
 
-                    // Eccezione per la Musica: mostriamo solo l'artista (prima dei :)
                     if (currentFrase.categoria === 'MUSICA' && leftSide.includes(": ")) {
                         displayHint = leftSide.split(": ")[0].trim();
                     } else {
-                        // Per tutto il resto (Mondo e Cultura, ecc), mostriamo tutto il blocco sinistro
                         displayHint = leftSide.trim();
                     }
                 } else {

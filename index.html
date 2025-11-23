@@ -252,7 +252,7 @@
             // Rimuovi me stesso se esistevo già
             await supabase.from('giocatori').delete().eq('stanza_id', roomId).eq('nome', name);
             
-            // LOGICA MIGLIORATA: Controlla quale "sedia" (0 o 1) è libera
+            // LOGICA SEDIE
             const { data: existingPlayers } = await supabase.from('giocatori').select('indice').eq('stanza_id', roomId);
             const occupiedIndices = existingPlayers.map(p => p.indice);
             
@@ -498,16 +498,19 @@
                 }, 500);
             } else if(val !== 0) {
                 setTimeout(async()=>{
+                    // CORREZIONE 1: Calcolo dinamico giocatori per Passa/Bancarotta
+                    const numPlayers = currentStanza.giocatori.length;
+
                     if(val==='BANCAROTTA') {
                         await supabase.from('giocatori').update({punteggio_totale:0}).eq('id',myId);
-                        await supabase.from('stanze').update({id_giocatore_corrente:(myIndex+1)%2, montepremi_round:0}).eq('id',roomId);
+                        await supabase.from('stanze').update({id_giocatore_corrente:(myIndex+1)%numPlayers, montepremi_round:0}).eq('id',roomId);
                     }
                     else if(val==='JOLLY') {
                         const me = currentStanza.giocatori.find(p=>p.id===myId);
                         await supabase.from('giocatori').update({jolly: me.jolly+1}).eq('id',myId);
                     }
                     else if (val==='PASSA') {
-                        await supabase.from('stanze').update({id_giocatore_corrente:(myIndex+1)%2, montepremi_round:0}).eq('id',roomId);
+                        await supabase.from('stanze').update({id_giocatore_corrente:(myIndex+1)%numPlayers, montepremi_round:0}).eq('id',roomId);
                     }
                 }, 1500);
             }
@@ -568,6 +571,9 @@
                 document.getElementById('input-area').classList.add('hidden'); 
                 inputMode = null;
 
+                // CORREZIONE 2: Calcolo dinamico giocatori in submit
+                const numPlayers = currentStanza.giocatori.length;
+
                 // --- SOLUZIONE ---
                 if(mode === 'solve') {
                     if(cleanStr(txt) === cleanStr(currentPuzzleText)) {
@@ -581,7 +587,8 @@
                         }).eq('id', roomId);
                     } else {
                         await supabase.from('stanze').update({
-                            id_giocatore_corrente:(myIndex+1)%2,
+                            // Turno passa se errore soluzione
+                            id_giocatore_corrente:(myIndex+1)%numPlayers,
                             ultima_azione:'errore',
                             ultimo_messaggio:`Soluzione errata: ${txt}`,
                             azione_timestamp:new Date().toISOString(),
@@ -608,7 +615,8 @@
 
                 if (alreadyCalled) {
                     await supabase.from('stanze').update({
-                        id_giocatore_corrente: (myIndex+1)%2,
+                        // Turno passa se già chiamata
+                        id_giocatore_corrente: (myIndex+1)%numPlayers,
                         ultima_azione: 'chiama_lettera',
                         ultimo_messaggio: `Lettera ${char} già chiamata!`,
                         azione_timestamp: new Date().toISOString()
@@ -636,7 +644,9 @@
                         await supabase.from('stanze').update({montepremi_round:0}).eq('id',roomId);
                     }
                 } else {
-                    msg = `La ${char} non c'è.`; next = (myIndex+1)%2;
+                    // Turno passa se lettera assente
+                    msg = `La ${char} non c'è.`; 
+                    next = (myIndex+1)%numPlayers;
                 }
 
                 const newRev = [...new Set([...oldRev, ...found])];

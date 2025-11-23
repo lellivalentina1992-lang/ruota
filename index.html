@@ -281,14 +281,9 @@
             document.getElementById('btn-vowel').disabled = !isMyTurn || busy;
             document.getElementById('btn-solve').disabled = !isMyTurn || busy;
 
-            // Se ho soldi, devo inserire la consonante.
-            // Mostriamo SEMPRE il tasto manuale in questo caso, per sicurezza.
+            // Se ho soldi, mostro il pulsante manuale per sicurezza
             if (isMyTurn && haveMoney && !inputMode && !isSpinning) {
                 btnManual.classList.remove('hidden');
-                // Tentativo automatico
-                setTimeout(() => {
-                    if(!inputMode) openInput('letter');
-                }, 1500);
             } else {
                 btnManual.classList.add('hidden');
             }
@@ -411,6 +406,13 @@
                 azione_timestamp: new Date().toISOString()
             }).eq('id', roomId);
 
+            // Se hai vinto una somma in euro, apri SUBITO l'input per la consonante
+            if (typeof val === 'number' && val > 0) {
+                setTimeout(() => {
+                    if (!inputMode) openInput('letter');
+                }, 200);
+            }
+
             if(typeof val !== 'number' && val !== 0) {
                 setTimeout(async()=>{
                     if(val==='BANCAROTTA') {
@@ -465,9 +467,20 @@
             if(mode === 'solve') {
                 const real = currentFrase.soluzione.toUpperCase();
                 if(cleanStr(txt) === cleanStr(real)) {
-                    await supabase.from('stanze').update({stato:'finito', ultima_azione:'vittoria', ultimo_messaggio:`VITTORIA! Era: ${real}`, azione_timestamp:new Date().toISOString(), lettere_rivelate:Array.from({length:real.length},(_,i)=>i)}).eq('id', roomId);
+                    await supabase.from('stanze').update({
+                        stato:'finito',
+                        ultima_azione:'vittoria',
+                        ultimo_messaggio:`VITTORIA! Era: ${real}`,
+                        azione_timestamp:new Date().toISOString(),
+                        lettere_rivelate:Array.from({length:real.length},(_,i)=>i)
+                    }).eq('id', roomId);
                 } else {
-                    await supabase.from('stanze').update({id_giocatore_corrente:(myIndex+1)%2, ultima_azione:'errore', ultimo_messaggio:`Errore soluzione`, azione_timestamp:new Date().toISOString()}).eq('id',roomId);
+                    await supabase.from('stanze').update({
+                        id_giocatore_corrente:(myIndex+1)%2,
+                        ultima_azione:'errore',
+                        ultimo_messaggio:`Errore soluzione`,
+                        azione_timestamp:new Date().toISOString()
+                    }).eq('id',roomId);
                 }
                 return;
             }
@@ -550,13 +563,21 @@
             const { data: frasi } = await supabase.from('frasi').select('id');
             const rid = frasi[Math.floor(Math.random()*frasi.length)].id;
             await supabase.from('stanze').update({
-                frase_corrente_id:rid, stato:'gioco', lettere_rivelate:[], lettere_chiamate:[], montepremi_round:0, 
-                ultima_azione:'nuovo_round', ultimo_messaggio:'Nuovo Round!', azione_timestamp:new Date().toISOString()
+                frase_corrente_id:rid,
+                stato:'gioco',
+                lettere_rivelate:[],
+                lettere_chiamate:[],
+                montepremi_round:0, 
+                ultima_azione:'nuovo_round',
+                ultimo_messaggio:'Nuovo Round!',
+                azione_timestamp:new Date().toISOString()
             }).eq('id', roomId);
         }
 
         document.addEventListener('keydown', (e) => {
             if(!e.key) return;
+
+            // Se siamo dentro l'input o nell'ispettore
             if(inputMode || !document.getElementById('inspector-overlay').classList.contains('hidden')) {
                 if(e.key==='Escape') { closeInput(); closeInspector(); }
                 if(e.key==='Enter' && inputMode) submitInput();

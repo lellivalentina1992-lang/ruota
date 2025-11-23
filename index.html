@@ -155,20 +155,18 @@
             const aud = document.getElementById(id);
             if(aud) {
                 aud.currentTime = 0;
-                // Tentativo di play. Se il browser blocca l'audio senza interazione, 
-                // questo catch lo intercetta ma non ferma il gioco.
-                aud.play().catch(e => console.log("Audio error (controlla i file o i permessi):", e));
+                aud.play().catch(e => console.log("Audio error:", e));
             }
         }
 
-        // Ripete il suono "lettera presente" tante volte quante occorrenze
+        // Ripete il suono "lettera presente". VELOCITÀ AUMENTATA (200ms)
         function playMultiHit(count) {
             let i = 0;
             function loop() {
                 if(i < count) { 
                     playAudio('snd-hit'); 
                     i++; 
-                    setTimeout(loop, 200); // Pausa di 200ms tra un bip e l'altro
+                    setTimeout(loop, 200); // 200ms = Molto veloce
                 }
             }
             loop();
@@ -245,26 +243,19 @@
         function updateUI(stanza) {
             currentStanza = stanza;
             
-            // Nuovo Round
             if (!currentFrase || currentFrase.id !== stanza.frasi.id) {
                 currentFrase = stanza.frasi;
                 navWordIdx = 0; navCharIdx = 0;
                 speak("Nuovo Round: " + currentFrase.categoria);
             }
 
-            // --- AUDIO & MESSAGGI ---
             if (stanza.azione_timestamp && stanza.azione_timestamp !== lastTimestamp) {
                 lastTimestamp = stanza.azione_timestamp;
                 if(stanza.ultimo_messaggio) speak(stanza.ultimo_messaggio);
 
                 if(stanza.ultima_azione === 'chiama_lettera') {
-                    // MODIFICA AUDIO: Riconosce "Trovate X" invece di "Ce ne sono X"
-                    // Case insensitive flag 'i' aggiunto per sicurezza
                     const match = stanza.ultimo_messaggio.match(/Trovate (\d+)/i);
-                    
-                    if(match) {
-                        playMultiHit(parseInt(match[1])); 
-                    }
+                    if(match) { playMultiHit(parseInt(match[1])); }
                     else if(stanza.ultimo_messaggio.toLowerCase().includes("non c'è") || stanza.ultimo_messaggio.toLowerCase().includes("già chiamata")) {
                         playAudio('snd-miss');
                     }
@@ -282,14 +273,18 @@
             document.getElementById('turn-indicator').textContent = isMyTurn ? "È IL TUO TURNO" : "Turno avversario";
             document.getElementById('turn-indicator').style.color = isMyTurn ? "#00ff00" : "#fff";
 
-            // --- LOGICA INPUT ---
             const haveMoney = stanza.montepremi_round > 0;
             const btnManual = document.getElementById('btn-manual-cons');
-            
             const busy = isSpinning || inputMode;
+
+            // LOGICA BOTTONI AGGIORNATA
             document.getElementById('btn-spin').disabled = !isMyTurn || busy || haveMoney;
             document.getElementById('btn-vowel').disabled = !isMyTurn || busy;
-document.getElementById('btn-solve').disabled = !isMyTurn || isSpinning;
+            
+            // MODIFICA QUI: Risolvi è disabilitato SOLO se non è il turno o la ruota GIRA FISICAMENTE
+            // Ignora 'busy' (finestre aperte) per permettere di risolvere sempre
+            document.getElementById('btn-solve').disabled = !isMyTurn || isSpinning;
+
             if (isMyTurn && haveMoney && !inputMode && !isSpinning) {
                 btnManual.classList.remove('hidden');
             } else {
@@ -331,29 +326,13 @@ document.getElementById('btn-solve').disabled = !isMyTurn || isSpinning;
             highlightNav();
         }
 
-        // MODIFICA NAVIGAZIONE: Impedisce il salto tra parole con le frecce destra/sinistra
         function moveNav(dChar) {
             if (parsedBoard.length === 0) return;
             document.querySelectorAll('.cursor-word').forEach(el => el.classList.remove('cursor-word'));
-            
             let newC = navCharIdx + dChar;
             const wLen = parsedBoard[navWordIdx].chars.length;
-
-            // Se si prova ad andare prima dell'inizio, resta a 0
-            if (newC < 0) { 
-                newC = 0; 
-            } 
-            // Se si prova ad andare dopo la fine, resta all'ultima lettera
-            else if (newC >= wLen) { 
-                newC = wLen - 1; 
-            } 
-            
-            // Aggiorna solo se è cambiato qualcosa (evita ripetizioni se siamo già al muro)
-            if(newC !== navCharIdx) {
-                navCharIdx = newC;
-                highlightNav(); 
-                readSingleChar();
-            }
+            if (newC < 0) newC = 0; else if (newC >= wLen) newC = wLen - 1; 
+            if(newC !== navCharIdx) { navCharIdx = newC; highlightNav(); readSingleChar(); }
         }
 
         function moveWordNav(dWord) {
@@ -381,18 +360,13 @@ document.getElementById('btn-solve').disabled = !isMyTurn || isSpinning;
         function readWholeWord() {
             const w = parsedBoard[navWordIdx];
             let missing = 0;
-            w.chars.forEach(c => { if(c.isLetter && !c.isRevealed) missing++; });
+            let reading = "";
+            w.chars.forEach(c => { 
+                if(c.isLetter && !c.isRevealed) missing++; 
+                reading += (c.isLetter && !c.isRevealed) ? "_" : c.char;
+            });
             if (missing === 0) speak(`Parola ${navWordIdx+1}: ${w.wordStr}`);
-            else {
-                // Lettura ottimizzata per screen reader della parola con buchi
-                let reading = "";
-                w.chars.forEach(c => {
-                     if(!c.isLetter) reading += c.char; 
-                     else if(c.isRevealed) reading += c.char; 
-                     else reading += "_"; // Underscore viene letto bene
-                });
-                speak(`Parola ${navWordIdx+1}. Mancano ${missing} lettere. ${reading}`);
-            }
+            else speak(`Parola ${navWordIdx+1}. Mancano ${missing} lettere. ${reading}`);
         }
 
         // --- GIOCO ---
@@ -402,6 +376,7 @@ document.getElementById('btn-solve').disabled = !isMyTurn || isSpinning;
             playAudio('snd-spin'); 
             isSpinning = true; 
             document.getElementById('btn-spin').disabled = true;
+            document.getElementById('btn-solve').disabled = true; // Disabilita risolvi mentre gira
             
             wheelAngle += (1000 + Math.random()*500);
             document.getElementById('wheel-visual').style.transform = `rotate(${wheelAngle}deg)`;
@@ -413,8 +388,7 @@ document.getElementById('btn-solve').disabled = !isMyTurn || isSpinning;
 
             if (val === 'MISTERO') {
                 const opts = ['BANCAROTTA', 'PASSA', 'RADDOPPIA', 'JOLLY'];
-                const mysteryRes = opts[Math.floor(Math.random()*opts.length)];
-                val = mysteryRes; 
+                val = opts[Math.floor(Math.random()*opts.length)]; 
                 extra = ". Svela... " + val + "!";
                 if(val === 'RADDOPPIA') {
                     const me = currentStanza.giocatori.find(p=>p.id===myId);
@@ -425,6 +399,7 @@ document.getElementById('btn-solve').disabled = !isMyTurn || isSpinning;
 
             const msg = `${document.getElementById('inp-name').value} ha girato: ${val}${extra}`;
             isSpinning = false;
+            // Appena finito di girare, riabilita Risolvi nel prossimo updateUI
 
             await supabase.from('stanze').update({
                 montepremi_round: (typeof val==='number'?val:0), 
@@ -435,11 +410,10 @@ document.getElementById('btn-solve').disabled = !isMyTurn || isSpinning;
 
             if (typeof val === 'number' && val > 0) {
                 setTimeout(() => {
+                    // Se non stiamo già inserendo qualcosa, apri la consonante
                     if (!inputMode) openInput('letter');
                 }, 200);
-            }
-
-            if(typeof val !== 'number' && val !== 0) {
+            } else if(val !== 0) {
                 setTimeout(async()=>{
                     if(val==='BANCAROTTA') {
                         await supabase.from('giocatori').update({punteggio_totale:0}).eq('id',myId);
@@ -468,10 +442,7 @@ document.getElementById('btn-solve').disabled = !isMyTurn || isSpinning;
 
             area.classList.remove('hidden');
             inp.value=''; 
-            
-            setTimeout(() => {
-                inp.focus();
-            }, 100);
+            setTimeout(() => { inp.focus(); }, 100);
         }
 
         function closeInput() { 
@@ -539,7 +510,6 @@ document.getElementById('btn-solve').disabled = !isMyTurn || isSpinning;
             let msg="", next=myIndex;
 
             if (count > 0) {
-                // Messaggio standardizzato per il regex audio
                 msg = `Trovate ${count} ${char}`;
                 if(mode==='letter') {
                     const val = currentStanza.montepremi_round||0;
@@ -563,27 +533,17 @@ document.getElementById('btn-solve').disabled = !isMyTurn || isSpinning;
             }).eq('id', roomId);
         }
 
-        // MODIFICA ISPETTORE: Formattazione richiesta
         function openInspector() {
             const div = document.getElementById('inspector-content');
             let html = `<h2 style="color:#ffd700;">${currentFrase.categoria}</h2>`;
-            
             parsedBoard.forEach((w, i) => {
                 let s = "";
-                // Costruisce la stringa senza spazi intermedi
-                w.chars.forEach(c => {
-                    // Se rivelata usa la lettera, altrimenti underscore
-                    s += c.isRevealed ? c.char : "_";
-                });
-                
-                // Esempio output: "7 lettere: R_ST_RE"
+                w.chars.forEach(c => { s += c.isRevealed ? c.char : "_"; });
                 html += `<p>${w.chars.length} lettere: ${s}</p>`;
             });
-            
             div.innerHTML = html;
             document.getElementById('inspector-overlay').classList.remove('hidden');
-            div.focus(); 
-            speak("Ispettore aperto.");
+            div.focus(); speak("Ispettore aperto.");
         }
         function closeInspector() { document.getElementById('inspector-overlay').classList.add('hidden'); document.getElementById('btn-spin').focus(); }
 
@@ -610,6 +570,15 @@ document.getElementById('btn-solve').disabled = !isMyTurn || isSpinning;
         document.addEventListener('keydown', (e) => {
             if(!e.key) return;
 
+            // NUOVO: Ctrl+S (Risolvi) funziona SEMPRE e sovrascrive qualsiasi cosa
+            if(e.ctrlKey && e.key.toLowerCase() === 's') {
+                e.preventDefault();
+                if(inputMode) closeInput(); // Chiude eventuali box aperti
+                if(!document.getElementById('inspector-overlay').classList.contains('hidden')) closeInspector();
+                openInput('solve');
+                return;
+            }
+
             if(inputMode || !document.getElementById('inspector-overlay').classList.contains('hidden')) {
                 if(e.key==='Escape') { closeInput(); closeInspector(); }
                 if(e.key==='Enter' && inputMode) submitInput();
@@ -625,7 +594,7 @@ document.getElementById('btn-solve').disabled = !isMyTurn || isSpinning;
             if(e.ctrlKey) {
                 if(k==='g') { e.preventDefault(); doSpin(); }
                 if(k==='v') { e.preventDefault(); openInput('vowel'); }
-                if(k==='s') { e.preventDefault(); openInput('solve'); }
+                // Ctrl+S è gestito sopra per priorità
                 if(k==='i') { e.preventDefault(); openInspector(); }
                 if(k==='l') { e.preventDefault(); readRevealedLetters(); }
                 if(k==='h' && isHost) { e.preventDefault(); startNewRound(); }

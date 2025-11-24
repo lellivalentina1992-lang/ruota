@@ -3,170 +3,140 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>La Ruota - Final Cut</title>
+    <title>La Ruota - Bulletproof Edition</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <style>
-        /* --- VARIABILI GRAFICHE --- */
+        /* --- STILI BASE E ALTO CONTRASTO --- */
         :root {
-            --bg-body: linear-gradient(135deg, #0f2027, #203a43, #2c5364); 
-            --font-main: 'Verdana', sans-serif;
-            --col-text: #ffffff;
+            --bg-body: #111;
+            --col-text: #fff;
             --col-focus: #ffd700;
-            --bg-panel: rgba(0, 0, 0, 0.75);
-            --bg-tile-revealed: #ffffff;
-            --col-tile-text: #000000;
-            --shadow-card: 0 10px 20px rgba(0,0,0,0.6);
-            --border-radius: 12px;
+            --bg-panel: #222;
+            --bg-tile-revealed: #fff;
+            --col-tile-text: #000;
         }
 
         body.high-contrast {
-            --bg-body: #000000;
-            --col-text: #ffffff;
+            --bg-body: #000;
+            --col-text: #fff;
             --col-focus: #00ffff;
-            --bg-panel: #000000;
-            --bg-tile-revealed: #ffffff;
-            --col-tile-text: #000000;
-            --shadow-card: none;
-            --border-radius: 0px;
+            --bg-panel: #000;
+            border: 2px solid yellow;
         }
 
-        /* --- STILI BASE --- */
         body {
-            background: var(--bg-body); color: var(--col-text); font-family: var(--font-main);
-            margin: 0; padding: 10px; text-align: center; min-height: 100vh;
-            padding-bottom: 100px; transition: background 0.5s;
+            background: var(--bg-body); color: var(--col-text); 
+            font-family: 'Verdana', sans-serif;
+            margin: 0; padding: 10px; text-align: center; 
+            padding-bottom: 120px; /* Spazio per i controlli touch */
         }
 
-        *:focus { outline: 3px solid var(--col-focus) !important; box-shadow: 0 0 20px var(--col-focus); transform: scale(1.02); }
-        .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+        /* Accessibilità Focus */
+        *:focus { outline: 4px solid var(--col-focus) !important; box-shadow: 0 0 15px var(--col-focus); }
+        .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); }
         .hidden { display: none !important; }
 
-        .container { max-width: 950px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; }
+        .container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; }
         
         #game-panel, #setup-panel, #end-panel, #round-over-panel { 
-            border: 1px solid rgba(255,255,255,0.2); padding: 20px; margin-top: 15px; 
-            background: var(--bg-panel); border-radius: var(--border-radius);
-            box-shadow: var(--shadow-card); backdrop-filter: blur(8px);
-            width: 95%; max-width: 900px; box-sizing: border-box;
-        }
-        body.high-contrast #game-panel { border: 2px solid yellow; backdrop-filter: none; }
-
-        #timer-box { 
-            font-size: 2.5em; color: #ff3333; font-weight: 900; 
-            text-shadow: 2px 2px 4px #000; margin-bottom: 10px;
-            background: rgba(0,0,0,0.5); padding: 5px 20px; border-radius: 50px;
-            display: inline-block; border: 2px solid #ff3333;
+            border: 2px solid #555; padding: 15px; margin-top: 15px; 
+            background: var(--bg-panel); border-radius: 10px; width: 95%;
         }
 
-        .info-bar {
-            width: 100%; display: flex; justify-content: space-between; align-items: center;
-            background: rgba(0,0,0,0.8); padding: 10px 20px; 
-            border-radius: 8px; margin-bottom: 15px; box-sizing: border-box;
-            border: 1px solid #555; box-shadow: inset 0 0 10px #000;
-        }
-
+        /* --- TABELLONE --- */
         #board-container {
-            display: flex; flex-direction: column; align-items: center; gap: 6px;
-            background: #053305; border: 6px solid #e0e0e0; padding: 20px; margin: 20px 0;
-            border-radius: 12px; min-height: 150px;
-            box-shadow: inset 0 0 40px #000;
+            display: flex; flex-direction: column; align-items: center; gap: 8px;
+            background: #053305; border: 4px solid #fff; padding: 20px; margin: 20px 0;
+            min-height: 150px;
         }
-        .board-row { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; perspective: 800px; }
+        .board-row { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; }
         
         .tile {
-            width: 45px; height: 65px; position: relative;
-            transform-style: preserve-3d; transition: transform 0.6s cubic-bezier(0.4, 0.0, 0.2, 1);
-            font-weight: 900; font-size: 2.2em; display: flex; align-items: center; justify-content: center;
-            color: var(--col-tile-text);
+            width: 45px; height: 65px; 
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 900; font-size: 2.2em; color: #000;
+            background: #fff; border: 2px solid #000;
         }
-        .tile-front, .tile-back {
-            position: absolute; width: 100%; height: 100%; backface-visibility: hidden;
-            display: flex; align-items: center; justify-content: center; border: 2px solid #333;
-        }
-        .tile-front { background: #005500; border: 1px solid rgba(255,255,255,0.3); }
-        .tile-back { background: var(--bg-tile-revealed); transform: rotateY(180deg); }
-        .tile.revealed { transform: rotateY(180deg); }
-        .tile.empty .tile-front { background: #004400; opacity: 0.5; border: 1px dashed #006600; }
+        .tile.empty { background: #004400; border: 1px dashed #006600; color: transparent; }
         
-        body.high-contrast .tile { transition: none; transform: none; transform-style: flat; }
-        body.high-contrast .tile.revealed .tile-back { transform: none; z-index: 2; }
+        /* Cursore Navigazione */
+        .tile.cursor-char { border: 5px solid var(--col-focus); transform: scale(1.1); z-index: 10; }
+        .board-row.cursor-word { outline: 3px solid var(--col-focus); background: rgba(255, 255, 0, 0.2); }
 
-        .tile.cursor-char { z-index: 10; transform: scale(1.2) rotateY(180deg); }
-        .tile.cursor-char .tile-back, .tile.cursor-char .tile-front { border: 4px solid #00ffff; box-shadow: 0 0 15px #00ffff; }
-        .board-row.cursor-word { background: rgba(255, 215, 0, 0.2); border-radius: 5px; outline: 2px solid #ffd700; }
-
-        /* --- TELECOMANDO --- */
+        /* --- CONTROLLI SMARTPHONE (Tasti Grandi in Basso) --- */
         #tactile-nav {
-            display: flex; justify-content: center; gap: 12px; padding: 12px; z-index: 2000;
+            display: flex; justify-content: center; gap: 10px; padding: 10px;
+            position: fixed; bottom: 0; left: 0; width: 100%; 
+            background: #000; border-top: 2px solid var(--col-focus); z-index: 2000;
         }
         .nav-btn {
-            background: linear-gradient(145deg, #222, #111); color: #00ffff; border: 2px solid #444;
-            width: 58px; height: 58px; border-radius: 50%; font-size: 1.8em; font-weight: bold; cursor: pointer;
+            background: #333; color: #fff; border: 2px solid #555;
+            width: 55px; height: 55px; border-radius: 50%; 
+            font-size: 1.8em; font-weight: bold; cursor: pointer;
             display: flex; align-items: center; justify-content: center;
         }
-        .nav-btn:active { transform: translateY(3px); background: #00ffff; color: #000; }
-        .nav-btn.btn-read { border-color: #ffd700; color: #ffd700; }
+        .nav-btn:active { background: var(--col-focus); color: #000; }
+        .nav-btn.btn-read { border-color: var(--col-focus); color: var(--col-focus); }
 
-        /* --- MEDIA QUERIES --- */
-        @media (min-width: 769px) {
-            #tactile-nav { background: rgba(0,0,0,0.6); border-radius: 40px; margin: 25px auto; width: fit-content; border: 1px solid #666; padding: 10px 30px; }
-            .tile { width: 50px; height: 75px; font-size: 2.5em; }
-            button.action-btn { width: auto; min-width: 220px; margin: 15px; font-size: 1.2em; }
-        }
-        @media (max-width: 768px) {
-            body { padding: 5px; padding-bottom: 95px; }
-            #tactile-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #000; border-top: 3px solid #ffd700; gap: 5px; padding: 10px 0; }
-            .nav-btn { width: 48px; height: 48px; font-size: 1.4em; }
-            .tile { width: 34px; height: 52px; font-size: 1.6em; }
-            #board-container { padding: 10px; width: 98%; border-width: 3px; }
-            .info-bar { flex-direction: row; padding: 5px 10px; font-size: 0.9em; }
-            button.action-btn { width: 100%; display: block; margin: 8px 0; padding: 16px; font-size: 1.1em; } 
-        }
-
-        #wheel-visual {
-            width: 200px; height: 200px; margin: 20px auto; border-radius: 50%; border: 8px solid #fff;
-            background: conic-gradient(#f00, #ff0, #0f0, #00f, #f0f, orange, violet);
-            transition: transform 3.5s cubic-bezier(0.15, 0.85, 0.15, 1);
-            position: relative;
-        }
-        @media (max-width: 768px) { #wheel-visual { width: 140px; height: 140px; } }
-        
-        #wheel-pointer { width: 0; height: 0; border-left: 20px solid transparent; border-right: 20px solid transparent; border-top: 40px solid #fff; margin: 0 auto -25px auto; position: relative; z-index: 20; }
-
+        /* --- PULSANTI AZIONE --- */
         button.action-btn { 
-            padding: 15px 30px; cursor: pointer; font-weight: 900; letter-spacing: 1px;
-            border-radius: 10px; border: 3px solid #fff; text-transform: uppercase; 
-            box-shadow: 0 6px 0 #000; transition: transform 0.1s;
+            padding: 15px 30px; margin: 10px; cursor: pointer; 
+            font-weight: 900; font-size: 1.2em; text-transform: uppercase;
+            border: 3px solid #fff; border-radius: 10px;
         }
-        button.action-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #000; }
-        
-        .btn-primary { background: linear-gradient(to bottom, #ffd700, #ffaa00); color: #000; }
-        .btn-secondary { background: linear-gradient(to bottom, #00ffff, #00aaaa); color: #000; }
-        .btn-danger { background: linear-gradient(to bottom, #ff4444, #cc0000); color: #fff; }
-        .disabled-btn { background: #444 !important; color: #888 !important; border-color: #666 !important; cursor: not-allowed; box-shadow: none; transform: translateY(4px); }
+        .btn-primary { background: #ffd700; color: #000; }
+        .btn-secondary { background: #00ffff; color: #000; }
+        .btn-danger { background: #ff4444; color: #fff; }
+        .disabled-btn { background: #444 !important; color: #888 !important; cursor: not-allowed; }
 
+        /* --- RUOTA --- */
+        #wheel-visual {
+            width: 150px; height: 150px; margin: 10px auto; border-radius: 50%; 
+            border: 5px solid #fff;
+            background: conic-gradient(#f00, #ff0, #0f0, #00f, #f0f, orange);
+            transition: transform 3.5s cubic-bezier(0.1, 0.9, 0.1, 1);
+        }
+        #wheel-pointer { 
+            width: 0; height: 0; border-left: 15px solid transparent; 
+            border-right: 15px solid transparent; border-top: 30px solid #fff; 
+            margin: 0 auto -20px auto; position: relative; z-index: 20; 
+        }
+
+        /* --- INPUT OVERLAY --- */
         #input-area, #inspector-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.95); z-index: 3000;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
         }
-        input { font-size: 2em; padding: 15px; text-align: center; width: 80%; max-width: 500px; background: #222; color: #fff; border: 3px solid #ffd700; border-radius: 10px; }
+        input { 
+            font-size: 2.5em; padding: 15px; text-align: center; 
+            width: 80%; background: #222; color: #fff; 
+            border: 3px solid var(--col-focus); border-radius: 10px; 
+        }
+
+        /* Media Queries per PC */
+        @media (min-width: 769px) {
+            #tactile-nav { position: relative; background: transparent; border: none; padding: 20px; }
+            .tile { width: 50px; height: 75px; font-size: 2.5em; }
+        }
     </style>
 </head>
 <body>
 
     <div id="sr-announcer" class="sr-only" aria-live="assertive"></div>
-    <button id="sr-help-btn" class="sr-only" onclick="readCommands()">Ascolta Comandi (Invio)</button>
-    <button id="contrast-toggle-btn" onclick="toggleContrast()" style="display:block; margin:0 auto; padding:5px 10px; background:#000; color:#fff; border:1px solid #fff; border-radius:5px; margin-bottom:10px;">Cambia Contrasto (C)</button>
+    
+    <button id="contrast-toggle-btn" onclick="toggleContrast()" style="margin-bottom:10px;">
+        Cambia Contrasto (C)
+    </button>
 
     <audio id="snd-spin" src="ruota.wav"></audio>
     <audio id="snd-hit" src="lettera presente.wav"></audio>
     <audio id="snd-miss" src="lettera assente.wav"></audio>
 
     <div id="setup-panel" class="container">
-        <h1 style="color:#ffd700; font-size: 3em; text-shadow: 4px 4px 0 #000; margin-bottom: 20px;">LA RUOTA</h1>
+        <h1 style="color:#ffd700;">LA RUOTA</h1>
         <input id="inp-name" type="text" placeholder="IL TUO NOME"><br><br>
         <input id="inp-code" type="text" value="STANZA1"><br><br>
         <button onclick="joinGame(true)" class="action-btn btn-primary">CREA STANZA</button>
@@ -174,19 +144,21 @@
     </div>
 
     <div id="game-panel" class="container hidden">
-        <div id="timer-box">120</div>
-        <div class="info-bar">
-            <div style="text-align: left;">
-                <span id="round-indicator" style="color:#aaa; font-size: 0.9em; text-transform:uppercase;">Round 1/10</span><br>
-                <span id="turn-indicator" style="font-size:1.2em; font-weight:bold; color:#fff;">...</span>
+        <div id="timer-box" style="font-size:2em; color:red; border:2px solid red; padding:5px 15px; border-radius:20px; display:inline-block;">120</div>
+        
+        <div class="info-bar" style="width:100%; display:flex; justify-content:space-between; padding:10px;">
+            <div style="text-align:left;">
+                <span id="round-indicator" style="color:#aaa;">Round 1/10</span><br>
+                <span id="turn-indicator" style="font-size:1.2em; font-weight:bold;">...</span>
             </div>
-            <div style="text-align: right;">
-                <span style="color:#00ff00;">PARZIALE</span> <span id="score-round" style="color:#00ff00; font-weight:bold; font-size:1.4em;">€0</span><br>
-                <span style="color:#ffd700;">TOTALE</span> <span id="score-total" style="color:#ffd700; font-weight:bold; font-size:1.1em;">€0</span>
+            <div style="text-align:right;">
+                <span style="color:#00ff00;">€</span> <span id="score-round" style="color:#00ff00; font-weight:bold; font-size:1.4em;">0</span><br>
+                <span style="color:#ffd700;">Tot: €</span> <span id="score-total" style="color:#ffd700;">0</span>
             </div>
         </div>
-        <h2 id="live-category" style="color:#00ffff; margin: 15px 0 5px 0; text-shadow: 2px 2px 4px black; letter-spacing: 2px;">...</h2>
-        <h3 id="round-hint" style="color:#ffd700; margin: 0 0 15px 0; font-size: 1.3em; min-height:1.3em;"></h3>
+
+        <h2 id="live-category" style="color:#00ffff; margin: 10px 0;">...</h2>
+        <h3 id="round-hint" style="color:#ffd700; margin-bottom: 15px;"></h3>
 
         <div id="board-container" aria-hidden="true"></div>
 
@@ -200,67 +172,75 @@
         
         <div id="wheel-pointer"></div>
         <div id="wheel-visual"></div>
-        <div id="wheel-status-text" style="font-size: 1.8em; font-weight: 900; color: #00ff00; margin: 15px; min-height: 1.5em; text-shadow: 2px 2px 0 #000;"></div>
+        <div id="wheel-status-text" style="font-size: 1.5em; font-weight: bold; color: #00ff00; margin: 10px; min-height: 1.5em;"></div>
 
         <div id="controls">
             <button id="btn-spin" class="action-btn btn-primary" onclick="doSpin()">GIRA (G)</button>
             <button id="btn-vowel" class="action-btn btn-secondary" onclick="openInput('vowel')">VOCALE (V)</button>
             <button id="btn-solve" class="action-btn btn-danger" onclick="openInput('solve')">RISOLVI (S)</button>
-            <button id="btn-manual-cons" class="action-btn hidden" onclick="openInput('letter')" style="margin-top:15px; background: #00ff00; color: #000;">DI UNA CONSONANTE</button>
-            <div class="sr-only">
-                <button onclick="readRevealedLetters()">Lettere presenti (Ctrl+L)</button>
-                <button onclick="readHistory()">Ultime azioni (Tasto A)</button>
-                <button onclick="openInspector()">Ispettore (Ctrl+I)</button>
-            </div>
+            <button id="btn-manual-cons" class="action-btn hidden" onclick="openInput('letter')" style="background: #00ff00; color: #000;">DI UNA CONSONANTE</button>
+        </div>
+        
+        <div class="sr-only">
+            <p>Comandi rapidi: CTRL+L legge lettere scoperte. A legge ultime azioni. G gira. V vocale. S risolvi.</p>
         </div>
     </div>
 
     <div id="round-over-panel" class="container hidden">
-        <h2 id="round-title" style="color: #00ff00; font-size: 2.5em;">ROUND COMPLETATO!</h2>
+        <h2 id="round-title" style="color: #00ff00;">ROUND COMPLETATO!</h2>
         <p id="round-winner-msg" style="font-size: 1.5em;">...</p>
-        <p id="solution-msg" style="color: #ffd700; font-size: 1.5em; font-weight:bold; margin: 20px 0;">...</p>
-        <br>
-        <button id="btn-next-round" onclick="startNewRound()" class="action-btn btn-primary">VAI AL PROSSIMO ROUND</button>
+        <p id="solution-msg" style="color: #ffd700; font-size: 1.5em; font-weight:bold;">...</p>
+        <button id="btn-next-round" onclick="startNewRound()" class="action-btn btn-primary">PROSSIMO ROUND (INVIO)</button>
     </div>
 
     <div id="end-panel" class="container hidden">
-        <h2 style="color: #ffd700; font-size: 3em;">PARTITA TERMINATA</h2>
-        <ul id="ranking-list" style="list-style: none; padding: 0; font-size: 1.6em; line-height: 1.8;"></ul>
+        <h2 style="color: #ffd700;">FINE PARTITA</h2>
+        <ul id="ranking-list" style="list-style: none; padding: 0; font-size: 1.5em;"></ul>
         <button onclick="location.reload()" class="action-btn btn-secondary">TORNA AL MENU</button>
     </div>
 
     <div id="input-area" class="hidden">
-        <h2 id="input-title" style="color:#ffd700; font-size: 2.5em; text-shadow: 2px 2px 0 #000;">...</h2>
+        <h2 id="input-title" style="color:#ffd700;">...</h2>
         <input id="game-input" type="text" autocomplete="off" placeholder="Scrivi qui...">
-        <div style="margin-top: 30px; width:100%; text-align:center;">
-            <button onclick="submitInput()" class="action-btn btn-primary" style="display:inline-block; width:40%; margin: 0 10px;">OK</button>
-            <button onclick="closeInput()" class="action-btn btn-secondary" style="display:inline-block; width:40%; margin: 0 10px;">ANNULLA</button>
+        <div style="margin-top: 30px;">
+            <button onclick="submitInput()" class="action-btn btn-primary">OK</button>
+            <button onclick="closeInput()" class="action-btn btn-secondary">ANNULLA</button>
         </div>
     </div>
 
     <div id="inspector-overlay" class="hidden" role="dialog" aria-label="Ispettore">
-        <div id="inspector-content" style="background:#222; border:4px solid #ffd700; padding:20px; width:90%; max-height:80%; overflow-y:auto; color:#fff; font-size: 1.4em; border-radius: 10px;" tabindex="-1"></div>
+        <div id="inspector-content" style="background:#222; border:2px solid #ffd700; padding:20px; width:90%; max-height:80%; overflow-y:auto; color:#fff; font-size: 1.4em;" tabindex="-1"></div>
         <button onclick="closeInspector()" class="action-btn btn-secondary" style="margin-top:20px;">CHIUDI</button>
     </div>
 
     <script>
+        // --- FUNZIONI DI SUPPORTO ---
         function playAudio(id) { const a=document.getElementById(id); if(a){a.pause();a.currentTime=0;a.play().catch(e=>{});} }
         function playMultiHit(n) { let i=0; function l(){if(i<n){playAudio('snd-hit');i++;setTimeout(l,250)}} l(); }
-        function speak(t) { const e=document.getElementById('sr-announcer'); e.textContent=''; e.style.display='none'; setTimeout(()=>{e.style.display='block';e.textContent=t},50); }
-        function readCommands() { speak("Usa il telecomando a icone in basso. Gira, Vocale o Risolvi."); }
         
+        // --- SOLO SCREEN READER (NO VOCE ESTERNA) ---
+        function speak(t) { 
+            const e = document.getElementById('sr-announcer'); 
+            e.textContent = ''; 
+            setTimeout(() => { e.textContent = t; }, 50); 
+        }
+
         function toggleContrast() { 
             document.body.classList.toggle('high-contrast'); 
             const isHigh = document.body.classList.contains('high-contrast');
             localStorage.setItem('highContrast', isHigh);
-            speak(isHigh?"Alto contrasto":"Normale"); 
+            speak(isHigh ? "Alto contrasto attivato" : "Contrasto normale"); 
         }
-        
         if(localStorage.getItem('highContrast') === 'true') { document.body.classList.add('high-contrast'); }
 
-        function setBtnState(id,d) { const b=document.getElementById(id); if(!b)return; if(d){b.classList.add('disabled-btn');b.setAttribute('aria-disabled','true')}else{b.classList.remove('disabled-btn');b.setAttribute('aria-disabled','false')} }
+        function setBtnState(id,d) { 
+            const b=document.getElementById(id); if(!b)return; 
+            if(d){b.classList.add('disabled-btn');b.setAttribute('aria-disabled','true');b.disabled=true;}
+            else{b.classList.remove('disabled-btn');b.setAttribute('aria-disabled','false');b.disabled=false;} 
+        }
         function isBtnDisabled(id) { return document.getElementById(id).getAttribute('aria-disabled')==='true'; }
 
+        // --- DATABASE ---
         const SUPABASE_URL = 'https://azcwkpdjbysnivknnino.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Y3drcGRqYnlzbml2a25uaW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MzAwNDksImV4cCI6MjA3OTIwNjA0OX0.R8wkMJEmsP8cTVUUOcWtD4Rrg_ZhuOE-PYBJ56eGqMU';
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -281,10 +261,16 @@
                 let st;
                 if(cr){
                     const {data:fr}=await supabase.from('frasi').select('id');
+                    
+                    // FIX HARDENING: Se non ci sono frasi, evita il crash
+                    if (!fr || fr.length === 0) {
+                        speak("Nessuna frase nel database!");
+                        return;
+                    }
+
                     const rid=fr[Math.floor(Math.random()*fr.length)].id;
                     const {data:old}=await supabase.from('stanze').select('id').eq('codice',cd).maybeSingle();
                     if(old){await supabase.from('giocatori').delete().eq('stanza_id',old.id);await supabase.from('stanze').delete().eq('id',old.id);}
-                    // REGOLA 1: STATO 'ATTESA'
                     const {data,error}=await supabase.from('stanze').insert({codice:cd,stato:'attesa',frase_corrente_id:rid,lettere_chiamate:[],lettere_rivelate:[],round_giocati:1, azione_timestamp:new Date().toISOString()}).select().maybeSingle();
                     st=error?(await supabase.from('stanze').select('*').eq('codice',cd).maybeSingle()).data:data;
                 } else {
@@ -331,41 +317,44 @@
         }
 
         function updateUI(s) {
-            currentStanza=s; s.giocatori.sort((a,b)=>a.indice-b.indice);
+            currentStanza=s;
+            // FIX SICUREZZA: Assicuro che giocatori sia array
+            s.giocatori = Array.isArray(s.giocatori) ? s.giocatori : [];
+            s.giocatori.sort((a,b)=>a.indice-b.indice);
             
-            // GESTIONE STATO ATTESA (LOBBY)
             if(s.stato==='attesa'){
                 document.getElementById('game-panel').classList.add('hidden'); 
                 document.getElementById('round-over-panel').classList.remove('hidden');
                 document.getElementById('round-title').textContent = "PARTITA PRONTA";
-                document.getElementById('round-title').style.color = "#ffd700";
-                document.getElementById('round-winner-msg').textContent = "Codice Stanza: " + s.codice;
-                document.getElementById('solution-msg').textContent = "In attesa dell'Host...";
-                document.getElementById('btn-next-round').textContent = "AVVIA PARTITA (INVIO)";
-                // Se è il primo caricamento
-                if(s.azione_timestamp !== lastTimestamp) {
-                    lastTimestamp = s.azione_timestamp;
-                    speak("Partita pronta. Attendi l'avvio.");
-                }
+                document.getElementById('round-winner-msg').textContent = "Codice: " + s.codice;
+                document.getElementById('solution-msg').textContent = "Attesa Host...";
+                document.getElementById('btn-next-round').textContent = "AVVIA (INVIO)";
+                if(s.azione_timestamp !== lastTimestamp) { lastTimestamp = s.azione_timestamp; speak("Partita pronta."); }
                 return;
             }
 
             if(s.stato==='finito'){
                 document.getElementById('game-panel').classList.add('hidden'); document.getElementById('round-over-panel').classList.remove('hidden');
-                document.getElementById('round-title').textContent = "ROUND COMPLETATO!";
-                document.getElementById('round-title').style.color = "#00ff00";
+                document.getElementById('round-title').textContent = "ROUND COMPLETATO";
                 document.getElementById('round-winner-msg').textContent=s.ultimo_messaggio; document.getElementById('solution-msg').textContent=fullSolutionText;
-                document.getElementById('btn-next-round').textContent = "VAI AL PROSSIMO ROUND";
+                document.getElementById('btn-next-round').textContent = "PROSSIMO ROUND";
                 playMultiHit(3); speak("Fine Round. "+s.ultimo_messaggio); return;
             }
             if(s.stato==='terminata'){
                 document.getElementById('game-panel').classList.add('hidden'); document.getElementById('end-panel').classList.remove('hidden');
                 const l=document.getElementById('ranking-list'); l.innerHTML="";
                 [...s.giocatori].sort((a,b)=>b.punteggio_totale-a.punteggio_totale).forEach((p,i)=>{l.innerHTML+=`<li>${i+1}. ${p.nome}: €${p.punteggio_totale}</li>`});
+                speak("Partita terminata. Visualizzo la classifica.");
                 return;
             }
             document.getElementById('round-over-panel').classList.add('hidden'); document.getElementById('game-panel').classList.remove('hidden');
             
+            // FIX SICUREZZA: Controllo esistenza frase in relazione
+            if (!s.frasi) {
+                speak("Errore: Frase mancante. Controllare database.");
+                return;
+            }
+
             if(!currentFrase||currentFrase.id!==s.frasi.id){
                 currentFrase=s.frasi; navWordIdx=0; navCharIdx=0;
                 fullSolutionText=currentFrase.soluzione;
@@ -384,7 +373,7 @@
                 if(s.ultima_azione==='timeout'){speak(s.ultimo_messaggio);playAudio('snd-miss')}
                 else if(s.ultima_azione==='chiama_lettera'){
                     speak(s.ultimo_messaggio);
-                    if(s.ultimo_messaggio.includes("Trovate"))playMultiHit(2); else if(s.ultimo_messaggio.includes("non"))playAudio('snd-miss');
+                    if(s.ultimo_messaggio.includes("Trovate"))playMultiHit(2); else if(s.ultimo_messaggio.includes("non")||s.ultimo_messaggio.includes("già"))playAudio('snd-miss');
                 }
                 else if(s.ultima_azione==='errore'){speak(s.ultimo_messaggio);playAudio('snd-miss')}
                 else if(s.ultimo_messaggio)speak(s.ultimo_messaggio);
@@ -397,7 +386,7 @@
             const isMe=(s.id_giocatore_corrente===myIndex), me=s.giocatori.find(p=>p.indice===myIndex);
             document.getElementById('turn-indicator').textContent=isMe?"TOCCA A TE":`Turno di ${s.giocatori.find(p=>p.indice===s.id_giocatore_corrente)?.nome||"..."}`;
             document.getElementById('turn-indicator').style.color=isMe?"#0f0":"#fff";
-            if(me){document.getElementById('score-round').textContent="€"+me.punteggio_round;document.getElementById('score-total').textContent="€"+me.punteggio_totale;}
+            if(me){document.getElementById('score-round').textContent=me.punteggio_round;document.getElementById('score-total').textContent=me.punteggio_totale;}
             
             const canSp=isMe&&!isSpinning&&!inputMode&&s.montepremi_round===0; setBtnState('btn-spin',!canSp);
             setBtnState('btn-solve',!(isMe&&!isSpinning));
@@ -406,6 +395,9 @@
         }
 
         function parseAndRenderBoard(text, rev) {
+            // FIX SICUREZZA: Evita crash se rev è null
+            rev = Array.isArray(rev) ? rev : [];
+            
             const c=document.getElementById('board-container'); c.innerHTML=''; parsedBoard=[];
             let gI=0; text.toUpperCase().split(' ').forEach(wS=>{
                 let wO={str:wS,chars:[]}; const r=document.createElement('div'); r.className='board-row';
@@ -414,29 +406,27 @@
                     wO.chars.push({char:ch,isRevealed:isR,isLetter:!!isL});
                     const d=document.createElement('div');
                     d.className='tile'+(isL&&isR?' revealed':(isL?' empty':''));
-                    if(isL) d.innerHTML=`<div class="tile-front"></div><div class="tile-back">${ch}</div>`; else d.innerHTML=ch;
+                    d.textContent = (isL && !isR) ? '' : ch;
                     d.id=`tile-${parsedBoard.length}-${j}`; r.appendChild(d); if(isL)gI++;
                 }
                 r.id=`row-${parsedBoard.length}`; c.appendChild(r); parsedBoard.push(wO);
             });
             highlightNav();
-            if(parsedBoard.length>0 && document.activeElement.tagName!=='INPUT') readSingleChar();
         }
 
         function moveNav(d) {
             if(!parsedBoard.length)return;
-            document.querySelectorAll('.cursor-char').forEach(e=>e.classList.remove('cursor-char')); document.querySelectorAll('.cursor-word').forEach(e=>e.classList.remove('cursor-word'));
             let n=navCharIdx+d, wL=parsedBoard[navWordIdx].chars.length;
             if(n<0)n=0; if(n>=wL)n=wL-1;
             navCharIdx=n; highlightNav(); readSingleChar();
         }
         function moveWordNav(d) {
             if(!parsedBoard.length)return;
-            document.querySelectorAll('.cursor-char').forEach(e=>e.classList.remove('cursor-char')); document.querySelectorAll('.cursor-word').forEach(e=>e.classList.remove('cursor-word'));
             let n=navWordIdx+d; if(n<0)n=0; if(n>=parsedBoard.length)n=parsedBoard.length-1;
             navWordIdx=n; navCharIdx=0; highlightNav(true); readWholeWord();
         }
         function highlightNav(wd=false) {
+            document.querySelectorAll('.cursor-char').forEach(e=>e.classList.remove('cursor-char')); document.querySelectorAll('.cursor-word').forEach(e=>e.classList.remove('cursor-word'));
             if(wd){const r=document.getElementById(`row-${navWordIdx}`);if(r)r.classList.add('cursor-word')}
             else{const e=document.getElementById(`tile-${navWordIdx}-${navCharIdx}`);if(e)e.classList.add('cursor-char')}
         }
@@ -449,48 +439,84 @@
             speak(`Parola ${navWordIdx+1}: ${s}`);
         }
         function readFullBoard() {
+             // FIX SICUREZZA: Evita crash se tabellone non pronto
+             if (!currentFrase || !parsedBoard.length) return speak("Tabellone non pronto.");
+             
              let f=`Cat: ${currentFrase.categoria}. `; if(currentHintText)f+=`Indizio: ${currentHintText}. `;
              parsedBoard.forEach((w,i)=>{let s="";w.chars.forEach(c=>s+=c.isRevealed?c.char:" vuota ");f+=` P${i+1}: ${s}. `});
              speak(f);
         }
 
         async function doSpin() {
-            if(isBtnDisabled('btn-spin'))return;
+            if(isBtnDisabled('btn-spin')) return;
+            // Check di sicurezza se i dati non sono ancora pronti
+            if(!currentStanza || !currentStanza.giocatori) return speak("Attendere...");
+
             speak("Gira..."); playAudio('snd-spin'); isSpinning=true;
+            
+            // Disabilita tasti
+            setBtnState('btn-spin', true); setBtnState('btn-solve', true); setBtnState('btn-vowel', true);
+
             wheelAngle+=(1000+Math.random()*500); document.getElementById('wheel-visual').style.transform=`rotate(${wheelAngle}deg)`;
             await new Promise(r=>setTimeout(r,3500));
             let v=WHEEL_VALUES[Math.floor(Math.random()*WHEEL_VALUES.length)];
+            
             if(v==='MISTERO'){
                 v=['BANCAROTTA','PASSA','RADDOPPIA','JOLLY'][Math.floor(Math.random()*4)];
-                if(v==='RADDOPPIA'){await supabase.from('giocatori').update({punteggio_round:(currentStanza.giocatori.find(p=>p.id===myId).punteggio_round||0)*2}).eq('id',myId);v=0;}
+                
+                if(v==='RADDOPPIA'){
+                    const me = currentStanza.giocatori.find(p=>p.id===myId);
+                    if(me){
+                        await supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)*2}).eq('id',myId);
+                    }
+                    speak("Raddoppia! Gira di nuovo!");
+                    fetchFullState(); // Aggiorno subito per far vedere il punteggio doppio
+                    isSpinning=false;
+                    setBtnState('btn-spin', false); // Riabilita per girare
+                    return; 
+                }
                 else if(v==='JOLLY'){
                     try {
-                        const me=currentStanza.giocatori.find(p=>p.id===myId);
-                        await supabase.from('giocatori').update({jolly:(me.jolly||0)+1}).eq('id',myId);
-                    } catch(e){console.log("No Jolly col");}
+                        const { error } = await supabase.rpc('incrementa_jolly', { id_giocatore: myId });
+                        if(error) throw error;
+                    } catch(e){console.error("Jolly err:", e);}
                     speak("Hai vinto un JOLLY! Gira di nuovo!");
-                    isSpinning=false; return; 
+                    fetchFullState(); // Aggiorno per mostrare il Jolly se servisse
+                    isSpinning=false;
+                    setBtnState('btn-spin', false); // Riabilita per girare
+                    return; 
                 }
             }
+            
             isSpinning=false;
             await supabase.from('stanze').update({montepremi_round:(typeof v==='number'?v:0),ultima_azione:'gira_ruota',ultimo_messaggio:`${document.getElementById('inp-name').value} gira: ${v}`,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
-            if(typeof v==='number'&&v>0){fetchFullState();setTimeout(()=>openInput('letter'),500);}
+            
+            if(typeof v==='number'&&v>0){
+                fetchFullState();
+                setTimeout(()=>openInput('letter'), 500); // Apre input in automatico
+            }
             else if(v!==0){
-                // REGOLA 2: BANCAROTTA CATTIVA (Azzera tutto)
                 if(v==='BANCAROTTA')await supabase.from('giocatori').update({punteggio_round:0, punteggio_totale:0}).eq('id',myId);
-                await supabase.from('stanze').update({id_giocatore_corrente:(myIndex+1)%currentStanza.giocatori.length,montepremi_round:0}).eq('id',roomId);
+                const nextPlayerIdx = (myIndex+1)%currentStanza.giocatori.length;
+                await supabase.from('stanze').update({id_giocatore_corrente:nextPlayerIdx,montepremi_round:0}).eq('id',roomId);
                 fetchFullState();
             }
         }
 
         function openInput(m) {
             if(m==='vowel') {
-                const me=currentStanza.giocatori.find(p=>p.id===myId);
+                // FIX HARDENING: Check di esistenza giocatore
+                const me = currentStanza?.giocatori?.find(p => p.id === myId);
+                if (!me) return speak("Giocatore non trovato, attendi.");
                 if((me.punteggio_round||0)<500) return speak("Ti servono 500 euro!");
             }
             inputMode=m; const t={'letter':'INSERISCI CONSONANTE','vowel':'INSERISCI VOCALE','solve':'SCRIVI LA SOLUZIONE'};
             document.getElementById('input-title').textContent=t[m]; document.getElementById('input-area').classList.remove('hidden');
-            document.getElementById('game-input').value=''; document.getElementById('game-input').focus(); speak(t[m]);
+            const inp = document.getElementById('game-input');
+            inp.value=''; 
+            
+            speak(t[m]);
+            setTimeout(() => { inp.focus(); }, 100);
         }
         function closeInput(){document.getElementById('input-area').classList.add('hidden');inputMode=null;}
 
@@ -527,40 +553,83 @@
         }
 
         function openInspector(){
+            // FIX SICUREZZA: Evita crash se tabellone vuoto
+            if(!currentFrase) return speak("Nessuna frase caricata.");
+            
             const d=document.getElementById('inspector-content'); let h=`<h2>${currentFrase.categoria}</h2>`;
             parsedBoard.forEach((w,i)=>{let s="";w.chars.forEach(c=>{s+=c.isRevealed?c.char:"_"});h+=`<p>P${i+1}: ${s}</p>`});
             d.innerHTML=h; document.getElementById('inspector-overlay').classList.remove('hidden'); speak("Ispettore Aperto");
         }
         function closeInspector(){document.getElementById('inspector-overlay').classList.add('hidden');}
+        
         function readRevealedLetters(){
-            const calls=currentStanza.lettere_chiamate||[], sol=cleanStr(currentPuzzleText).toUpperCase();
-            const h=calls.filter(c=>sol.includes(cleanStr(c).toUpperCase())).sort();
-            speak("Presenti: "+(h.length?h.map(c=>`${c}, ${NATO[c]||c}`).join(". "):"Nessuna"));
+            if(!currentStanza) return;
+            const calls=currentStanza.lettere_chiamate||[];
+            const sol = cleanStr(currentPuzzleText).toUpperCase();
+            const h = calls.filter(c => sol.includes(cleanStr(c).toUpperCase())).sort();
+            if(h.length > 0) speak("Lettere presenti: " + h.map(c => `${c}, ${NATO[c]||c}`).join(". "));
+            else speak("Nessuna lettera presente rivelata.");
         }
-        function readHistory(){speak(actionLog.length?"Storia: "+actionLog.join(". "):"Nessuna azione");}
+        
+        function readHistory(){
+            speak(actionLog.length > 0 ? "Ultime azioni: " + actionLog.join(". ") : "Nessuna azione.");
+        }
 
         async function startNewRound(){
             if(!isHost) return speak("Solo l'host può avviare il round");
             const nr=(currentStanza.round_giocati||1) + (currentStanza.stato==='attesa'?0:1);
             if(nr>10){await supabase.from('stanze').update({stato:'terminata'}).eq('id',roomId);return}
-            const {data:fr}=await supabase.from('frasi').select('id'); const rid=fr[Math.floor(Math.random()*fr.length)].id;
-            // SE STATO ERA GIOCO (O FINITO) AZZERIAMO IL ROUND, SE ERA ATTESA NO (PARTE IL PRIMO)
-            if(currentStanza.stato!=='attesa') await supabase.from('giocatori').update({punteggio_round:0}).eq('stanza_id',roomId);
+            const {data:fr}=await supabase.from('frasi').select('id');
             
+            // FIX HARDENING: Controllo frasi vuote
+            if (!fr || fr.length === 0) {
+                speak("Nessuna frase nel database!");
+                return;
+            }
+
+            const rid=fr[Math.floor(Math.random()*fr.length)].id;
+            if(currentStanza.stato!=='attesa') await supabase.from('giocatori').update({punteggio_round:0}).eq('stanza_id',roomId);
             await supabase.from('stanze').update({frase_corrente_id:rid,stato:'gioco',lettere_rivelate:[],lettere_chiamate:[],montepremi_round:0,round_giocati:nr,ultima_azione:'nuovo',ultimo_messaggio:`Round ${nr}`,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
             fetchFullState();
         }
 
         document.addEventListener('keydown',e=>{
-            if(document.activeElement.tagName==='INPUT'){if(e.key==='Enter')submitInput();return}
-            if(!document.getElementById('round-over-panel').classList.contains('hidden')&&e.key==='Enter'){startNewRound();return}
-            if(e.ctrlKey){if(e.key.toLowerCase()==='i'){e.preventDefault();openInspector()}if(e.key.toLowerCase()==='l'){e.preventDefault();readRevealedLetters()}}
-            if(e.key==='Escape'){if(inputMode)closeInput();else closeInspector()}
-            if(!inputMode){
-                if(e.key.toLowerCase()==='g')doSpin(); if(e.key.toLowerCase()==='v')openInput('vowel');
-                if(e.key.toLowerCase()==='s')openInput('solve'); if(e.key.toLowerCase()==='a')readHistory();
-                if(e.key.toLowerCase()==='c')toggleContrast();
+            // GESTIONE INPUT DI TESTO
+            if(document.activeElement.tagName==='INPUT'){
+                if(e.key==='Enter')submitInput();
+                return;
             }
+            if(!document.getElementById('round-over-panel').classList.contains('hidden')&&e.key==='Enter'){startNewRound();return}
+
+            // TASTI RAPIDI
+            const key = e.key.toLowerCase();
+            
+            // CTRL+L: Leggi lettere presenti
+            if(e.ctrlKey && key === 'l'){
+                e.preventDefault(); 
+                readRevealedLetters();
+                return;
+            }
+            // CTRL+I: Ispettore
+            if(e.ctrlKey && key === 'i'){ e.preventDefault(); openInspector(); return; }
+
+            // TASTO A: Leggi storia (solo se non si preme Ctrl/Alt)
+            if(key === 'a' && !e.ctrlKey && !e.altKey) {
+                e.preventDefault();
+                readHistory();
+                return;
+            }
+
+            if(e.key==='Escape'){if(inputMode)closeInput();else closeInspector()}
+
+            if(!inputMode){
+                if(key==='g') doSpin(); 
+                if(key==='v') openInput('vowel');
+                if(key==='s') openInput('solve'); 
+                if(key==='c') toggleContrast();
+            }
+
+            // Navigazione tastiera (Pc)
             if(e.key==='ArrowRight'){e.preventDefault();e.ctrlKey?moveWordNav(1):moveNav(1)}
             if(e.key==='ArrowLeft'){e.preventDefault();e.ctrlKey?moveWordNav(-1):moveNav(-1)}
             if(e.key==='ArrowDown'){e.preventDefault();moveWordNav(1)} if(e.key==='ArrowUp'){e.preventDefault();moveWordNav(-1)}

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>La Ruota - Bulletproof Edition</title>
+    <title>La Ruota - Focus Edition</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
@@ -208,8 +208,8 @@
         </div>
     </div>
 
-    <div id="inspector-overlay" class="hidden" role="dialog" aria-label="Ispettore">
-        <div id="inspector-content" style="background:#222; border:2px solid #ffd700; padding:20px; width:90%; max-height:80%; overflow-y:auto; color:#fff; font-size: 1.4em;" tabindex="-1"></div>
+    <div id="inspector-overlay" class="hidden" role="dialog" aria-modal="true" aria-label="Ispettore">
+        <div id="inspector-content" style="background:#222; border:4px solid #ffd700; padding:20px; width:90%; max-height:80%; overflow-y:auto; color:#fff; font-size: 1.4em;" tabindex="-1"></div>
         <button onclick="closeInspector()" class="action-btn btn-secondary" style="margin-top:20px;">CHIUDI</button>
     </div>
 
@@ -218,7 +218,6 @@
         function playAudio(id) { const a=document.getElementById(id); if(a){a.pause();a.currentTime=0;a.play().catch(e=>{});} }
         function playMultiHit(n) { let i=0; function l(){if(i<n){playAudio('snd-hit');i++;setTimeout(l,250)}} l(); }
         
-        // --- SOLO SCREEN READER (NO VOCE ESTERNA) ---
         function speak(t) { 
             const e = document.getElementById('sr-announcer'); 
             e.textContent = ''; 
@@ -430,10 +429,23 @@
             if(wd){const r=document.getElementById(`row-${navWordIdx}`);if(r)r.classList.add('cursor-word')}
             else{const e=document.getElementById(`tile-${navWordIdx}-${navCharIdx}`);if(e)e.classList.add('cursor-char')}
         }
+        
+        // --- FIX LETTURA LUNGHEZZA PAROLE ---
         function readSingleChar() {
-            const c=parsedBoard[navWordIdx].chars[navCharIdx], p=navCharIdx+1;
-            speak(!c.isLetter?`${p}. ${c.char}`:(c.isRevealed?`${p}. ${c.char}, ${NATO[c.char]||c.char}.`:`${p}. Nascosta.`));
+            const w = parsedBoard[navWordIdx];
+            const c = w.chars[navCharIdx];
+            const p = navCharIdx + 1;
+            const total = w.chars.length; 
+
+            if (!c.isLetter) {
+                speak(`${p} di ${total}. ${c.char}`);
+            } else if (c.isRevealed) {
+                speak(`${p} di ${total}. ${c.char}, ${NATO[c.char] || c.char}.`);
+            } else {
+                speak(`${p} di ${total}. Nascosta.`);
+            }
         }
+
         function readWholeWord() {
             let s=""; parsedBoard[navWordIdx].chars.forEach(c=>s+=(c.isLetter&&!c.isRevealed)?"_":c.char);
             speak(`Parola ${navWordIdx+1}: ${s}`);
@@ -552,15 +564,26 @@
             isProcessingInput=false; fetchFullState();
         }
 
+        // --- FIX FOCUS ISPETTORE ---
         function openInspector(){
             // FIX SICUREZZA: Evita crash se tabellone vuoto
             if(!currentFrase) return speak("Nessuna frase caricata.");
             
             const d=document.getElementById('inspector-content'); let h=`<h2>${currentFrase.categoria}</h2>`;
             parsedBoard.forEach((w,i)=>{let s="";w.chars.forEach(c=>{s+=c.isRevealed?c.char:"_"});h+=`<p>P${i+1}: ${s}</p>`});
-            d.innerHTML=h; document.getElementById('inspector-overlay').classList.remove('hidden'); speak("Ispettore Aperto");
+            d.innerHTML=h; 
+            document.getElementById('inspector-overlay').classList.remove('hidden'); 
+            
+            // MUOVE IL FOCUS SUL CONTENUTO
+            d.focus();
+            speak("Ispettore Aperto. Usa le frecce per leggere.");
         }
-        function closeInspector(){document.getElementById('inspector-overlay').classList.add('hidden');}
+        
+        function closeInspector(){
+            document.getElementById('inspector-overlay').classList.add('hidden');
+            // RIPORTA IL FOCUS AL GIOCO
+            document.getElementById('board-container').focus();
+        }
         
         function readRevealedLetters(){
             if(!currentStanza) return;

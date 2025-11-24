@@ -3,44 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>La Ruota - TV Edition</title>
+    <title>La Ruota - TV Edition (Mobile Ready)</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <style>
-        /* --- VARIABILI GRAFICHE (TEMA TV DEFAULT) --- */
+        /* --- VARIABILI GRAFICHE --- */
         :root {
-            --bg-body: linear-gradient(135deg, #0f2027, #203a43, #2c5364); /* Blu studio TV */
+            --bg-body: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
             --font-main: 'Verdana', sans-serif;
             --col-text: #ffffff;
             --col-border: #ffffff; 
             --col-focus: #ffd700;
-            --bg-panel: rgba(0, 0, 0, 0.6); /* Pannelli semi-trasparenti */
+            --bg-panel: rgba(0, 0, 0, 0.6);
             --bg-tile-empty: #004d00;
             --bg-tile-revealed: #ffffff;
             --col-tile-text: #000000;
-            --shadow-card: 0 8px 16px rgba(0,0,0,0.5); /* Ombre 3D */
+            --shadow-card: 0 8px 16px rgba(0,0,0,0.5);
             --border-radius: 15px;
             --border-width: 2px;
             --wheel-border: #ddd;
-            --transition-speed: 0.3s;
         }
 
-        /* --- TEMA ALTO CONTRASTO (PER IPOVEDENTI) --- */
+        /* --- ALTO CONTRASTO --- */
         body.high-contrast {
-            --bg-body: #000000; /* Nero puro */
+            --bg-body: #000000;
             --col-text: #ffffff;
-            --col-border: #ffd700; /* Giallo acceso */
+            --col-border: #ffd700;
             --col-focus: #00ffff;
             --bg-panel: #1e1e1e;
             --bg-tile-empty: #006600;
             --bg-tile-revealed: #ffffff;
             --col-tile-text: #000000;
-            --shadow-card: none; /* Niente ombre */
-            --border-radius: 0px; /* Spigoli vivi */
+            --shadow-card: none;
+            --border-radius: 0px;
             --border-width: 3px;
             --wheel-border: #ffffff;
-            --transition-speed: 0s;
         }
 
         /* --- STILI BASE --- */
@@ -55,18 +53,24 @@
             transition: background 0.5s;
         }
 
-        /* Accessibilità */
+        /* Accessibilità Migliorata */
         *:focus { outline: 4px solid var(--col-focus) !important; box-shadow: 0 0 15px var(--col-focus); }
         .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); }
         .hidden { display: none !important; }
 
-        /* Pulsante Switch Tema (Visibile in alto) */
+        /* Pulsante Switch Tema */
         #contrast-toggle-btn {
             display: block; width: 100%; max-width: 300px; margin: 0 auto 10px auto;
             padding: 10px; background: #000; color: #ffd700; border: 2px solid #fff;
             font-weight: bold; cursor: pointer; text-transform: uppercase;
         }
         body.high-contrast #contrast-toggle-btn { background: #ffd700; color: #000; border: 4px solid #fff; }
+
+        /* Pulsante Istruzioni (Solo SR) */
+        #sr-help-btn {
+            position: absolute; top: 0; left: 0; z-index: 1000;
+            background: #000; color: #fff; padding: 10px;
+        }
 
         /* Layout */
         .container { max-width: 1000px; margin: 0 auto; padding-bottom: 100px; }
@@ -78,7 +82,7 @@
             background: var(--bg-panel); 
             border-radius: var(--border-radius);
             box-shadow: var(--shadow-card);
-            backdrop-filter: blur(5px); /* Effetto vetro nel tema TV */
+            backdrop-filter: blur(5px);
         }
         body.high-contrast #setup-panel { backdrop-filter: none; }
         
@@ -91,36 +95,41 @@
         }
         .board-row { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
         
-        /* Caselle con Effetto Flip 3D */
+        /* Caselle */
         .tile {
-            width: 45px; height: 65px; 
+            width: 40px; height: 60px; /* Leggermente più piccole per mobile */
             background: var(--bg-tile-revealed); color: var(--col-tile-text);
-            font-weight: 900; font-size: 2.2em; display: flex; align-items: center; justify-content: center;
+            font-weight: 900; font-size: 2em; display: flex; align-items: center; justify-content: center;
             border: 2px solid #333;
             transition: transform 0.6s, background-color 0.3s;
             transform-style: preserve-3d;
         }
-        
-        /* Stato vuoto */
+        @media (min-width: 600px) { .tile { width: 45px; height: 65px; font-size: 2.2em; } }
+
         .tile.empty { 
-            background: var(--bg-tile-empty); 
-            color: transparent; 
-            border: 1px solid rgba(255,255,255,0.3); 
-            transform: rotateY(0deg); /* Lato dorso */
+            background: var(--bg-tile-empty); color: transparent; 
+            border: 1px solid rgba(255,255,255,0.3); transform: rotateY(0deg); 
         }
-        /* Stato rivelato */
-        .tile:not(.empty) {
-            transform: rotateY(360deg); /* Animazione capriola */
-        }
-        /* Disabilita animazione in alto contrasto */
+        .tile:not(.empty) { transform: rotateY(360deg); }
         body.high-contrast .tile { transition: none !important; transform: none !important; }
 
-        /* Cursori Navigazione */
+        /* Cursori Navigazione Visiva */
         .tile.cursor-char { border: 4px solid #00ffff; z-index: 10; transform: scale(1.1) rotateY(360deg); }
-        body.high-contrast .tile.cursor-char { transform: scale(1.2); } /* No rotazione in HC */
+        body.high-contrast .tile.cursor-char { transform: scale(1.2); }
         .board-row.cursor-word { border: 3px solid #ffd700; padding: 4px; border-radius: 5px; }
 
-        /* Ruota Visiva */
+        /* Telecomando Tattile (Mobile Navigation) */
+        #tactile-nav {
+            display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;
+        }
+        .nav-btn {
+            background: #333; color: #fff; border: 2px solid #00ffff;
+            padding: 15px; border-radius: 10px; font-size: 1.2em; font-weight: bold;
+            min-width: 60px; cursor: pointer;
+        }
+        .nav-btn:active { background: #555; transform: scale(0.95); }
+
+        /* Ruota */
         #wheel-visual {
             width: 220px; height: 220px; margin: 20px auto;
             border-radius: 50%; border: 8px solid var(--wheel-border);
@@ -130,19 +139,15 @@
         }
         #wheel-pointer { width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-top: 30px solid #fff; margin: 0 auto -20px auto; position: relative; z-index: 10; filter: drop-shadow(0 2px 2px #000); }
 
-        /* Pulsanti */
-        button { padding: 12px 20px; font-size: 1.1em; cursor: pointer; font-weight: bold; margin: 5px; border-radius: 8px; border: 2px solid #fff; text-transform: uppercase; box-shadow: 0 4px 0 #000; transition: transform 0.1s; }
-        button:active { transform: translateY(4px); box-shadow: none; }
+        /* Pulsanti Azione */
+        button.action-btn { padding: 12px 20px; font-size: 1.1em; cursor: pointer; font-weight: bold; margin: 5px; border-radius: 8px; border: 2px solid #fff; text-transform: uppercase; box-shadow: 0 4px 0 #000; transition: transform 0.1s; }
+        button.action-btn:active { transform: translateY(4px); box-shadow: none; }
         .btn-primary { background: #ffcc00; color: #000; }
         .btn-secondary { background: #00ccff; color: #000; }
         .btn-danger { background: #ff0000; color: #fff; }
-        
         .disabled-btn { background: #444 !important; color: #888 !important; border-color: #666 !important; cursor: not-allowed; box-shadow: none; transform: none; }
         
-        .btn-blink { animation: blinker 1.5s linear infinite; background: #00ff00; color: #000; border-color: #fff; }
-        @keyframes blinker { 50% { opacity: 0.5; } }
-        
-        /* Overlay Input */
+        /* Input & Overlay */
         #input-area, #inspector-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.95); z-index: 3000;
@@ -151,22 +156,22 @@
         #inspector-content { background: #222; border: 2px solid #ffd700; padding: 20px; width: 85%; max-height: 80%; overflow-y: auto; text-align: left; color: #fff; font-size: 1.4em; line-height: 1.6; }
         input { font-size: 1.8em; padding: 10px; text-align: center; width: 80%; max-width: 400px; background: #333; color: white; border: 2px solid #ffd700; }
         
-        .score-display { display: inline-block; padding: 5px 15px; border: 1px solid #555; border-radius: 5px; margin: 0 5px; background: #000; }
-        
-        /* Timer */
+        /* Timer e Punteggi */
         #timer-box { 
-            display: inline-block; position: relative;
-            margin: 0 auto 15px auto; font-size: 2.5em; 
-            color: #ff0000; font-weight: bold; 
-            border: 3px solid #ff0000; padding: 10px 20px; 
-            border-radius: 50px; background: #000; 
-            box-shadow: 0 0 15px #ff0000;
+            display: inline-block; margin: 0 auto 15px auto; font-size: 2.5em; 
+            color: #ff0000; font-weight: bold; border: 3px solid #ff0000; padding: 10px 20px; 
+            border-radius: 50px; background: #000; box-shadow: 0 0 15px #ff0000;
         }
+        .score-display { display: inline-block; padding: 5px 15px; border: 1px solid #555; border-radius: 5px; margin: 0 5px; background: #000; }
     </style>
 </head>
 <body>
 
     <div id="sr-announcer" class="sr-only" aria-live="assertive"></div>
+    
+    <button id="sr-help-btn" class="sr-only" onclick="readCommands()">
+        Ascolta Comandi e Regole (Premi Invio)
+    </button>
 
     <button id="contrast-toggle-btn" onclick="toggleContrast()">
         Attiva Modalità Alto Contrasto (C)
@@ -183,8 +188,8 @@
         <h2>BENVENUTO</h2>
         <input id="inp-name" type="text" placeholder="IL TUO NOME"><br><br>
         <input id="inp-code" type="text" value="STANZA1"><br><br>
-        <button onclick="joinGame(true)" class="btn-primary">CREA STANZA (RESET)</button>
-        <button onclick="joinGame(false)" class="btn-secondary">ENTRA</button>
+        <button onclick="joinGame(true)" class="action-btn btn-primary">CREA STANZA (RESET)</button>
+        <button onclick="joinGame(false)" class="action-btn btn-secondary">ENTRA</button>
     </div>
 
     <div id="game-panel" class="container hidden">
@@ -213,27 +218,33 @@
         <h2 id="live-category" style="color:#00ffff; font-size: 1.8em; margin: 15px 0 5px 0; text-shadow: 1px 1px 2px black;">...</h2>
         <h3 id="round-hint" style="color:#ffd700; font-size: 1.4em; margin: 0 0 15px 0; min-height: 1.5em; text-shadow: 1px 1px 2px black;"></h3>
 
-        <div id="board-container" aria-hidden="true" tabindex="-1"></div>
+        <div id="board-container" aria-hidden="true"></div>
+
+        <div id="tactile-nav" role="region" aria-label="Controlli Tabellone">
+            <button class="nav-btn" onclick="moveWordNav(-1)" aria-label="Parola Precedente">Parola &lt;&lt;</button>
+            <button class="nav-btn" onclick="moveNav(-1)" aria-label="Lettera Precedente">Lettera &lt;</button>
+            <button class="nav-btn" onclick="readFullBoard()" aria-label="Leggi tutto il tabellone">LEGGI TUTTO</button>
+            <button class="nav-btn" onclick="moveNav(1)" aria-label="Lettera Successiva">Lettera &gt;</button>
+            <button class="nav-btn" onclick="moveWordNav(1)" aria-label="Parola Successiva">Parola &gt;&gt;</button>
+        </div>
         
         <div id="wheel-pointer"></div>
         <div id="wheel-visual"></div>
         <div id="wheel-status-text" style="font-size: 1.5em; font-weight: bold; color: lime; margin: 10px; text-shadow: 1px 1px #000;">PREMI G</div>
 
         <div id="controls">
-            <button id="btn-spin" class="btn-primary" onclick="doSpin()">1. GIRA (G)</button>
-            <button id="btn-vowel" class="btn-secondary" onclick="openInput('vowel')">2. VOCALE (V)</button>
-            <button id="btn-solve" class="btn-danger" onclick="openInput('solve')">3. RISOLVI (S)</button>
+            <button id="btn-spin" class="action-btn btn-primary" onclick="doSpin()">1. GIRA (G)</button>
+            <button id="btn-vowel" class="action-btn btn-secondary" onclick="openInput('vowel')">2. VOCALE (V)</button>
+            <button id="btn-solve" class="action-btn btn-danger" onclick="openInput('solve')">3. RISOLVI (S)</button>
             
             <br>
-            <button id="btn-manual-cons" class="btn-blink hidden" onclick="openInput('letter')" style="margin-top:15px; width: 80%;">
+            <button id="btn-manual-cons" class="action-btn hidden" onclick="openInput('letter')" style="margin-top:15px; width: 80%; background: #00ff00; color: #000;">
                 INSERISCI CONSONANTE (INVIO)
             </button>
-            <br>
-
-            <div style="color:#fff; margin-top:10px; background:rgba(0,0,0,0.5); padding:5px; border-radius:5px;">
-                <strong>Frecce:</strong> Naviga | <strong>Ctrl+Frecce:</strong> Parola<br>
-                <strong>Ctrl+I:</strong> Ispettore | <strong>Ctrl+L:</strong> Lettere presenti
-            </div>
+            
+            <button class="sr-only" onclick="readRevealedLetters()">Leggi lettere presenti (Ctrl+L)</button>
+            <button class="sr-only" onclick="readHistory()">Leggi ultime azioni (Tasto A)</button>
+            <button class="sr-only" onclick="openInspector()">Apri Ispettore (Ctrl+I)</button>
         </div>
     </div>
 
@@ -242,7 +253,7 @@
         <p id="round-winner-msg" style="font-size: 1.5em;">...</p>
         <p id="solution-msg" style="color: #ffd700; font-size: 1.3em;">...</p>
         <br>
-        <button id="btn-next-round" onclick="startNewRound()" class="btn-primary" style="font-size: 1.5em; padding: 20px;">
+        <button id="btn-next-round" onclick="startNewRound()" class="action-btn btn-primary" style="font-size: 1.5em; padding: 20px;">
             VAI AL PROSSIMO ROUND (INVIO)
         </button>
         <p style="color:#aaa; margin-top:20px;">Attendete che tutti siano pronti.</p>
@@ -252,21 +263,21 @@
         <h2 style="color: #ffd700; font-size: 3em;">PARTITA TERMINATA</h2>
         <h3>CLASSIFICA FINALE</h3>
         <ul id="ranking-list" style="list-style: none; padding: 0; font-size: 1.5em;"></ul>
-        <button onclick="location.reload()" class="btn-secondary">TORNA AL MENU</button>
+        <button onclick="location.reload()" class="action-btn btn-secondary">TORNA AL MENU</button>
     </div>
 
     <div id="input-area" class="hidden">
         <h2 id="input-title" style="color:#ffd700">...</h2>
         <input id="game-input" type="text" autocomplete="off" placeholder="Scrivi qui...">
         <div style="margin-top: 20px;">
-            <button onclick="submitInput()" class="btn-primary">CONFERMA</button>
-            <button onclick="closeInput()" class="btn-secondary">ANNULLA</button>
+            <button onclick="submitInput()" class="action-btn btn-primary">CONFERMA</button>
+            <button onclick="closeInput()" class="action-btn btn-secondary">ANNULLA</button>
         </div>
     </div>
 
     <div id="inspector-overlay" class="hidden" role="dialog" aria-label="Ispettore">
         <div id="inspector-content" tabindex="-1"></div>
-        <button onclick="closeInspector()" class="btn-secondary" style="margin-top:20px;">CHIUDI (ESC)</button>
+        <button onclick="closeInspector()" class="action-btn btn-secondary" style="margin-top:20px;">CHIUDI (ESC)</button>
     </div>
 
     <script>
@@ -276,7 +287,7 @@
             if(aud) { 
                 aud.pause();
                 aud.currentTime = 0; 
-                aud.play().catch(e => console.log("Audio error:", e)); 
+                aud.play().catch(e => console.log("Audio error (file mancante?):", e)); 
             }
         }
 
@@ -294,7 +305,13 @@
             setTimeout(() => el.textContent = text, 50); 
         }
 
-        // --- GESTIONE TEMA (NUOVO) ---
+        function readCommands() {
+            const msg = "Comandi Rapidi: Usa i pulsanti del telecomando sotto il tabellone per esplorare le lettere. " +
+                        "Tasti rapidi da tastiera: Frecce per muoverti, G per Girare, V per Vocale, S per Risolvere, A per rileggere la storia, Control I per l'ispettore.";
+            speak(msg);
+        }
+
+        // --- GESTIONE TEMA ---
         function toggleContrast() {
             const body = document.body;
             const btn = document.getElementById('contrast-toggle-btn');
@@ -312,7 +329,6 @@
             }
         }
 
-        // Carica preferenza
         if(localStorage.getItem('highContrast') === 'true') {
             document.body.classList.add('high-contrast');
             document.getElementById('contrast-toggle-btn').textContent = "DISATTIVA ALTO CONTRASTO (C)";
@@ -345,8 +361,10 @@
             'A':'Ancona','B':'Bologna','C':'Como','D':'Domodossola','E':'Empoli','F':'Firenze',
             'G':'Genova','H':'Hotel','I':'Imola','J':'Jolly','K':'Kappa','L':'Livorno','M':'Milano',
             'N':'Napoli','O':'Otranto','P':'Palermo','Q':'Quadro','R':'Roma','S':'Savona',
-            'T':'Torino','U':'Udine','V':'Venezia','W':'Washington','X':'Xilofono','Y':'Yogurt','Z':'Zara'
+            'T':'Torino','U':'Udine','V':'Venezia','W':'Washington','X':'Xilofono','Y':'Yogurt','Z':'Zara',
+            'À': 'A accentata', 'È': 'E aperta', 'É': 'E chiusa', 'Ì': 'I accentata', 'Ò': 'O accentata', 'Ù': 'U accentata'
         };
+
         const WHEEL_VALUES = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 2000, 3000, 'MISTERO', 'PASSA', 'BANCAROTTA'];
         let myId, myIndex, roomId, isHost = false;
         let currentFrase = null, currentStanza = null;
@@ -359,11 +377,10 @@
         let parsedBoard = [], navWordIdx = 0, navCharIdx = 0;
         let pollingInterval = null;
         let timerInterval = null;
-        
-        const TURN_LIMIT_SEC = 120; 
-
+        let actionLog = []; 
         let isFetching = false;
         let isProcessingInput = false;
+        const TURN_LIMIT_SEC = 120; 
 
         function cleanStr(str) { 
             if(!str) return "";
@@ -412,7 +429,7 @@
                 document.getElementById('setup-panel').classList.add('hidden');
                 document.getElementById('game-panel').classList.remove('hidden');
                 
-                speak(`Benvenuto ${name}. Round 1 di 10.`);
+                speak(`Benvenuto ${name}. Round 1. Usa il telecomando sotto il tabellone per esplorare.`);
                 setupRealtime(); 
                 fetchFullState();
                 
@@ -467,7 +484,6 @@
                     closeInput();
                     speak("Tempo scaduto! Finestra chiusa.");
                 }
-
                 const numPlayers = currentStanza.giocatori.length;
                 const nextPlayerIdx = (myIndex + 1) % numPlayers;
                 
@@ -497,9 +513,9 @@
                 if(panel.classList.contains('hidden')) {
                     panel.classList.remove('hidden');
                     document.getElementById('round-winner-msg').textContent = stanza.ultimo_messaggio; 
-                    document.getElementById('solution-msg').textContent = "Soluzione Completa: " + fullSolutionText;
+                    document.getElementById('solution-msg').textContent = "Soluzione: " + fullSolutionText;
                     playMultiHit(5); 
-                    speak("Round finito. " + stanza.ultimo_messaggio + ". Premi Invio per il prossimo round.");
+                    speak("Round finito. " + stanza.ultimo_messaggio + ". Premi Invio per il prossimo.");
                     setTimeout(() => document.getElementById('btn-next-round').focus(), 500);
                 }
                 return;
@@ -534,16 +550,9 @@
 
                 if (fullSolutionText.includes(" - ")) {
                     const parts = fullSolutionText.split(" - ");
-                    const leftSide = parts[0]; 
-                    const rightSide = parts[1]; 
-                    
-                    puzzle = rightSide.trim();
-
-                    if (currentFrase.categoria === 'MUSICA' && leftSide.includes(": ")) {
-                        displayHint = leftSide.split(": ")[0].trim();
-                    } else {
-                        displayHint = leftSide.trim();
-                    }
+                    displayHint = parts[0].trim();
+                    if(currentFrase.categoria === 'MUSICA' && displayHint.includes(": ")) displayHint = displayHint.split(": ")[0].trim();
+                    puzzle = parts[1].trim();
                 } else {
                     displayHint = "";
                     puzzle = fullSolutionText;
@@ -552,7 +561,7 @@
                 currentHintText = displayHint;
                 currentPuzzleText = puzzle;
 
-                let speakText = `Round ${stanza.round_giocati} di 10. Categoria: ${currentFrase.categoria}`;
+                let speakText = `Round ${stanza.round_giocati}. Categoria: ${currentFrase.categoria}`;
                 if(currentHintText) speakText += ". Indizio: " + currentHintText;
                 speak(speakText);
             }
@@ -563,9 +572,13 @@
                 const isFirstLoad = (lastTimestamp === "");
                 lastTimestamp = stanza.azione_timestamp;
                 
+                if(stanza.ultimo_messaggio) {
+                    actionLog.unshift(stanza.ultimo_messaggio);
+                    if(actionLog.length > 5) actionLog.pop();
+                }
+
                 if(!isFirstLoad) {
-                    if(stanza.ultima_azione === 'vittoria') { /* ... */ } 
-                    else if(stanza.ultima_azione === 'timeout') {
+                    if(stanza.ultima_azione === 'timeout') {
                         speak(stanza.ultimo_messaggio);
                         playAudio('snd-miss');
                     }
@@ -642,7 +655,6 @@
                     wordObj.chars.push({ char: ch, isRevealed: isRevealed, isLetter: !!isLetter });
                     
                     const div = document.createElement('div');
-                    // GESTIONE CLASSI PER STILE
                     div.className = 'tile' + (isLetter && !isRevealed ? ' empty' : ' revealed');
                     div.textContent = (isLetter && !isRevealed) ? '' : ch;
                     div.id = `tile-${parsedBoard.length}-${j}`;
@@ -665,6 +677,7 @@
             if (newC < 0) newC = 0;
             else if (newC >= wLen) newC = wLen - 1; 
             if(newC !== navCharIdx) { navCharIdx = newC; highlightNav(); readSingleChar(); }
+            else { speak("Fine parola."); }
         }
 
         function moveWordNav(dWord) {
@@ -688,7 +701,7 @@
             const c = w.chars[navCharIdx];
             const pos = (navCharIdx + 1) + " di " + w.chars.length;
             if (!c.isLetter) speak(pos + ". " + c.char); 
-            else if (c.isRevealed) speak(`${pos}. ${c.char}, ${NATO[c.char]||''}.`);
+            else if (c.isRevealed) speak(`${pos}. ${c.char}, ${NATO[c.char]||c.char}.`);
             else speak(`${pos}. Nascosta.`);
         }
 
@@ -703,13 +716,24 @@
             if (missing === 0) speak(`Parola ${navWordIdx+1}: ${w.wordStr}`);
             else speak(`Parola ${navWordIdx+1}. Mancano ${missing} lettere. ${reading}`);
         }
+        
+        function readFullBoard() {
+             let fullRead = `Categoria: ${currentFrase.categoria}. `;
+             if(currentHintText) fullRead += `Indizio: ${currentHintText}. `;
+             parsedBoard.forEach((w, i) => {
+                 let s = "";
+                 w.chars.forEach(c => s += c.isRevealed ? c.char : " vuota ");
+                 fullRead += ` Parola ${i+1}: ${s}. `;
+             });
+             speak(fullRead);
+        }
 
         // --- GIOCO ---
         async function doSpin() {
             if(isBtnDisabled('btn-spin')) return;
             if(isSpinning) return speak("Aspetta.");
             
-            speak("La ruota gira..."); 
+            speak("Giro la ruota..."); 
             playAudio('snd-spin'); 
             isSpinning = true; 
             
@@ -735,7 +759,7 @@
                 }
             }
 
-            const msg = `${document.getElementById('inp-name').value} ha girato: ${val}${extra}`;
+            const msg = `${document.getElementById('inp-name').value} gira: ${val}${extra}`;
             isSpinning = false;
             setBtnState('btn-solve', false);
 
@@ -785,7 +809,7 @@
         function openInput(mode) {
             const me = currentStanza.giocatori.find(p=>p.id===myId);
             if(mode === 'vowel') {
-                 if((me.punteggio_round || 0) < 500) return speak("Non hai 500€ nel parziale!");
+                 if((me.punteggio_round || 0) < 500) return speak("Ti servono 500 euro!");
                  if(isBtnDisabled('btn-vowel')) return;
             }
             if(mode === 'solve' && isBtnDisabled('btn-solve')) return;
@@ -796,7 +820,7 @@
             document.getElementById('input-title').textContent = titleText;
             
             if(!document.getElementById('inspector-overlay').classList.contains('hidden')) {
-                speak("È uscito " + titleText + ". Chiudi l'ispettore per scrivere.");
+                speak("Chiudi prima l'ispettore.");
                 return; 
             }
 
@@ -815,7 +839,7 @@
             try {
                  const btnSpin = document.getElementById('btn-spin');
                  if(btnSpin && !isBtnDisabled('btn-spin')) btnSpin.focus();
-                 else document.getElementById('board-container').focus();
+                 else document.getElementById('tactile-nav').focus();
             } catch(e) { console.log(e); }
         }
 
@@ -933,90 +957,69 @@
 
         function openInspector() {
             const div = document.getElementById('inspector-content');
-            const wordCount = parsedBoard.length;
-            let html = `<h2 style="color:#ffd700;">${currentFrase.categoria} (${wordCount} PAROLE)</h2>`;
+            let html = `<h2 style="color:#ffd700;">${currentFrase.categoria}</h2>`;
             if(currentHintText) html += `<p style="color:#00ffff;">Indizio: ${currentHintText}</p>`;
             
             parsedBoard.forEach((w, i) => {
                 let s = "";
                 w.chars.forEach(c => { s += c.isRevealed ? c.char : "_"; });
-                html += `<p>${w.chars.length} lettere: ${s}</p>`;
+                html += `<p>Parola ${i+1}: ${s}</p>`;
             });
             div.innerHTML = html;
             document.getElementById('inspector-overlay').classList.remove('hidden');
             div.focus(); 
-            
-            let fullRead = `Categoria: ${currentFrase.categoria}. Ci sono ${wordCount} parole. `;
-            if(currentHintText) fullRead += `Indizio: ${currentHintText}. `;
-            fullRead += "Tabellone: ";
-            parsedBoard.forEach(w => {
-                w.chars.forEach(c => { fullRead += c.isRevealed ? c.char : " Vuota "; });
-                fullRead += ". ";
-            });
-            speak("Ispettore aperto. " + fullRead);
+            speak("Ispettore aperto. Usa il tocco per leggere le righe.");
         }
         
         function closeInspector() { 
             document.getElementById('inspector-overlay').classList.add('hidden');
             document.getElementById('inspector-content').innerHTML = ""; 
             speak("Ispettore chiuso."); 
-            
-            if(inputMode) {
-                const area = document.getElementById('input-area');
-                area.classList.remove('hidden');
-                document.getElementById('game-input').focus();
-            } else {
-                if(!document.getElementById('btn-spin').disabled) {
-                    document.getElementById('btn-spin').focus(); 
-                } else {
-                    document.getElementById('board-container').focus();
-                }
-            }
+            if(inputMode) document.getElementById('game-input').focus();
+            else document.getElementById('tactile-nav').focus();
         }
 
-        // --- FIX RICHIESTO: SOLO LETTERE PRESENTI ---
         function readRevealedLetters() {
             const calls = currentStanza.lettere_chiamate || [];
             const sol = cleanStr(currentPuzzleText).toUpperCase();
-            
-            // Filtra: tieni solo quelle che sono davvero nella soluzione
             const hits = calls.filter(c => sol.includes(c));
-
-            if (hits.length === 0) return speak("Nessuna lettera presente scoperta.");
-
+            if (hits.length === 0) return speak("Nessuna lettera trovata.");
             hits.sort(); 
             const text = hits.map(c => `${c}, ${NATO[c] || c}`).join(". ");
-            speak("Lettere presenti sul tabellone: " + text);
+            speak("Lettere presenti: " + text);
+        }
+
+        function readHistory() {
+            if(actionLog.length === 0) return speak("Nessuna azione recente.");
+            let msg = "Ultime azioni: ";
+            actionLog.forEach((azione, i) => { msg += `${i+1}: ${azione}. `; });
+            speak(msg);
         }
 
         async function startNewRound() {
             const nextRound = (currentStanza.round_giocati || 1) + 1;
-            
             if(nextRound > 10) {
                  await supabase.from('stanze').update({stato: 'terminata'}).eq('id', roomId);
                  return;
             }
-
             const { data: frasi } = await supabase.from('frasi').select('id');
             const rid = frasi[Math.floor(Math.random()*frasi.length)].id;
             
             await supabase.from('giocatori').update({punteggio_round:0}).eq('stanza_id',roomId);
             
             await supabase.from('stanze').update({
-                frase_corrente_id:rid, 
-                stato:'gioco', 
-                lettere_rivelate:[], 
-                lettere_chiamate:[],
-                montepremi_round:0, 
-                round_giocati: nextRound,
-                ultima_azione:'nuovo_round', 
-                ultimo_messaggio:`Round ${nextRound}!`,
+                frase_corrente_id:rid, stato:'gioco', lettere_rivelate:[], lettere_chiamate:[],
+                montepremi_round:0, round_giocati: nextRound,
+                ultima_azione:'nuovo_round', ultimo_messaggio:`Round ${nextRound}!`,
                 azione_timestamp:new Date().toISOString()
             }).eq('id', roomId);
             fetchFullState();
         }
 
         document.addEventListener('keydown', (e) => {
+            const tag = document.activeElement.tagName;
+            const isTyping = (tag === 'INPUT' || tag === 'TEXTAREA');
+
             if(!document.getElementById('round-over-panel').classList.contains('hidden') && e.key === 'Enter') {
                 startNewRound();
                 return;
@@ -1031,31 +1034,20 @@
                 if(k==='v' && !inputMode) { e.preventDefault(); openInput('vowel'); return; }
             }
             
-            // Scorciatoia per cambio tema
-            if(e.key.toLowerCase() === 'c' && !inputMode) {
-                toggleContrast();
+            if(e.key.toLowerCase() === 'a' && !isTyping && !e.ctrlKey) {
+                e.preventDefault(); readHistory(); return;
             }
+
+            if(e.key.toLowerCase() === 'c' && !inputMode) toggleContrast();
 
             if(e.key === 'Escape') {
-                if(!document.getElementById('inspector-overlay').classList.contains('hidden')) {
-                    closeInspector();
-                    return;
-                }
-                if(inputMode) {
-                    closeInput();
-                    return;
-                }
+                if(!document.getElementById('inspector-overlay').classList.contains('hidden')) { closeInspector(); return; }
+                if(inputMode) { closeInput(); return; }
             }
 
-            if(inputMode && !document.getElementById('inspector-overlay').classList.contains('hidden')) {
-               return; 
-            }
-            
-            if(inputMode && e.key === 'Enter') {
-                submitInput();
-                return;
-            }
+            if(inputMode && e.key === 'Enter') { submitInput(); return; }
 
+            // Supporto frecce mantenuto per PC
             if(e.key==='ArrowRight') { e.preventDefault(); e.ctrlKey ? moveWordNav(1) : moveNav(1); }
             if(e.key==='ArrowLeft') { e.preventDefault(); e.ctrlKey ? moveWordNav(-1) : moveNav(-1); }
             if(e.key==='ArrowDown') { e.preventDefault(); moveWordNav(1); }

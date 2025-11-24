@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>La Ruota - Focus Edition</title>
+    <title>La Ruota - Conflict Free</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
@@ -617,45 +617,55 @@
         }
 
         document.addEventListener('keydown',e=>{
+            const key = e.key.toLowerCase();
+
             // GESTIONE INPUT DI TESTO
             if(document.activeElement.tagName==='INPUT'){
-                if(e.key==='Enter')submitInput();
+                if(key==='enter') submitInput();
                 return;
             }
-            if(!document.getElementById('round-over-panel').classList.contains('hidden')&&e.key==='Enter'){startNewRound();return}
+            if(!document.getElementById('round-over-panel').classList.contains('hidden')&&key==='enter'){startNewRound();return}
+
+            // --- FIX: BLOCCO "TROVA" BROWSER (CTRL+G) ---
+            if(e.ctrlKey && key === 'g') {
+                e.preventDefault(); // FERMA IL BROWSER
+                if(!inputMode) doSpin(); // GIRA LA RUOTA
+                return;
+            }
 
             // TASTI RAPIDI
-            const key = e.key.toLowerCase();
-            
-            // CTRL+L: Leggi lettere presenti
             if(e.ctrlKey && key === 'l'){
                 e.preventDefault(); 
                 readRevealedLetters();
                 return;
             }
-            // CTRL+I: Ispettore
             if(e.ctrlKey && key === 'i'){ e.preventDefault(); openInspector(); return; }
 
-            // TASTO A: Leggi storia (solo se non si preme Ctrl/Alt)
+            // TASTO A (Solo se non premo altri tasti di controllo)
             if(key === 'a' && !e.ctrlKey && !e.altKey) {
                 e.preventDefault();
                 readHistory();
                 return;
             }
 
-            if(e.key==='Escape'){if(inputMode)closeInput();else closeInspector()}
+            if(key==='escape'){if(inputMode)closeInput();else closeInspector()}
 
             if(!inputMode){
-                if(key==='g') doSpin(); 
+                // G (Senza Ctrl)
+                if(key==='g') { 
+                    e.preventDefault(); // Previene conflitti anche qui
+                    doSpin(); 
+                }
                 if(key==='v') openInput('vowel');
                 if(key==='s') openInput('solve'); 
                 if(key==='c') toggleContrast();
             }
 
             // Navigazione tastiera (Pc)
-            if(e.key==='ArrowRight'){e.preventDefault();e.ctrlKey?moveWordNav(1):moveNav(1)}
-            if(e.key==='ArrowLeft'){e.preventDefault();e.ctrlKey?moveWordNav(-1):moveNav(-1)}
-            if(e.key==='ArrowDown'){e.preventDefault();moveWordNav(1)} if(e.key==='ArrowUp'){e.preventDefault();moveWordNav(-1)}
+            if(key==='arrowright'){e.preventDefault();e.ctrlKey?moveWordNav(1):moveNav(1)}
+            if(key==='arrowleft'){e.preventDefault();e.ctrlKey?moveWordNav(-1):moveNav(-1)}
+            if(key==='arrowdown'){e.preventDefault();moveWordNav(1)} 
+            if(key==='arrowup'){e.preventDefault();moveWordNav(-1)}
         });
     </script>
 </body>

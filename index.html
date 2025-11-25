@@ -219,6 +219,11 @@
         }
 
         function updateUI(s){
+            // --- FIX: Se il gioco non è attivo, chiudi eventuali input aperti ---
+            if (s.stato !== 'gioco' && inputMode) {
+                closeInput();
+            }
+            
             currentStanza=s;s.giocatori=Array.isArray(s.giocatori)?s.giocatori:[];s.giocatori.sort((a,b)=>a.indice-b.indice);
             
             if(s.stato==='attesa'){
@@ -482,6 +487,10 @@
 
         async function startNewRound(){
             if(!isHost)return speak("Solo l'host può avviare il round");
+            
+            // --- FIX: Chiudi input prima di iniziare ---
+            if(inputMode) closeInput();
+
             const nr=(currentStanza.round_giocati||1)+(currentStanza.stato==='attesa'?0:1);
             if(nr>10){await supabase.from('stanze').update({stato:'terminata'}).eq('id',roomId);return;}
             const {data:fr}=await supabase.from('frasi').select('id');

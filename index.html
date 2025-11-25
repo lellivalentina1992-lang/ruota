@@ -246,7 +246,6 @@
             const txt = document.getElementById('flash-message');
             txt.textContent = msg;
             
-            // Colori contestuali
             if(type === 'bad') { ov.style.borderColor = '#ff0000'; txt.style.color = '#ff4444'; }
             else if(type === 'good') { ov.style.borderColor = '#00ff00'; txt.style.color = '#00ff00'; }
             else { ov.style.borderColor = '#ffd700'; txt.style.color = '#fff'; }
@@ -619,11 +618,43 @@
             if(m==='solve'){
                 if(cleanStr(t)===cleanStr(currentPuzzleText)){
                     const me=currentStanza.giocatori.find(p=>p.id===myId);
-                    await supabase.from('giocatori').update({punteggio_totale:(me.punteggio_totale||0)+(me.punteggio_round||0),punteggio_round:0}).eq('id',myId);
+                    
+                    // --- NUOVA LOGICA BONUS ---
+                    let base = me.punteggio_round || 0;
+                    let bonus = 0;
+
+                    if (base < 1000) bonus = 1000;
+                    else if (base < 2000) bonus = 700;
+                    else if (base < 3000) bonus = 400;
+                    
+                    let totaleVinto = base + bonus;
+                    // ---------------------------
+
+                    await supabase.from('giocatori').update({
+                        punteggio_totale: (me.punteggio_totale||0) + totaleVinto,
+                        punteggio_round: 0
+                    }).eq('id',myId);
+
                     const sol=currentPuzzleText.toUpperCase(); let allIdx=[], gIdx=0;
                     for(let i=0;i<sol.length;i++){if(sol[i].match(/[A-ZÀ-Ù]/)){allIdx.push(gIdx);gIdx++;}}
-                    await supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${myName} HA VINTO!`,montepremi_round:0,lettere_rivelate:allIdx,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
-                } else await supabase.from('stanze').update({id_giocatore_corrente:n,ultima_azione:'errore',ultimo_messaggio:`${myName} ha sbagliato: ${t}`,montepremi_round:0,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
+                    
+                    await supabase.from('stanze').update({
+                        stato:'finito',
+                        ultima_azione:'vittoria',
+                        ultimo_messaggio:`${myName} VINCE €${totaleVinto}!`, 
+                        montepremi_round:0,
+                        lettere_rivelate:allIdx,
+                        azione_timestamp:new Date().toISOString()
+                    }).eq('id',roomId);
+                } else {
+                    await supabase.from('stanze').update({
+                        id_giocatore_corrente:n,
+                        ultima_azione:'errore',
+                        ultimo_messaggio:`${myName} ha sbagliato: ${t}`,
+                        montepremi_round:0,
+                        azione_timestamp:new Date().toISOString()
+                    }).eq('id',roomId);
+                }
             } else {
                 const sol=currentPuzzleText.toUpperCase(); let fd=[], gI=0;
                 for(let i=0;i<sol.length;i++){if(sol[i].match(/[A-ZÀ-Ù]/)){if(cleanStr(sol[i])===cleanStr(c))fd.push(gI);gI++}}
@@ -676,22 +707,40 @@
             fetchFullState();
         }
 
-        document.addEventListener('keydown',e=>{
-            if(!e.key) return;
+        document.addEventListener('keydown', e => {
+            if (!e.key) return;
             const key = e.key.toLowerCase();
-            if(document.activeElement.tagName==='INPUT'){ if(key==='enter') submitInput(); return; }
-            if(!document.getElementById('round-over-panel').classList.contains('hidden')&&key==='enter'){startNewRound();return}
-            if(e.ctrlKey && key === 'g') { e.preventDefault(); if(!inputMode) doSpin(); return; }
-            if(e.ctrlKey && key === 'l'){ e.preventDefault(); readRevealedLetters(); return; }
-            if(e.ctrlKey && key === 'i'){ e.preventDefault(); openInspector(); return; }
-            if(key === 'a' && !e.ctrlKey && !e.altKey) { e.preventDefault(); readHistory(); return; }
-            if(key==='escape'){if(inputMode)closeInput();else closeInspector()}
-            if(!inputMode){
-                if(key==='g') { e.preventDefault(); doSpin(); }
-                if(key==='v') openInput('vowel');
-                if(key==='s') openInput('solve'); 
-                if(key==='c') toggleContrast();
+            const isInputActive = document.activeElement.tagName === 'INPUT';
+
+            // --- COMANDI GLOBALI (Priorità assoluta) ---
+            if (e.ctrlKey && key === 'l') { e.preventDefault(); readRevealedLetters(); return; }
+            if (e.ctrlKey && key === 'i') { e.preventDefault(); openInspector(); return; }
+            if (e.ctrlKey && key === 'g') { e.preventDefault(); if (!inputMode) doSpin(); else speak("Impossibile girare ora."); return; }
+
+            // --- GESTIONE INPUT (Se stai scrivendo) ---
+            if (isInputActive) {
+                if (key === 'enter') submitInput();
+                if (key === 'escape') closeInput();
+                return; // IMPORTANTE: Blocca qui le altre scorciatoie se stai scrivendo!
             }
+
+            // --- NAVIGAZIONE E MENU (Solo se NON stai scrivendo) ---
+            if (key === 'enter' && !document.getElementById('round-over-panel').classList.contains('hidden')) { e.preventDefault(); startNewRound(); return; }
+            if (key === 'escape') { if (inputMode) closeInput(); else closeInspector(); return; }
+
+            if (!inputMode) {
+                if (key === 'g') { e.preventDefault(); doSpin(); }
+                if (key === 'v') { e.preventDefault(); openInput('vowel'); }
+                if (key === 's') { 
+                    e.preventDefault(); 
+                    const isMyTurn = currentStanza?.id_giocatore_corrente === myIndex;
+                    if(isMyTurn && !isSpinning) openInput('solve');
+                    else speak("Non puoi risolvere adesso.");
+                } 
+                if (key === 'c') toggleContrast();
+                if (key === 'a' && !e.ctrlKey) { e.preventDefault(); readHistory(); }
+            }
+
             if(key==='arrowright'){e.preventDefault();e.ctrlKey?moveWordNav(1):moveNav(1)}
             if(key==='arrowleft'){e.preventDefault();e.ctrlKey?moveWordNav(-1):moveNav(-1)}
             if(key==='arrowdown'){e.preventDefault();moveWordNav(1)} 

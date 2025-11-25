@@ -277,6 +277,19 @@
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         const NATO = {'A':'Ancona','B':'Bologna','C':'Como','D':'Domodossola','E':'Empoli','F':'Firenze','G':'Genova','H':'Hotel','I':'Imola','J':'Jolly','K':'Kappa','L':'Livorno','M':'Milano','N':'Napoli','O':'Otranto','P':'Palermo','Q':'Quadro','R':'Roma','S':'Savona','T':'Torino','U':'Udine','V':'Venezia','W':'Washington','X':'Xilofono','Y':'Yogurt','Z':'Zara','À':'A accentata','È':'E aperta','É':'E chiusa','Ì':'I accentata','Ò':'O accentata','Ù':'U accentata'};
+        
+        // --- MODIFICA: DIZIONARIO PUNTEGGIATURA ---
+        const PUNCTUATION_NAMES = {
+            "'": "Apostrofo",
+            "-": "Trattino",
+            "!": "Punto esclamativo",
+            "?": "Punto interrogativo",
+            ".": "Punto",
+            ",": "Virgola",
+            ":": "Due punti",
+            ";": "Punto e virgola"
+        };
+
         const WHEEL_VALUES = [100,200,300,400,500,600,700,800,900,1000,2000,3000,'MISTERO','PASSA','BANCAROTTA'];
         const VOWELS_LIST = ['A','E','I','O','U','À','È','É','Ì','Ò','Ù'];
 
@@ -487,16 +500,29 @@
             if(wd){const r=document.getElementById(`row-${navWordIdx}`);if(r)r.classList.add('cursor-word')}
             else{const e=document.getElementById(`tile-${navWordIdx}-${navCharIdx}`);if(e)e.classList.add('cursor-char')}
         }
+
+        // --- MODIFICA: LETTURA LETTERA SINGOLA CON PUNTEGGIATURA ---
         function readSingleChar() {
             const w = parsedBoard[navWordIdx]; const c = w.chars[navCharIdx]; const p = navCharIdx + 1; const total = w.chars.length; 
-            if (!c.isLetter) speak(`${p} di ${total}. ${c.char}`);
+            if (!c.isLetter) {
+                const readable = PUNCTUATION_NAMES[c.char] || c.char;
+                speak(`${p} di ${total}. ${readable}`);
+            }
             else if (c.isRevealed) speak(`${p} di ${total}. ${c.char}, ${NATO[c.char] || c.char}.`);
             else speak(`${p} di ${total}. Nascosta.`);
         }
+
+        // --- MODIFICA: LETTURA PAROLA INTERA CON PUNTEGGIATURA ESPLICITA ---
         function readWholeWord() {
-            let s=""; parsedBoard[navWordIdx].chars.forEach(c=>s+=(c.isLetter&&!c.isRevealed)?"_":c.char);
+            let s=""; 
+            parsedBoard[navWordIdx].chars.forEach(c=>{
+                if(c.isLetter && !c.isRevealed) s += "_"; // Puoi mettere " vuota " se preferisci
+                else if(!c.isLetter && PUNCTUATION_NAMES[c.char]) s += " " + PUNCTUATION_NAMES[c.char] + " ";
+                else s += c.char;
+            });
             speak(`Parola ${navWordIdx+1}: ${s}`);
         }
+
         function readFullBoard() {
              if (!currentFrase || !parsedBoard.length) return speak("Tabellone non pronto.");
              let f=`Cat: ${currentFrase.categoria}. `; if(currentHintText)f+=`Indizio: ${currentHintText}. `;

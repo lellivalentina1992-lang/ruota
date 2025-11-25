@@ -140,7 +140,6 @@
 
         function playAudio(id){const a=document.getElementById(id);if(a){a.pause();a.currentTime=0;a.play().catch(e=>{});}}
         function playMultiHit(n){
-            // FIX: Limita il numero massimo di suoni a 10 per evitare loop infiniti se n è alto (es. punteggio)
             let count = n > 10 ? 10 : n;
             let i=0;function l(){if(i<count){playAudio('snd-hit');i++;setTimeout(l,300);}}l();
         }
@@ -221,18 +220,27 @@
 
         function updateUI(s){
             currentStanza=s;s.giocatori=Array.isArray(s.giocatori)?s.giocatori:[];s.giocatori.sort((a,b)=>a.indice-b.indice);
+            
             if(s.stato==='attesa'){
                 document.getElementById('game-panel').classList.add('hidden');document.getElementById('round-over-panel').classList.remove('hidden');
                 document.getElementById('round-title').textContent="PARTITA PRONTA";document.getElementById('round-winner-msg').textContent="Codice: "+s.codice;
                 document.getElementById('solution-msg').textContent="Attesa Host...";document.getElementById('btn-next-round').textContent="AVVIA (INVIO)";
-                if(s.azione_timestamp!==lastTimestamp){lastTimestamp=s.azione_timestamp;speak("Partita pronta.");}return;
+                if(s.azione_timestamp!==lastTimestamp){lastTimestamp=s.azione_timestamp;speak("Partita pronta.");}
+                return;
             }
             if(s.stato==='finito'){
                 document.getElementById('game-panel').classList.add('hidden');document.getElementById('round-over-panel').classList.remove('hidden');
                 document.getElementById('round-title').textContent="ROUND COMPLETATO";
                 document.getElementById('round-winner-msg').textContent=s.ultimo_messaggio;document.getElementById('solution-msg').textContent=fullSolutionText;
                 document.getElementById('btn-next-round').textContent="PROSSIMO ROUND";
-                playMultiHit(3);speak("Fine Round. "+s.ultimo_messaggio);return;
+                if(s.azione_timestamp!==lastTimestamp){
+                    lastTimestamp=s.azione_timestamp;
+                    playMultiHit(3);
+                    speak("Fine Round. "+s.ultimo_messaggio+". Premi INVIO per il prossimo.");
+                    // FOCUS SUL TASTO PER FACILITARE
+                    setTimeout(()=>document.getElementById('btn-next-round').focus(), 500);
+                }
+                return;
             }
             if(s.stato==='terminata'){
                 document.getElementById('game-panel').classList.add('hidden');document.getElementById('end-panel').classList.remove('hidden');
@@ -240,6 +248,8 @@
                 [...s.giocatori].sort((a,b)=>b.punteggio_totale-a.punteggio_totale).forEach((p,i)=>{l.innerHTML+=`<li>${i+1}. ${p.nome}: €${p.punteggio_totale}</li>`});
                 speak("Partita terminata. Visualizzo la classifica.");return;
             }
+            
+            // STATO GIOCO
             document.getElementById('round-over-panel').classList.add('hidden');document.getElementById('game-panel').classList.remove('hidden');
             if(!s.frasi)return speak("Errore: Frase mancante.");
             if(!currentFrase||currentFrase.id!==s.frasi.id){
@@ -251,10 +261,15 @@
             if(s.azione_timestamp&&s.azione_timestamp!==lastTimestamp){
                 lastTimestamp=s.azione_timestamp;
                 if(s.ultimo_messaggio){actionLog.unshift(s.ultimo_messaggio);if(actionLog.length>5)actionLog.pop();}
-                let flashType='info';if(s.ultima_azione==='vittoria'||s.ultimo_messaggio.includes("Trovate"))flashType='good';else if(s.ultima_azione==='errore'||s.ultimo_messaggio.includes("non")||s.ultimo_messaggio.includes("BANCAROTTA")||s.ultimo_messaggio.includes("già"))flashType='bad';
-                showFlashMessage(s.ultimo_messaggio,flashType);speak(s.ultimo_messaggio);
                 
-                // FIX: Logica audio sicura
+                // GESTIONE DEI MESSAGGI FLASH E SUONI
+                let flashType='info';
+                if(s.ultima_azione==='vittoria'||s.ultimo_messaggio.includes("Trovate"))flashType='good';
+                else if(s.ultima_azione==='errore'||s.ultimo_messaggio.includes("non")||s.ultimo_messaggio.includes("BANCAROTTA")||s.ultimo_messaggio.includes("già")||s.ultimo_messaggio.includes("Sbagliato"))flashType='bad';
+                
+                showFlashMessage(s.ultimo_messaggio,flashType);
+                speak(s.ultimo_messaggio);
+                
                 if(s.ultima_azione==='chiama_lettera'&&s.ultimo_messaggio.includes("Trovate")){
                     const match=s.ultimo_messaggio.match(/\d+/);
                     playMultiHit(match?parseInt(match[0]):1);
@@ -369,7 +384,6 @@
             inp.value=''; // Pulisce
             
             if(m==='solve'){
-                // FIX: Pre-compilazione sicura del campo
                 let prefill="", gI=0, txt=currentPuzzleText.toUpperCase();
                 for(let i=0;i<txt.length;i++){
                     const c=txt[i];
@@ -380,14 +394,23 @@
                         prefill+=c; 
                     }
                 }
-                inp.value = prefill; // Scrive DENTRO l'input
+                inp.value = prefill; 
                 speak("Campo precompilato. Scrivi sugli asterischi.");
             } else {
                 speak(t[m]);
             }
             setTimeout(()=>{inp.focus();if(m==='solve')inp.setSelectionRange(0,0);},100);
         }
-        function closeInput(){document.getElementById('input-area').classList.add('hidden');inputMode=null;if(lastFocusedElement)lastFocusedElement.focus();else document.getElementById('btn-spin').focus();}
+        
+        // MODIFICATO PER SVUOTARE IL VALUE
+        function closeInput(){
+            const inp = document.getElementById('game-input');
+            inp.value = ""; // Svuota il campo per evitare letture residue
+            document.getElementById('input-area').classList.add('hidden');
+            inputMode=null;
+            if(lastFocusedElement)lastFocusedElement.focus();
+            else if(document.getElementById('btn-spin'))document.getElementById('btn-spin').focus();
+        }
 
         async function submitInput(){
             if(isProcessingInput)return;isProcessingInput=true;
@@ -410,7 +433,19 @@
                     const sol=currentPuzzleText.toUpperCase();let allIdx=[],gIdx=0;for(let i=0;i<sol.length;i++){if(sol[i].match(/[A-ZÀ-Ù]/)){allIdx.push(gIdx);gIdx++;}}
                     await supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${myName} VINCE €${tot}!`,montepremi_round:0,lettere_rivelate:allIdx,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
                 }else{
-                    await supabase.from('stanze').update({id_giocatore_corrente:n,ultima_azione:'errore',ultimo_messaggio:`${myName} ha sbagliato: ${t}`,montepremi_round:0,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
+                    // --- IMPLEMENTAZIONE SECONDA CHANCE ---
+                    const lastMsg = currentStanza.ultimo_messaggio || "";
+                    // Se non è già un "Riprova" e non è un timeout
+                    if (!lastMsg.includes("Riprova") && !lastMsg.includes("Turno passato")) {
+                        await supabase.from('stanze').update({
+                            ultima_azione: 'errore_soft', 
+                            ultimo_messaggio: `${myName}: Soluzione errata. Riprova (1/2)`,
+                            azione_timestamp: new Date().toISOString()
+                        }).eq('id', roomId);
+                    } else {
+                        // Secondo errore: passa il turno
+                        await supabase.from('stanze').update({id_giocatore_corrente:n,ultima_azione:'errore',ultimo_messaggio:`${myName}: Sbagliato ancora. Turno passato.`,montepremi_round:0,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
+                    }
                 }
             }else{
                 const sol=currentPuzzleText.toUpperCase();let fd=[],gI=0;
@@ -460,18 +495,15 @@
         // --- GESTIONE SMART DEL CAMPO "RISOLVI" (MANGIA-ASTERISCHI) ---
         document.getElementById('game-input').addEventListener('keydown', function(e) {
             if (inputMode !== 'solve') return;
-            if (e.key.length > 1) return; // Ignora tasti speciali (Invio, Canc, ecc)
+            if (e.key.length > 1) return; 
             
             const pos = this.selectionStart;
             const val = this.value;
             
-            // Se siamo su un asterisco e premiamo una lettera valida
             if (val[pos] === '*' && e.key.match(/^[a-zA-Zà-ù0-9]$/i)) {
-                e.preventDefault(); // Blocca l'inserimento standard
-                // Sostituisce l'asterisco con la lettera
+                e.preventDefault(); 
                 const newVal = val.substring(0, pos) + e.key.toUpperCase() + val.substring(pos + 1);
                 this.value = newVal;
-                // Sposta il cursore avanti
                 this.setSelectionRange(pos + 1, pos + 1);
             }
         });
@@ -488,7 +520,6 @@
                 if(key==='g'){e.preventDefault();doSpin();}
                 if(key==='v'){e.preventDefault();openInput('vowel');}
                 
-                // FIX: Controllo Tasto S più robusto
                 if(key==='s'){
                     e.preventDefault();
                     const btn = document.getElementById('btn-solve');

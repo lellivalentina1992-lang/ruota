@@ -54,7 +54,6 @@
             box-shadow: 0 0 50px rgba(0,0,0,0.8);
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             opacity: 0; transition: opacity 0.2s;
-            /* FONDAMENTALE: Permette di cliccare sotto il box mentre è visibile */
             pointer-events: none; 
         }
         #flash-overlay.visible { opacity: 1; }
@@ -129,6 +128,7 @@
             font-size: 2.5em; padding: 15px; text-align: center; 
             width: 80%; background: #222; color: #fff; 
             border: 3px solid var(--col-focus); border-radius: 10px; 
+            margin-bottom: 20px;
         }
 
         @media (min-width: 769px) {
@@ -221,9 +221,10 @@
     <div id="input-area" class="hidden">
         <h2 id="input-title" style="color:#ffd700;">...</h2>
         <input id="game-input" type="text" autocomplete="off" placeholder="Scrivi qui...">
-        <div style="margin-top: 30px;">
-            <button onclick="submitInput()" class="action-btn btn-primary">OK</button>
-            <button onclick="closeInput()" class="action-btn btn-secondary">ANNULLA</button>
+        <div style="display:flex; justify-content:center; flex-wrap:wrap;">
+            <button onclick="submitInput()" class="action-btn btn-primary">OK (INVIO)</button>
+            <button onclick="clearInput()" class="action-btn" style="background: #ff9900; color: #000;">SVUOTA</button>
+            <button onclick="closeInput()" class="action-btn btn-secondary">ANNULLA (ESC)</button>
         </div>
     </div>
 
@@ -281,6 +282,7 @@
         const VOWELS_LIST = ['A','E','I','O','U','À','È','É','Ì','Ò','Ù'];
 
         let myId, myIndex, roomId, isHost=false, currentFrase=null, currentStanza=null, currentPuzzleText="", currentHintText="", fullSolutionText="", lastTimestamp="", isSpinning=false, inputMode=null, wheelAngle=0, parsedBoard=[], navWordIdx=0, navCharIdx=0, pollingInterval=null, timerInterval=null, actionLog=[], isFetching=false, isProcessingInput=false, isHandlingTimeout=false;
+        let lastFocusedElement = null;
         const TURN_LIMIT_SEC=120; 
 
         function cleanStr(s) { return s?s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,""):""; }
@@ -305,8 +307,18 @@
                 }
                 roomId=st.id;
                 await supabase.from('giocatori').delete().eq('stanza_id',roomId).eq('nome',nm);
-                const {count}=await supabase.from('giocatori').select('*',{count:'exact',head:true}).eq('stanza_id',roomId);
-                myIndex=count||0; isHost=(myIndex===0);
+                
+                const { data: maxIdxPlayer } = await supabase
+                    .from('giocatori')
+                    .select('indice')
+                    .eq('stanza_id', roomId)
+                    .order('indice', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+
+                myIndex = (maxIdxPlayer) ? maxIdxPlayer.indice + 1 : 0;
+                isHost = (myIndex === 0);
+
                 const {data:pl}=await supabase.from('giocatori').insert({stanza_id:roomId,nome:nm,indice:myIndex,is_host:isHost,punteggio_totale:0,punteggio_round:0}).select().maybeSingle();
                 myId=pl.id;
                 document.getElementById('setup-panel').classList.add('hidden'); document.getElementById('game-panel').classList.remove('hidden');
@@ -331,8 +343,8 @@
             const svTime=new Date(baseT).getTime();
             const left=Math.max(0,(TURN_LIMIT_SEC+(inputMode==='solve'?30:0))-Math.floor((new Date().getTime()-svTime)/1000));
             document.getElementById('timer-box').textContent=left;
-            if(left===60)playAudio('snd-hit');
-            // FIX ANTI-ZOMBIE
+            if(left<=10 && left>0) playAudio('snd-hit'); 
+            
             if(left===0 && !isSpinning && !isHandlingTimeout){ 
                 const isMyTurn = (currentStanza.id_giocatore_corrente === myIndex);
                 if(isMyTurn || isHost) {
@@ -402,12 +414,10 @@
             }
             document.getElementById('round-indicator').textContent=`R ${s.round_giocati}/10`;
             
-            // --- GESTIONE NOTIFICHE E FLASH ---
             if(s.azione_timestamp&&s.azione_timestamp!==lastTimestamp){
                 lastTimestamp=s.azione_timestamp;
                 if(s.ultimo_messaggio) { actionLog.unshift(s.ultimo_messaggio); if(actionLog.length>5)actionLog.pop(); }
                 
-                // Determina il tipo di messaggio (Buono/Cattivo) per i colori
                 let flashType = 'info';
                 if(s.ultima_azione === 'vittoria' || s.ultimo_messaggio.includes("Trovate")) flashType = 'good';
                 else if(s.ultima_azione === 'errore' || s.ultimo_messaggio.includes("non") || s.ultimo_messaggio.includes("BANCAROTTA") || s.ultimo_messaggio.includes("già")) flashType = 'bad';
@@ -415,7 +425,6 @@
                 showFlashMessage(s.ultimo_messaggio, flashType);
                 speak(s.ultimo_messaggio);
 
-                // Suoni extra
                 if(s.ultima_azione==='chiama_lettera' && s.ultimo_messaggio.includes("Trovate")) {
                     const match = s.ultimo_messaggio.match(/\d+/);
                     playMultiHit(match ? parseInt(match[0]) : 1);
@@ -432,7 +441,6 @@
             
             const isMe=(s.id_giocatore_corrente===myIndex), me=s.giocatori.find(p=>p.indice===myIndex);
             
-            // FIX NOME GIOCATORE CORRENTE
             const currentPlayerObj = s.giocatori.find(p=>p.indice===s.id_giocatore_corrente);
             const currentPlayerName = currentPlayerObj ? currentPlayerObj.nome : "Giocatore Uscito";
 
@@ -546,18 +554,55 @@
             }
         }
 
+        function clearInput() {
+            const inp = document.getElementById('game-input');
+            inp.value = "";
+            inp.focus();
+            speak("Campo svuotato");
+        }
+
         function openInput(m) {
             if(m==='vowel') {
                 const me = currentStanza?.giocatori?.find(p => p.id === myId);
                 if (!me) return speak("Giocatore non trovato, attendi.");
                 if((me.punteggio_round||0)<500) return speak("Ti servono 500 euro!");
             }
-            inputMode=m; const t={'letter':'INSERISCI CONSONANTE','vowel':'INSERISCI VOCALE','solve':'SCRIVI LA SOLUZIONE'};
-            document.getElementById('input-title').textContent=t[m]; document.getElementById('input-area').classList.remove('hidden');
-            const inp = document.getElementById('game-input'); inp.value=''; 
-            speak(t[m]); setTimeout(() => { inp.focus(); }, 100);
+            
+            lastFocusedElement = document.activeElement;
+
+            inputMode=m; 
+            const t={'letter':'INSERISCI CONSONANTE','vowel':'INSERISCI VOCALE','solve':'SCRIVI LA SOLUZIONE'};
+            document.getElementById('input-title').textContent=t[m]; 
+            document.getElementById('input-area').classList.remove('hidden');
+            const inp = document.getElementById('game-input'); 
+            inp.value=''; 
+
+            if (m === 'solve') {
+                let prefill = "";
+                let gI = 0;
+                const txt = currentPuzzleText.toUpperCase();
+                for(let i=0; i<txt.length; i++) {
+                    const c = txt[i];
+                    if(c.match(/[A-ZÀ-Ù]/)) {
+                        if(currentStanza.lettere_rivelate.includes(gI)) prefill += c; else prefill += "*";
+                        gI++;
+                    } else prefill += c; 
+                }
+                inp.value = prefill;
+                speak("Scrivi la soluzione. Il campo è precompilato con le lettere note. Usa le frecce per navigare.");
+            } else {
+                speak(t[m]); 
+            }
+
+            setTimeout(() => { inp.focus(); }, 100);
         }
-        function closeInput(){document.getElementById('input-area').classList.add('hidden');inputMode=null;}
+
+        function closeInput(){
+            document.getElementById('input-area').classList.add('hidden');
+            inputMode=null;
+            if(lastFocusedElement) lastFocusedElement.focus();
+            else document.getElementById('btn-spin').focus();
+        }
 
         async function submitInput() {
             if(isProcessingInput)return; isProcessingInput=true;
@@ -601,7 +646,7 @@
         function openInspector(){
             if(!currentFrase) return speak("Nessuna frase caricata.");
             const d=document.getElementById('inspector-content'); let h=`<h2>${currentFrase.categoria}</h2>`;
-            parsedBoard.forEach((w,i)=>{let s="";w.chars.forEach(c=>{s+=c.isRevealed?c.char:"_"});h+=`<p>P${i+1}: ${s}</p>`});
+            parsedBoard.forEach((w,i)=>{let s="";w.chars.forEach(c=>{s+=c.isRevealed?c.char:"*"});h+=`<p>P${i+1}: ${s}</p>`});
             d.innerHTML=h; document.getElementById('inspector-overlay').classList.remove('hidden'); d.focus();
             speak("Ispettore Aperto. Usa le frecce per leggere.");
         }

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>La Ruota - Final Accessible</title>
+    <title>La Ruota - Final Accessible v2</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
@@ -18,6 +18,11 @@
         .container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; }
         
         #game-panel, #setup-panel, #end-panel, #round-over-panel { border: 2px solid #555; padding: 15px; margin-top: 15px; background: var(--bg-panel); border-radius: 10px; width: 95%; }
+
+        /* --- LISTA STANZE PUBBLICHE --- */
+        #public-rooms-container { margin-top: 30px; border-top: 2px solid #555; padding-top: 20px; width: 100%; }
+        .room-btn { width: 100%; padding: 15px; margin: 5px 0; background: #333; color: #fff; border: 2px solid #00ff00; border-radius: 8px; font-size: 1.2em; cursor: pointer; text-align: left; }
+        .room-btn:hover, .room-btn:focus { background: #004400; }
 
         /* --- FLASH NEWS --- */
         #flash-overlay { position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%); width: 95%; max-width: 700px; padding: 20px; background: rgba(0, 0, 0, 0.9); border: 6px solid var(--col-focus); border-radius: 15px; z-index: 5000; text-align: center; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
@@ -48,7 +53,7 @@
         .btn-danger { background: #ff4444; color: #fff; }
         .disabled-btn { background: #444 !important; color: #888 !important; cursor: not-allowed; }
         
-        #input-area, #inspector-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 3000; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        #input-area, #inspector-overlay, #privacy-dialog { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 3000; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         input { font-size: 2.5em; padding: 15px; text-align: center; width: 80%; background: #222; color: #fff; border: 3px solid var(--col-focus); border-radius: 10px; margin-bottom: 20px; }
 
         @media (min-width: 769px) { #tactile-nav { position: relative; background: transparent; border: none; padding: 20px; } .tile { width: 50px; height: 75px; font-size: 2.5em; } }
@@ -63,9 +68,17 @@
     <div id="setup-panel" class="container">
         <h1 style="color:#ffd700;">LA RUOTA</h1>
         <input id="inp-name" type="text" placeholder="IL TUO NOME"><br><br>
-        <input id="inp-code" type="text" value="STANZA1"><br><br>
-        <button onclick="joinGame(true)" class="action-btn btn-primary">CREA STANZA</button>
-        <button onclick="joinGame(false)" class="action-btn btn-secondary">ENTRA</button>
+        <input id="inp-code" type="text" placeholder="CODICE STANZA (OPZIONALE)"><br><br>
+        <button onclick="askPrivacy()" class="action-btn btn-primary">CREA NUOVA STANZA</button>
+        <button onclick="joinGame(false)" class="action-btn btn-secondary">ENTRA CON CODICE</button>
+        
+        <div id="public-rooms-container">
+            <h2 style="color:#00ff00;">STANZE PUBBLICHE</h2>
+            <button onclick="fetchPublicRooms()" class="action-btn" style="font-size:1em; padding:10px;">AGGIORNA LISTA</button>
+            <div id="rooms-list" style="width:100%; padding:10px;">
+                <p>Premi aggiorna per cercare...</p>
+            </div>
+        </div>
     </div>
 
     <div id="game-panel" class="container hidden">
@@ -92,6 +105,8 @@
             <button id="btn-solve" class="action-btn btn-danger" onclick="openInput('solve')">RISOLVI (S)</button>
             <button id="btn-manual-cons" class="action-btn hidden" onclick="openInput('letter')" style="background: #00ff00; color: #000;">DI UNA CONSONANTE</button>
         </div>
+        <button id="btn-close-room" class="action-btn btn-danger hidden" onclick="closeRoom()" style="border-color:red; margin-top:20px;">CHIUDI STANZA (HOST)</button>
+
         <div class="sr-only"><p>Comandi: CTRL+L legge lettere. A legge azioni. G gira. V vocale. S risolvi.</p></div>
     </div>
 
@@ -100,6 +115,7 @@
         <p id="round-winner-msg" style="font-size: 1.5em;">...</p>
         <p id="solution-msg" style="color: #ffd700; font-size: 1.5em; font-weight:bold;">...</p>
         <button id="btn-next-round" onclick="startNewRound()" class="action-btn btn-primary">PROSSIMO ROUND (INVIO)</button>
+        <button id="btn-close-room-round" class="action-btn btn-danger hidden" onclick="closeRoom()">CHIUDI STANZA</button>
     </div>
 
     <div id="end-panel" class="container hidden">
@@ -116,6 +132,16 @@
             <button onclick="clearInput()" class="action-btn" style="background: #ff9900; color: #000;">SVUOTA</button>
             <button onclick="closeInput()" class="action-btn btn-secondary">ANNULLA (ESC)</button>
         </div>
+    </div>
+
+    <div id="privacy-dialog" class="hidden" role="dialog" aria-modal="true" aria-label="Scegli privacy stanza">
+        <h2 style="color:#fff;">COME VUOI LA STANZA?</h2>
+        <p style="color:#aaa; max-width: 600px; padding: 10px;">Pubblica: visibile a tutti nella lista.<br>Privata: serve il codice esatto per entrare.</p>
+        <div>
+            <button id="btn-create-public" onclick="createRoomFinal(true)" class="action-btn btn-primary">PUBBLICA</button>
+            <button onclick="createRoomFinal(false)" class="action-btn btn-secondary">PRIVATA</button>
+        </div>
+        <button onclick="document.getElementById('privacy-dialog').classList.add('hidden')" class="action-btn" style="margin-top:20px;">ANNULLA</button>
     </div>
 
     <div id="inspector-overlay" class="hidden" role="dialog" aria-modal="true" aria-label="Ispettore">
@@ -160,18 +186,99 @@
         function setBtnState(id,d){const b=document.getElementById(id);if(!b)return;if(d){b.classList.add('disabled-btn');b.setAttribute('aria-disabled','true');b.disabled=true;}else{b.classList.remove('disabled-btn');b.setAttribute('aria-disabled','false');b.disabled=false;}}
         function isBtnDisabled(id){return document.getElementById(id).getAttribute('aria-disabled')==='true';}
 
-        async function joinGame(cr){
-            const nm=document.getElementById('inp-name').value.trim().toUpperCase(), cd=document.getElementById('inp-code').value.trim().toUpperCase();
+        // --- GESTIONE NUOVO FLUSSO CREAZIONE ---
+        function askPrivacy(){
+            const nm=document.getElementById('inp-name').value.trim();
+            if(!nm)return speak("Inserisci prima il tuo nome.");
+            document.getElementById('privacy-dialog').classList.remove('hidden');
+            document.getElementById('btn-create-public').focus();
+        }
+
+        async function createRoomFinal(isPublic){
+            document.getElementById('privacy-dialog').classList.add('hidden');
+            let cd=document.getElementById('inp-code').value.trim().toUpperCase();
+            // Se non mette codice e la vuole pubblica, generiamo un codice a caso o usiamo il nome
+            if(!cd) cd = "STANZA-" + Math.floor(Math.random()*9999);
+            
+            // Logica esistente di creazione, ma con parametro is_public
+            joinGame(true, cd, isPublic);
+        }
+
+        // --- FETCH STANZE PUBBLICHE ---
+        async function fetchPublicRooms(){
+            const list = document.getElementById('rooms-list');
+            list.innerHTML = "Caricamento...";
+            speak("Cerco stanze pubbliche...");
+            
+            const { data: stanze, error } = await supabase
+                .from('stanze')
+                .select('codice, is_public, stato')
+                .eq('is_public', true)
+                .neq('stato', 'terminata')
+                .limit(10);
+                
+            if(error || !stanze || stanze.length === 0){
+                list.innerHTML = "<p>Nessuna stanza pubblica trovata.</p>";
+                speak("Nessuna stanza trovata.");
+                return;
+            }
+            
+            list.innerHTML = "";
+            stanze.forEach(s => {
+                const btn = document.createElement('button');
+                btn.className = 'room-btn';
+                btn.textContent = `Stanza: ${s.codice} (${s.stato})`;
+                btn.onclick = () => {
+                    document.getElementById('inp-code').value = s.codice;
+                    joinGame(false);
+                };
+                list.appendChild(btn);
+            });
+            speak(`Trovate ${stanze.length} stanze pubbliche.`);
+        }
+
+        // --- FUNZIONE CHIUDI STANZA (HOST) ---
+        async function closeRoom(){
+            if(!confirm("Sei sicuro di voler chiudere e cancellare la stanza per tutti?")) return;
+            if(!roomId) return;
+            speak("Chiusura in corso...");
+            // Cancelliamo i giocatori
+            await supabase.from('giocatori').delete().eq('stanza_id', roomId);
+            // Cancelliamo la stanza
+            await supabase.from('stanze').delete().eq('id', roomId);
+            // Reload pagina
+            location.reload();
+        }
+
+        // --- JOIN GAME (MODIFICATO) ---
+        async function joinGame(cr, forcedCode=null, isPublic=false){
+            const nm=document.getElementById('inp-name').value.trim().toUpperCase();
+            const cd=forcedCode || document.getElementById('inp-code').value.trim().toUpperCase();
+            
             if(!nm)return speak("Nome mancante");
+            if(!cd && !cr)return speak("Codice mancante");
+
             try{
                 let st;
                 if(cr){
                     const {data:fr}=await supabase.from('frasi').select('id');
-                    if(!fr||fr.length===0)return speak("Nessuna frase nel database! Configura SQL.");
+                    if(!fr||fr.length===0)return speak("Nessuna frase nel database!");
                     const rid=fr[Math.floor(Math.random()*fr.length)].id;
                     const {data:old}=await supabase.from('stanze').select('id').eq('codice',cd).maybeSingle();
                     if(old){await supabase.from('giocatori').delete().eq('stanza_id',old.id);await supabase.from('stanze').delete().eq('id',old.id);}
-                    const {data,error}=await supabase.from('stanze').insert({codice:cd,stato:'attesa',frase_corrente_id:rid,lettere_chiamate:[],lettere_rivelate:[],round_giocati:1,azione_timestamp:new Date().toISOString()}).select().maybeSingle();
+                    
+                    // INSERT CON IS_PUBLIC
+                    const {data,error}=await supabase.from('stanze').insert({
+                        codice:cd,
+                        stato:'attesa',
+                        frase_corrente_id:rid,
+                        lettere_chiamate:[],
+                        lettere_rivelate:[],
+                        round_giocati:1,
+                        is_public: isPublic, // NUOVO CAMPO
+                        azione_timestamp:new Date().toISOString()
+                    }).select().maybeSingle();
+                    
                     st=error?(await supabase.from('stanze').select('*').eq('codice',cd).maybeSingle()).data:data;
                 }else{
                     const {data}=await supabase.from('stanze').select('*').eq('codice',cd).maybeSingle();
@@ -187,6 +294,13 @@
                 document.getElementById('setup-panel').classList.add('hidden');document.getElementById('game-panel').classList.remove('hidden');
                 speak("Benvenuto. In attesa dell'avvio.");
                 supabase.channel('game').on('postgres_changes',{event:'UPDATE',schema:'public',table:'stanze',filter:`id=eq.${roomId}`},()=>{fetchFullState()}).subscribe();
+                
+                // Subscribe anche alle CANCELLAZIONI per gestire la chiusura stanza
+                supabase.channel('game-delete').on('postgres_changes',{event:'DELETE',schema:'public',table:'stanze',filter:`id=eq.${roomId}`},()=>{
+                    speak("La stanza è stata chiusa dall'host.");
+                    setTimeout(()=>location.reload(), 3000);
+                }).subscribe();
+
                 fetchFullState();
                 if(pollingInterval)clearInterval(pollingInterval);pollingInterval=setInterval(fetchFullState,15000);
                 if(timerInterval)clearInterval(timerInterval);timerInterval=setInterval(checkTurnTimer,1000);
@@ -196,7 +310,14 @@
         async function fetchFullState(){
             if(isFetching)return;isFetching=true;
             const {data:s}=await supabase.from('stanze').select('*,frasi(*),giocatori(*)').eq('id',roomId).maybeSingle();
-            isFetching=false;if(s)updateUI(s);
+            isFetching=false;
+            
+            // Se s è null, la stanza è stata cancellata
+            if(!s) {
+                // Gestito dal subscription delete, ma sicurezza in più
+                return;
+            }
+            updateUI(s);
         }
 
         function checkTurnTimer(){
@@ -219,13 +340,21 @@
         }
 
         function updateUI(s){
-            // --- FIX: Se il gioco non è attivo, chiudi eventuali input aperti ---
             if (s.stato !== 'gioco' && inputMode) {
                 closeInput();
             }
             
             currentStanza=s;s.giocatori=Array.isArray(s.giocatori)?s.giocatori:[];s.giocatori.sort((a,b)=>a.indice-b.indice);
             
+            // GESTIONE VISIBILITA' PULSANTE CHIUDI
+            if(isHost) {
+                document.getElementById('btn-close-room').classList.remove('hidden');
+                document.getElementById('btn-close-room-round').classList.remove('hidden');
+            } else {
+                document.getElementById('btn-close-room').classList.add('hidden');
+                document.getElementById('btn-close-room-round').classList.add('hidden');
+            }
+
             if(s.stato==='attesa'){
                 document.getElementById('game-panel').classList.add('hidden');document.getElementById('round-over-panel').classList.remove('hidden');
                 document.getElementById('round-title').textContent="PARTITA PRONTA";document.getElementById('round-winner-msg').textContent="Codice: "+s.codice;
@@ -242,7 +371,6 @@
                     lastTimestamp=s.azione_timestamp;
                     playMultiHit(3);
                     speak("Fine Round. "+s.ultimo_messaggio+". Premi INVIO per il prossimo.");
-                    // FOCUS SUL TASTO PER FACILITARE
                     setTimeout(()=>document.getElementById('btn-next-round').focus(), 500);
                 }
                 return;
@@ -254,7 +382,6 @@
                 speak("Partita terminata. Visualizzo la classifica.");return;
             }
             
-            // STATO GIOCO
             document.getElementById('round-over-panel').classList.add('hidden');document.getElementById('game-panel').classList.remove('hidden');
             if(!s.frasi)return speak("Errore: Frase mancante.");
             if(!currentFrase||currentFrase.id!==s.frasi.id){
@@ -267,7 +394,6 @@
                 lastTimestamp=s.azione_timestamp;
                 if(s.ultimo_messaggio){actionLog.unshift(s.ultimo_messaggio);if(actionLog.length>5)actionLog.pop();}
                 
-                // GESTIONE DEI MESSAGGI FLASH E SUONI
                 let flashType='info';
                 if(s.ultima_azione==='vittoria'||s.ultimo_messaggio.includes("Trovate"))flashType='good';
                 else if(s.ultima_azione==='errore'||s.ultimo_messaggio.includes("non")||s.ultimo_messaggio.includes("BANCAROTTA")||s.ultimo_messaggio.includes("già")||s.ultimo_messaggio.includes("Sbagliato"))flashType='bad';
@@ -377,17 +503,13 @@
                 if(!me)return speak("Giocatore non trovato.");
                 if((me.punteggio_round||0)<500)return speak("Ti servono 500 euro!");
             }
-            
             lastFocusedElement=document.activeElement;
             inputMode=m;
             const t={'letter':'INSERISCI CONSONANTE','vowel':'INSERISCI VOCALE','solve':'SCRIVI LA SOLUZIONE'};
-            
             document.getElementById('input-title').textContent=t[m];
             document.getElementById('input-area').classList.remove('hidden');
-            
             const inp=document.getElementById('game-input');
-            inp.value=''; // Pulisce
-            
+            inp.value=''; 
             if(m==='solve'){
                 let prefill="", gI=0, txt=currentPuzzleText.toUpperCase();
                 for(let i=0;i<txt.length;i++){
@@ -407,10 +529,9 @@
             setTimeout(()=>{inp.focus();if(m==='solve')inp.setSelectionRange(0,0);},100);
         }
         
-        // MODIFICATO PER SVUOTARE IL VALUE
         function closeInput(){
             const inp = document.getElementById('game-input');
-            inp.value = ""; // Svuota il campo per evitare letture residue
+            inp.value = ""; 
             document.getElementById('input-area').classList.add('hidden');
             inputMode=null;
             if(lastFocusedElement)lastFocusedElement.focus();
@@ -438,9 +559,7 @@
                     const sol=currentPuzzleText.toUpperCase();let allIdx=[],gIdx=0;for(let i=0;i<sol.length;i++){if(sol[i].match(/[A-ZÀ-Ù]/)){allIdx.push(gIdx);gIdx++;}}
                     await supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${myName} VINCE €${tot}!`,montepremi_round:0,lettere_rivelate:allIdx,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
                 }else{
-                    // --- IMPLEMENTAZIONE SECONDA CHANCE ---
                     const lastMsg = currentStanza.ultimo_messaggio || "";
-                    // Se non è già un "Riprova" e non è un timeout
                     if (!lastMsg.includes("Riprova") && !lastMsg.includes("Turno passato")) {
                         await supabase.from('stanze').update({
                             ultima_azione: 'errore_soft', 
@@ -448,7 +567,6 @@
                             azione_timestamp: new Date().toISOString()
                         }).eq('id', roomId);
                     } else {
-                        // Secondo errore: passa il turno
                         await supabase.from('stanze').update({id_giocatore_corrente:n,ultima_azione:'errore',ultimo_messaggio:`${myName}: Sbagliato ancora. Turno passato.`,montepremi_round:0,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
                     }
                 }
@@ -487,8 +605,6 @@
 
         async function startNewRound(){
             if(!isHost)return speak("Solo l'host può avviare il round");
-            
-            // --- FIX: Chiudi input prima di iniziare ---
             if(inputMode) closeInput();
 
             const nr=(currentStanza.round_giocati||1)+(currentStanza.stato==='attesa'?0:1);
@@ -501,7 +617,6 @@
             fetchFullState();
         }
 
-        // --- GESTIONE SMART DEL CAMPO "RISOLVI" (MANGIA-ASTERISCHI) ---
         document.getElementById('game-input').addEventListener('keydown', function(e) {
             if (inputMode !== 'solve') return;
             if (e.key.length > 1) return; 
@@ -524,21 +639,21 @@
             if(e.ctrlKey&&key==='g'){e.preventDefault();if(!inputMode)doSpin();else speak("Impossibile girare ora.");return;}
             if(isInputActive){if(key==='enter')submitInput();if(key==='escape')closeInput();return;}
             if(key==='enter'&&!document.getElementById('round-over-panel').classList.contains('hidden')){e.preventDefault();startNewRound();return;}
-            if(key==='escape'){if(inputMode)closeInput();else closeInspector();return;}
-            if(!inputMode){
+            if(key==='escape'){
+                if(inputMode)closeInput();
+                else if(!document.getElementById('privacy-dialog').classList.contains('hidden'))document.getElementById('privacy-dialog').classList.add('hidden');
+                else closeInspector();
+                return;
+            }
+            if(!inputMode && document.getElementById('privacy-dialog').classList.contains('hidden')){
                 if(key==='g'){e.preventDefault();doSpin();}
                 if(key==='v'){e.preventDefault();openInput('vowel');}
-                
                 if(key==='s'){
                     e.preventDefault();
                     const btn = document.getElementById('btn-solve');
-                    if(btn && !btn.disabled && !btn.classList.contains('disabled-btn')) {
-                        openInput('solve');
-                    } else {
-                        speak("Non puoi risolvere adesso.");
-                    }
+                    if(btn && !btn.disabled && !btn.classList.contains('disabled-btn')) openInput('solve');
+                    else speak("Non puoi risolvere adesso.");
                 }
-
                 if(key==='c')toggleContrast();
                 if(key==='a'&&!e.ctrlKey){e.preventDefault();readHistory();}
             }

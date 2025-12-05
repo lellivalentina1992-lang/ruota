@@ -3,32 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>La Ruota - Logic Update</title>
+    <title>La Ruota - V25 Final</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { --bg-body: #111; --col-text: #fff; --col-focus: #ffd700; --bg-panel: #222; }
         body.high-contrast { --bg-body: #000; --col-text: #fff; --col-focus: #00ffff; --bg-panel: #000; border: 2px solid yellow; }
         body { background: var(--bg-body); color: var(--col-text); font-family: 'Verdana', sans-serif; margin: 0; padding: 10px; text-align: center; padding-bottom: 120px; }
+        
+        /* Focus visibile molto forte */
         *:focus { outline: 4px solid var(--col-focus) !important; box-shadow: 0 0 15px var(--col-focus); }
+        
         .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); }
         .hidden { display: none !important; }
         .container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; }
         #game-panel, #setup-panel, #end-panel, #round-over-panel { border: 2px solid #555; padding: 15px; margin-top: 15px; background: var(--bg-panel); border-radius: 10px; width: 95%; }
         #public-rooms-container { margin-top: 30px; border-top: 2px solid #555; padding-top: 20px; width: 100%; }
         .room-btn { width: 100%; padding: 15px; margin: 5px 0; background: #333; color: #fff; border: 2px solid #00ff00; border-radius: 8px; font-size: 1.2em; cursor: pointer; text-align: left; }
+        
         #flash-overlay { position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%); width: 95%; max-width: 700px; padding: 20px; background: rgba(0, 0, 0, 0.9); border: 6px solid var(--col-focus); border-radius: 15px; z-index: 5000; text-align: center; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
         #flash-overlay.visible { opacity: 1; }
         #flash-message { font-size: 2.8em; font-weight: 900; color: #fff; text-transform: uppercase; margin: 0; line-height: 1.2; text-shadow: 2px 2px 0 #000; }
-        #board-container { display: flex; flex-direction: column; align-items: center; gap: 8px; background: #053305; border: 4px solid #fff; padding: 20px; margin: 20px 0; min-height: 150px; }
+        
+        /* Tabellone */
+        #board-container { display: flex; flex-direction: column; align-items: center; gap: 8px; background: #053305; border: 4px solid #fff; padding: 20px; margin: 20px 0; min-height: 150px; outline: none; }
         .board-row { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; }
         .tile { width: 45px; height: 65px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 2.2em; color: #000; background: #fff; border: 2px solid #000; }
         .tile.empty { background: #004400; border: 1px dashed #006600; color: transparent; }
+        /* Cursori di navigazione in-game */
         .tile.cursor-char { border: 5px solid var(--col-focus); transform: scale(1.1); z-index: 10; }
         .board-row.cursor-word { outline: 3px solid var(--col-focus); background: rgba(255, 255, 0, 0.2); }
+        
         #tactile-nav { display: flex; justify-content: center; gap: 10px; padding: 10px; position: fixed; bottom: 0; left: 0; width: 100%; background: #000; border-top: 2px solid var(--col-focus); z-index: 2000; }
         .nav-btn { background: #333; color: #fff; border: 2px solid #555; width: 55px; height: 55px; border-radius: 50%; font-size: 1.8em; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        
         #wheel-visual { width: 150px; height: 150px; margin: 10px auto; border-radius: 50%; border: 5px solid #fff; background: conic-gradient(#f00, #ff0, #0f0, #00f, #f0f, orange); transition: transform 3.5s cubic-bezier(0.1, 0.9, 0.1, 1); }
         #wheel-pointer { width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-top: 30px solid #fff; margin: 0 auto -20px auto; position: relative; z-index: 20; }
+        
         button.action-btn { padding: 15px 30px; margin: 10px; cursor: pointer; font-weight: 900; font-size: 1.2em; text-transform: uppercase; border: 3px solid #fff; border-radius: 10px; }
         .btn-primary { background: #ffd700; color: #000; }
         .btn-secondary { background: #00ffff; color: #000; }
@@ -36,8 +46,16 @@
         .btn-special { background: #ff00ff; color: #fff; border-color: #fff; }
         .btn-pass { background: #888; color: #fff; border-color: #aaa; }
         .disabled-btn { background: #444 !important; color: #888 !important; cursor: not-allowed; }
-        #input-area, #inspector-overlay, #privacy-dialog { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 3000; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        
+        /* Modali Overlay */
+        #input-area, #inspector-overlay, #privacy-dialog, #dialog-generic { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 3000; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         input { font-size: 2.5em; padding: 15px; text-align: center; width: 80%; background: #222; color: #fff; border: 3px solid var(--col-focus); border-radius: 10px; margin-bottom: 20px; }
+        
+        /* Stili specifici per i modali di scelta */
+        .modal-content { background: #222; border: 4px solid var(--col-focus); padding: 20px; width: 90%; border-radius: 15px; text-align: center; }
+        .modal-title { color: #ffd700; font-size: 2em; margin-bottom: 20px; text-transform: uppercase; }
+        .modal-body { color: #fff; font-size: 1.5em; margin-bottom: 30px; }
+
         @media (min-width: 769px) { #tactile-nav { position: relative; background: transparent; border: none; padding: 20px; } .tile { width: 50px; height: 75px; font-size: 2.5em; } }
     </style>
 </head>
@@ -48,7 +66,7 @@
     <audio id="snd-spin" src="ruota.wav"></audio><audio id="snd-hit" src="lettera presente.wav"></audio><audio id="snd-miss" src="lettera assente.wav"></audio>
 
     <div id="setup-panel" class="container">
-        <h1 style="color:#ffd700;">LA RUOTA</h1>
+        <h1 style="color:#ffd700;">LA RUOTA V25</h1>
         <input id="inp-name" type="text" placeholder="IL TUO NOME"><br><br>
         <input id="inp-code" type="text" placeholder="CODICE STANZA (OPZIONALE)"><br><br>
         <button onclick="askPrivacy()" class="action-btn btn-primary">CREA NUOVA STANZA</button>
@@ -69,7 +87,8 @@
             </div>
             <div style="text-align:right;">
                 <span style="color:#00ff00;">€</span> <span id="score-round" style="color:#00ff00; font-weight:bold; font-size:1.4em;">0</span><br>
-                <span style="color:#ffd700;">Tot: €</span> <span id="score-total" style="color:#ffd700;">0</span>
+                <span style="color:#ffd700;">Tot: €</span> <span id="score-total" style="color:#ffd700;">0</span><br>
+                <span id="jolly-indicator" style="color:#ff00ff; font-weight:bold;"></span>
             </div>
         </div>
         
@@ -80,7 +99,7 @@
 
         <h2 id="live-category" style="color:#00ffff; margin: 10px 0;">...</h2>
         <h3 id="round-hint" style="color:#ffd700; margin-bottom: 15px;"></h3>
-        <div id="board-container" aria-hidden="true"></div>
+        <div id="board-container" aria-label="Tabellone di gioco"></div>
         
         <div id="tactile-nav">
             <button class="nav-btn" onclick="moveWordNav(-1)" aria-label="Parola Precedente"><span>&#171;</span></button>
@@ -128,6 +147,15 @@
         </div>
     </div>
 
+    <div id="dialog-generic" class="hidden" role="dialog" aria-modal="true">
+        <div class="modal-content">
+            <h2 id="dialog-title" class="modal-title">ATTENZIONE</h2>
+            <div id="dialog-body" class="modal-body">Messaggio...</div>
+            <div id="dialog-actions">
+                </div>
+        </div>
+    </div>
+
     <div id="privacy-dialog" class="hidden" role="dialog" aria-modal="true" aria-label="Scegli privacy stanza">
         <h2 style="color:#fff;">COME VUOI LA STANZA?</h2>
         <p style="color:#aaa; max-width: 600px; padding: 10px;">Pubblica: visibile a tutti.<br>Privata: serve il codice.</p>
@@ -140,7 +168,7 @@
 
     <div id="inspector-overlay" class="hidden" role="dialog" aria-modal="true" aria-label="Ispettore">
         <div id="inspector-content" style="background:#222; border:4px solid #ffd700; padding:20px; width:90%; max-height:80%; overflow-y:auto; color:#fff; font-size: 1.4em;" tabindex="-1"></div>
-        <button onclick="closeInspector()" class="action-btn btn-secondary" style="margin-top:20px;">CHIUDI</button>
+        <button onclick="closeInspector()" class="action-btn btn-secondary" style="margin-top:20px;">CHIUDI (ESC)</button>
     </div>
 
     <script>
@@ -149,12 +177,14 @@
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         
         const NATO={'A':'Ancona','B':'Bologna','C':'Como','D':'Domodossola','E':'Empoli','F':'Firenze','G':'Genova','H':'Hotel','I':'Imola','J':'Jolly','K':'Kappa','L':'Livorno','M':'Milano','N':'Napoli','O':'Otranto','P':'Palermo','Q':'Quadro','R':'Roma','S':'Savona','T':'Torino','U':'Udine','V':'Venezia','W':'Washington','X':'Xilofono','Y':'Yogurt','Z':'Zara','À':'A accentata','È':'E aperta','É':'E chiusa','Ì':'I accentata','Ò':'O accentata','Ù':'U accentata'};
-        const WHEEL_VALUES=[100,200,300,400,500,600,700,800,900,1000,2000,3000,'MISTERO','PASSA','BANCAROTTA'];
+        const WHEEL_VALUES=[100,200,300,400,500,600,700,800,900,1000,2000,'MISTERO','PASSA','BANCAROTTA'];
         const VOWELS_LIST=['A','E','I','O','U','À','È','É','Ì','Ò','Ù'];
         const TURN_LIMIT_SEC=120;
 
         let myId,myIndex,roomId,isHost=false,currentFrase=null,currentStanza=null,currentPuzzleText="",currentHintText="",fullSolutionText="",lastTimestamp="",isSpinning=false,inputMode=null,wheelAngle=0,parsedBoard=[],navWordIdx=0,navCharIdx=0,pollingInterval=null,timerInterval=null,actionLog=[],isFetching=false,isProcessingInput=false,isHandlingTimeout=false;
         let lastFocusedElement=null;
+        let isReadingList=false;
+        let pendingMultiplier=1; 
 
         function playAudio(id){const a=document.getElementById(id);if(a){a.pause();a.currentTime=0;a.play().catch(e=>{});}}
         function playMultiHit(n){let count=n>10?10:n;let i=0;function l(){if(i<count){playAudio('snd-hit');i++;setTimeout(l,300);}}l();}
@@ -180,11 +210,14 @@
                 const{data:old}=await supabase.from('stanze').select('id').eq('codice',cd).maybeSingle();
                 if(old){await supabase.from('giocatori').delete().eq('stanza_id',old.id);await supabase.from('stanze').delete().eq('id',old.id);}
                 const{data}=await supabase.from('stanze').insert({codice:cd,frase_corrente_id:rid,is_public:isPublic,azione_timestamp:new Date().toISOString()}).select().maybeSingle();st=data;
-            }else{const{data}=await supabase.from('stanze').select('*').eq('codice',cd).maybeSingle();if(!data)return speak("Stanza non trovata");st=data;}
-            roomId=st.id;await supabase.from('giocatori').delete().eq('stanza_id',roomId).eq('nome',nm);
+            }else{const{data}=await supabase.from('stanze').select('*').eq('codice',cd).maybeSingle();if(!data)return speak("Stanza non trovata");st=data;
+            roomId=st.id;await supabase.from('giocatori').delete().eq('stanza_id',roomId).eq('nome',nm);} 
+            // Corretto blocco sopra: la rimozione del giocatore vecchio per riconnessione è OK
+            
+            roomId=st.id;
             const{data:mx}=await supabase.from('giocatori').select('indice').eq('stanza_id',roomId).order('indice',{ascending:false}).limit(1).maybeSingle();
             myIndex=(mx)?mx.indice+1:0;isHost=(myIndex===0);
-            const{data:pl}=await supabase.from('giocatori').insert({stanza_id:roomId,nome:nm,indice:myIndex,is_host:isHost}).select().maybeSingle();myId=pl.id;
+            const{data:pl}=await supabase.from('giocatori').insert({stanza_id:roomId,nome:nm,indice:myIndex,is_host:isHost,jolly_scadenze:[]}).select().maybeSingle();myId=pl.id;
             document.getElementById('setup-panel').classList.add('hidden');document.getElementById('game-panel').classList.remove('hidden');
             speak("Benvenuto. In attesa.");
             supabase.channel('game').on('postgres_changes',{event:'UPDATE',schema:'public',table:'stanze',filter:`id=eq.${roomId}`},fetchFullState).subscribe();
@@ -212,15 +245,9 @@
             if(isHandlingTimeout)return; isHandlingTimeout=true;
             const s=currentStanza;
             const n=(s.id_giocatore_corrente+1)%s.giocatori.length;
-            
             let currentStep = s.vocali_speciali_chiamate || 0;
             let nextStep = currentStep;
-
-            // In round speciale, se si passa durante le fasi "guidate", si avanza di step
-            if(s.fase_speciale > 0 && s.fase_speciale !== 10 && currentStep < 5) {
-                nextStep++; 
-            }
-
+            if(s.fase_speciale > 0 && s.fase_speciale !== 10 && currentStep < 5) { nextStep++; }
             await supabase.from('stanze').update({
                 id_giocatore_corrente: n, 
                 vocali_speciali_chiamate: nextStep, 
@@ -229,43 +256,25 @@
                 montepremi_round:0, 
                 azione_timestamp:new Date().toISOString()
             }).eq('id',roomId);
-            
-            isHandlingTimeout=false;
-            fetchFullState();
+            isHandlingTimeout=false; fetchFullState();
         }
 
         async function giveAutomaticVowels(s) {
             isProcessingInput = true;
             const numPlayers = s.giocatori.length;
-            
-            // Regola: 
-            // 1 Giocatore -> Regala 2 (ne chiama 1)
-            // 2 Giocatori -> Regala 1 (ne chiamano 2, uno a testa)
-            // 3+ Giocatori -> Regala 0 (ne chiamano 3)
-            // VowelsToGift = 3 - numPlayers. Minimo 0.
-            
-            let vowelsToGift = 3 - numPlayers;
-            if(vowelsToGift < 0) vowelsToGift = 0;
-
-            let missingVowels = [];
-            let gIdx = 0;
-            let sol = currentPuzzleText.toUpperCase();
+            let vowelsToGift = 3 - numPlayers; if(vowelsToGift < 0) vowelsToGift = 0;
+            let missingVowels = [], gIdx = 0, sol = currentPuzzleText.toUpperCase();
             const revealed = s.lettere_rivelate || [];
             
             for(let i=0; i<sol.length; i++) {
                 if(sol[i].match(/[A-ZÀ-Ù]/)) {
-                    if(VOWELS_LIST.includes(sol[i]) && !revealed.includes(gIdx)) {
-                         missingVowels.push({char: sol[i], idx: gIdx});
-                    }
+                    if(VOWELS_LIST.includes(sol[i]) && !revealed.includes(gIdx)) { missingVowels.push({char: sol[i], idx: gIdx}); }
                     gIdx++;
                 }
             }
-
             missingVowels.sort(() => Math.random() - 0.5);
             const selected = missingVowels.slice(0, vowelsToGift);
-            
-            let newRevealed = [...revealed];
-            let msg = "";
+            let newRevealed = [...revealed], msg = "";
 
             if(selected.length > 0) {
                 let charsFound = [];
@@ -280,22 +289,12 @@
                     }
                 });
                 msg = `IL SISTEMA REGALA: ${charsFound.join(", ")}!`;
-            } else {
-                msg = "NESSUN REGALO! TOCCA A VOI!";
-            }
-
-            // Calcola il nuovo step. 
-            // Step attuale è 2. Saltiamo 'vowelsToGift' step.
+            } else { msg = "NESSUN REGALO! TOCCA A VOI!"; }
             let nextStep = 2 + vowelsToGift;
-
             await supabase.from('stanze').update({
-                lettere_rivelate: [...new Set(newRevealed)],
-                vocali_speciali_chiamate: nextStep,
-                ultimo_messaggio: msg,
-                ultima_azione: 'info',
-                azione_timestamp: new Date().toISOString()
+                lettere_rivelate: [...new Set(newRevealed)], vocali_speciali_chiamate: nextStep,
+                ultimo_messaggio: msg, ultima_azione: 'info', azione_timestamp: new Date().toISOString()
             }).eq('id', roomId);
-            
             isProcessingInput = false;
         }
 
@@ -317,18 +316,18 @@
             if(s.stato==='terminata'){
                  document.getElementById('game-panel').classList.add('hidden');document.getElementById('end-panel').classList.remove('hidden');
                  const l=document.getElementById('ranking-list');l.innerHTML="";
-                 [...s.giocatori].sort((a,b)=>b.punteggio_totale-a.punteggio_totale).forEach((p,i)=>{l.innerHTML+=`<li>${i+1}. ${p.nome}: €${p.punteggio_totale}</li>`});
+                 [...s.giocatori].sort((a,b)=>b.punteggio_totale-a.punteggio_totale).forEach((p,i)=>{
+                     const jl = (p.jolly_scadenze && Array.isArray(p.jolly_scadenze)) ? p.jolly_scadenze.length : 0;
+                     l.innerHTML+=`<li>${i+1}. ${p.nome}: €${p.punteggio_totale} (Jolly residui: ${jl})</li>`
+                 });
                  return;
             }
             if(s.stato==='finito'){
                 if(s.buffer_frasi_speciali && s.buffer_frasi_speciali.length > 0) {
-                    let maxIdx = (s.fase_speciale >= 10) ? 2 : 3; 
-                    if(s.indice_buffer < maxIdx) {
+                    let maxBufferLen = s.buffer_frasi_speciali.length;
+                    if(s.indice_buffer < maxBufferLen - 1) {
                         if(isHost && s.azione_timestamp!==lastTimestamp) setTimeout(startNewRound, 4000); 
-                        if(s.azione_timestamp!==lastTimestamp){
-                            lastTimestamp=s.azione_timestamp; playMultiHit(3);
-                            showFlashMessage("PROSSIMA FRASE...", "good");
-                        }
+                        if(s.azione_timestamp!==lastTimestamp){ lastTimestamp=s.azione_timestamp; playMultiHit(3); showFlashMessage("PROSSIMA FRASE...", "good"); }
                         return; 
                     }
                 }
@@ -351,6 +350,7 @@
                 let intro = `Categoria: ${currentFrase.categoria}. ${currentHintText}.`;
                 if(s.fase_speciale > 0) intro += ` Frase speciale.`;
                 speak(intro);
+                pendingMultiplier = 1; // reset multiplier
             }
 
             document.getElementById('round-indicator').textContent=`R ${s.round_giocati}/10`;
@@ -364,66 +364,39 @@
             
             if(s.fase_speciale > 0 && s.fase_speciale !== 10) { 
                 spInfo.classList.remove('hidden');
-                
-                if(step === 0) {
-                    spRules.textContent = "AZIONE 1: CONSONANTI AL 50%";
-                    canSpin = true; canSolve = true; canVowel = true; 
-                } else if(step === 1) {
-                    spRules.textContent = "AZIONE 2: CONSONANTI PREZZO PIENO";
-                    canSpin = true; canSolve = true; canVowel = true;
-                } else if(step >= 2 && step < 5) {
-                    spRules.textContent = "FASE 3: SOLO VOCALI (GRATIS)";
-                    canFreeVowel = true; 
-                    canPass = true;
-                } else {
-                    spRules.textContent = "FASE 4: SOLO CONSONANTI (PAGATE)";
-                    canSpin = true; canSolve = true; canVowel = false; 
-                    canManual = true; 
-                }
+                if(step === 0) { spRules.textContent = "AZIONE 1: CONSONANTI AL 50%"; canSpin=true; canSolve=true; canVowel=true; }
+                else if(step === 1) { spRules.textContent = "AZIONE 2: CONSONANTI PREZZO PIENO"; canSpin=true; canSolve=true; canVowel=true; }
+                else if(step >= 2 && step < 5) { spRules.textContent = "FASE 3: SOLO VOCALI (GRATIS)"; canFreeVowel=true; canPass=true; }
+                else { spRules.textContent = "FASE 4: SOLO CONSONANTI (PAGATE)"; canSpin=true; canSolve=true; canVowel=false; canManual=true; }
             } else if (s.fase_speciale === 10) {
-                 spInfo.classList.remove('hidden');
-                 spRules.textContent = "FILO CONDUTTORE: 500€ FISSI";
-                 canSpin = true; canSolve = true; canVowel = true;
+                 spInfo.classList.remove('hidden'); spRules.textContent = "FILO CONDUTTORE: 0€ CHIAMATA, 500€ SOLUZIONE"; canSpin=true; canSolve=true; canVowel=false;
             } else {
-                 spInfo.classList.add('hidden');
-                 canSpin = true; canSolve = true; canVowel = true;
-                 canManual = true; 
+                 spInfo.classList.add('hidden'); canSpin=true; canSolve=true; canVowel=true; canManual=true; 
             }
 
-            if(!isMe || isSpinning || inputMode) {
-                canSpin=false; canSolve=false; canVowel=false; canFreeVowel=false; canPass=false; canManual=false;
-            }
+            if(!isMe || isSpinning || inputMode) { canSpin=false; canSolve=false; canVowel=false; canFreeVowel=false; canPass=false; canManual=false; }
             if(canSpin && s.montepremi_round > 0) canSpin = false;
 
-            setBtnState('btn-spin', !canSpin);
-            setBtnState('btn-solve', !canSolve);
-            setBtnState('btn-pass', !canPass);
-            
+            setBtnState('btn-spin', !canSpin); setBtnState('btn-solve', !canSolve); setBtnState('btn-pass', !canPass);
             document.getElementById('btn-free-vowel').classList.add('hidden');
-            if(canFreeVowel) {
-                 document.getElementById('btn-free-vowel').classList.remove('hidden');
-                 setBtnState('btn-vowel', true); 
-            } else {
+            if(canFreeVowel) { document.getElementById('btn-free-vowel').classList.remove('hidden'); setBtnState('btn-vowel', true); } 
+            else {
                  const me=s.giocatori.find(p=>p.indice===myIndex);
                  const hasMoney = (me && me.punteggio_round >= 500);
                  setBtnState('btn-vowel', !(canVowel && hasMoney));
             }
-            
             if(canManual && s.montepremi_round > 0) document.getElementById('btn-manual-cons').classList.remove('hidden');
             else document.getElementById('btn-manual-cons').classList.add('hidden');
 
-            if(s.fase_speciale > 0 && s.fase_speciale !== 10 && step === 2 && isHost && !isProcessingInput) {
-                giveAutomaticVowels(s);
-            }
+            if(s.fase_speciale > 0 && s.fase_speciale !== 10 && step === 2 && isHost && !isProcessingInput) { giveAutomaticVowels(s); }
 
             if(s.azione_timestamp && s.azione_timestamp!==lastTimestamp){
                 lastTimestamp=s.azione_timestamp;
                 if(s.ultimo_messaggio) actionLog.unshift(s.ultimo_messaggio);
                 showFlashMessage(s.ultimo_messaggio, (s.ultima_azione==='vittoria'?'good':(s.ultima_azione==='errore'?'bad':'info')));
                 speak(s.ultimo_messaggio);
-                if(s.ultima_azione==='chiama_lettera' && s.ultimo_messaggio.includes("Trovate")){
-                    playMultiHit((s.ultimo_messaggio.match(/\d+/)||['1'])[0]);
-                } else if(s.ultima_azione==='errore') playAudio('snd-miss');
+                if(s.ultima_azione==='chiama_lettera' && s.ultimo_messaggio.includes("Trovate")){ playMultiHit((s.ultimo_messaggio.match(/\d+/)||['1'])[0]); }
+                else if(s.ultima_azione==='errore') playAudio('snd-miss');
             }
 
             document.getElementById('live-category').textContent=currentFrase.categoria;
@@ -435,7 +408,12 @@
             document.getElementById('turn-indicator').textContent=isMe?"TOCCA A TE":`Turno di ${cpName}`;
             document.getElementById('turn-indicator').style.color=isMe?"#0f0":"#fff";
             const meObj=s.giocatori.find(p=>p.indice===myIndex);
-            if(meObj){document.getElementById('score-round').textContent=meObj.punteggio_round;document.getElementById('score-total').textContent=meObj.punteggio_totale;}
+            if(meObj){
+                document.getElementById('score-round').textContent=meObj.punteggio_round;
+                document.getElementById('score-total').textContent=meObj.punteggio_totale;
+                const jCount = (meObj.jolly_scadenze && Array.isArray(meObj.jolly_scadenze)) ? meObj.jolly_scadenze.length : 0;
+                document.getElementById('jolly-indicator').textContent = jCount > 0 ? ` JOLLY: ${jCount}` : "";
+            }
         }
 
         function parseAndRenderBoard(text,rev){
@@ -451,45 +429,233 @@
             });
             highlightNav();
         }
-        function moveNav(d){if(!parsedBoard.length)return;let n=navCharIdx+d,wL=parsedBoard[navWordIdx].chars.length;if(n<0)n=0;if(n>=wL)n=wL-1;navCharIdx=n;highlightNav();readSingleChar();}
-        function moveWordNav(d){if(!parsedBoard.length)return;let n=navWordIdx+d;if(n<0)n=0;if(n>=parsedBoard.length)n=parsedBoard.length-1;navWordIdx=n;navCharIdx=0;highlightNav(true);readWholeWord();}
-        function highlightNav(wd=false){document.querySelectorAll('.cursor-char').forEach(e=>e.classList.remove('cursor-char'));document.querySelectorAll('.cursor-word').forEach(e=>e.classList.remove('cursor-word'));if(wd){const r=document.getElementById(`row-${navWordIdx}`);if(r)r.classList.add('cursor-word')}else{const e=document.getElementById(`tile-${navWordIdx}-${navCharIdx}`);if(e)e.classList.add('cursor-char')}}
-        function readSingleChar(){const w=parsedBoard[navWordIdx],c=w.chars[navCharIdx],p=navCharIdx+1;speak(`${p} di ${w.chars.length}. ${c.isLetter&&!c.isRevealed?'Nascosta':(NATO[c.char]||c.char)}`);}
-        function readWholeWord(){let s="";parsedBoard[navWordIdx].chars.forEach(c=>{s+=c.isLetter&&!c.isRevealed?"_":c.char});speak(`Parola ${navWordIdx+1}: ${s}`);}
-        function readFullBoard(){let f=`${currentFrase.categoria}. ${currentHintText}. `;parsedBoard.forEach((w,i)=>{let s="";w.chars.forEach(c=>s+=c.isRevealed?c.char:" vuota ");f+=` P${i+1}: ${s}. `});speak(f);}
+
+        function moveNav(d) {
+            if (!parsedBoard.length) return;
+            let currentW = parsedBoard[navWordIdx];
+            let newCharIdx = navCharIdx + d;
+            if (newCharIdx >= currentW.chars.length) { newCharIdx = currentW.chars.length - 1; } 
+            else if (newCharIdx < 0) { newCharIdx = 0; }
+            if(newCharIdx !== navCharIdx) { navCharIdx = newCharIdx; highlightNav(); readSingleChar(); } else { readSingleChar(); }
+        }
+
+        function moveWordNav(d) {
+            if (!parsedBoard.length) return;
+            let n = navWordIdx + d;
+            if (n < 0) { n = 0; speak("Inizio frase."); } 
+            else if (n >= parsedBoard.length) { n = parsedBoard.length - 1; speak("Fine frase."); } 
+            else { navWordIdx = n; navCharIdx = 0; highlightNav(true); readWholeWord(); }
+        }
+
+        function getCharReadString(wordObj, cIdx) {
+            const c = wordObj.chars[cIdx];
+            const pos = (cIdx + 1) + " di " + wordObj.chars.length;
+            if (c.isLetter && !c.isRevealed) return `Nascosta, ${pos}`;
+            return `${c.char}, ${NATO[c.char] || c.char}, ${pos}`;
+        }
+        function readSingleChar(){ const w = parsedBoard[navWordIdx]; speak(getCharReadString(w, navCharIdx)); }
+        function readWholeWord(){
+            const w = parsedBoard[navWordIdx]; let reading = "", missing = 0;
+            w.chars.forEach(c => { if (c.isLetter && !c.isRevealed) { reading += " asterisco "; missing++; } else { reading += c.char; } });
+            let info = `Parola ${navWordIdx + 1}, ${w.chars.length} lettere. `;
+            if(missing === 0) info += reading; else if(missing === w.chars.length) info += "Tutta nascosta."; else info += reading;
+            speak(info);
+        }
+        function readFullBoard(){ let f=`${currentFrase.categoria}. ${currentHintText}. `; parsedBoard.forEach((w,i)=>{let s="";w.chars.forEach(c=>s+=c.isRevealed?c.char:"_");f+=` P${i+1}: ${s}. `}); speak(f); }
+
+        function highlightNav(wd=false){
+            document.querySelectorAll('.cursor-char').forEach(e=>e.classList.remove('cursor-char'));
+            document.querySelectorAll('.cursor-word').forEach(e=>e.classList.remove('cursor-word'));
+            if(wd){ const r=document.getElementById(`row-${navWordIdx}`); if(r)r.classList.add('cursor-word'); }
+            else{ const e=document.getElementById(`tile-${navWordIdx}-${navCharIdx}`); if(e)e.classList.add('cursor-char'); }
+        }
+
+        function openInspector() {
+            if (!currentStanza || !parsedBoard.length) return speak("Nessuna frase attiva.");
+            const el = document.getElementById('inspector-overlay');
+            const cnt = document.getElementById('inspector-content');
+            el.classList.remove('hidden');
+            let html = `<h2 style="color:#ffd700; margin-bottom:20px;">RIEPILOGO FRASE (${parsedBoard.length} Parole)</h2>`;
+            parsedBoard.forEach((w, i) => {
+                let wordText = "";
+                w.chars.forEach(c => { if (c.isLetter && !c.isRevealed) { wordText += "*"; } else { wordText += c.char; } });
+                html += `<p style="margin: 15px 0; border-bottom: 1px solid #555; padding-bottom: 5px;"><span style="color:#00ff00;">Parola ${i + 1}:</span> <span style="color:#fff; font-weight:bold; font-size:1.2em; margin-left:10px;">${wordText}</span></p>`;
+            });
+            html += `<p style="color:#aaa; margin-top:20px;">Premi ESC per chiudere.</p>`;
+            cnt.innerHTML = html; cnt.focus(); speak(`Ispettore aperto. ${parsedBoard.length} parole.`);
+        }
+
+        async function readRevealedLetters() {
+            if (!currentStanza || !currentStanza.lettere_rivelate) return speak("Nessuna lettera svelata.");
+            isReadingList = true;
+            const sol = currentPuzzleText.toUpperCase();
+            let revSet = new Set(), gIdx = 0;
+            for (let i = 0; i < sol.length; i++) {
+                if (sol[i].match(/[A-ZÀ-Ù]/)) { if (currentStanza.lettere_rivelate.includes(gIdx)) { revSet.add(sol[i]); } gIdx++; }
+            }
+            const arr = Array.from(revSet).sort();
+            if (arr.length === 0) return speak("Nessuna lettera presente scoperta.");
+            speak(`Ci sono ${arr.length} lettere scoperte.`);
+            await new Promise(r => setTimeout(r, 1500)); 
+            for (const char of arr) {
+                if(!isReadingList || inputMode) break; 
+                const spell = NATO[char] || char; speak(`${char}, ${spell}`); await new Promise(r => setTimeout(r, 800)); 
+            }
+            isReadingList = false;
+        }
+
+        // --- GESTIONE POPUP SCELTE ---
+        function showDialog(title, text, buttons) {
+            const d = document.getElementById('dialog-generic');
+            document.getElementById('dialog-title').textContent = title;
+            document.getElementById('dialog-body').textContent = text;
+            const acts = document.getElementById('dialog-actions');
+            acts.innerHTML = '';
+            buttons.forEach(b => {
+                const btn = document.createElement('button');
+                btn.className = 'action-btn ' + b.cls;
+                btn.textContent = b.text;
+                btn.onclick = () => { d.classList.add('hidden'); b.action(); };
+                acts.appendChild(btn);
+            });
+            d.classList.remove('hidden');
+            speak(title + ". " + text);
+            setTimeout(() => acts.firstChild.focus(), 100);
+        }
 
         async function doSpin(){
             if(isBtnDisabled('btn-spin'))return;
+            
+            // --- MODIFICA FILO CONDUTTORE (Round 6) ---
+            if(currentStanza.fase_speciale === 10) {
+                 isSpinning = false;
+                 const myName = document.getElementById('inp-name').value;
+                 // Impostiamo montepremi a 0, così chiamare lettere non da soldi
+                 await supabase.from('stanze').update({
+                     montepremi_round: 0, 
+                     ultima_azione: 'gira_ruota',
+                     ultimo_messaggio: myName + ": FILO CONDUTTORE",
+                     azione_timestamp: new Date().toISOString()
+                 }).eq('id', roomId);
+                 fetchFullState();
+                 // Apriamo subito l'input per la lettera
+                 setTimeout(() => openInput('letter'), 500);
+                 return;
+            }
+            // -----------------------------------------
+
             document.getElementById('wheel-status-text').focus();speak("Gira...");playAudio('snd-spin');isSpinning=true;
             setBtnState('btn-spin',true);setBtnState('btn-solve',true);setBtnState('btn-vowel',true);
             wheelAngle+=(1000+Math.random()*500);document.getElementById('wheel-visual').style.transform=`rotate(${wheelAngle}deg)`;
             await new Promise(r=>setTimeout(r,3500));
             
             let v=WHEEL_VALUES[Math.floor(Math.random()*WHEEL_VALUES.length)];
-            
             const step = currentStanza.vocali_speciali_chiamate || 0;
             if(typeof v === 'number' && currentStanza.fase_speciale > 0 && currentStanza.fase_speciale !== 10 && step === 0) {
-                v = Math.floor(v / 2);
-                speak("Metà prezzo! " + v);
+                v = Math.floor(v / 2); speak("Metà prezzo! " + v);
             }
             
-            const myName=document.getElementById('inp-name').value;
-            if(v==='MISTERO'){
-               v=['BANCAROTTA','PASSA','RADDOPPIA','JOLLY'][Math.floor(Math.random()*4)];
-               if(v==='RADDOPPIA'){
-                   const me=currentStanza.giocatori.find(p=>p.id===myId);
-                   await supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)*2}).eq('id',myId);
-                   speak("Raddoppia!");fetchFullState();isSpinning=false;return;
-               } else if(v==='JOLLY'){
-                   await supabase.rpc('incrementa_jolly',{id_giocatore:myId});
-                   speak("Hai vinto un JOLLY!");fetchFullState();isSpinning=false;return;
-               }
+            if(v === 'MISTERO') {
+                isSpinning = false;
+                showDialog("MISTERO!", "Vuoi tenere 500€ sicuri o aprire il Mistero?", [
+                    { text: "TIENI 500€", cls: "btn-primary", action: () => handleMysteryOutcome('SAFE') },
+                    { text: "APRI MISTERO", cls: "btn-special", action: () => handleMysteryOutcome('RISK') }
+                ]);
+                return;
             }
-            isSpinning=false;let msg=`${myName} gira: ${v}`;
-            if(typeof v==='number'&&v>0){
+
+            handleSpinResult(v);
+        }
+
+        async function handleMysteryOutcome(choice) {
+            if(choice === 'SAFE') {
+                handleSpinResult(500); 
+            } else {
+                const opts = ['RADDOPPIA', 'DIMEZZA', 'BANCAROTTA', 'PASSA', 'JOLLY', 'SCEGLI_AVVERSARIO'];
+                const res = opts[Math.floor(Math.random() * opts.length)];
+                speak("Il mistero contiene: " + res);
+                await new Promise(r => setTimeout(r, 1500));
+                
+                if(res === 'RADDOPPIA') {
+                    pendingMultiplier = 2;
+                    handleSpinResult(1000, "Mistero Raddoppia! "); 
+                } else if (res === 'DIMEZZA') {
+                     const me = currentStanza.giocatori.find(p=>p.id===myId);
+                     const newScore = Math.floor((me.punteggio_round||0) / 2);
+                     await supabase.from('giocatori').update({punteggio_round:newScore}).eq('id',myId);
+                     handleSpinResult(500, "Dimezzato! ");
+                } else if (res === 'SCEGLI_AVVERSARIO') {
+                    chooseOpponent();
+                } else if (res === 'JOLLY') {
+                    const me = currentStanza.giocatori.find(p=>p.id===myId);
+                    let myJollys = (me.jolly_scadenze && Array.isArray(me.jolly_scadenze)) ? [...me.jolly_scadenze] : [];
+                    // Scadenza: Round Corrente + 2. Es: Trovato in R1 -> Scade fine R3 (Valid: 1, 2, 3)
+                    myJollys.push(currentStanza.round_giocati + 2);
+                    await supabase.from('giocatori').update({jolly_scadenze:myJollys}).eq('id',myId);
+                    handleSpinResult(500, "Hai vinto un JOLLY! ");
+                } else {
+                    handleSpinResult(res);
+                }
+            }
+        }
+
+        function chooseOpponent() {
+            const others = currentStanza.giocatori.filter(p => p.id !== myId);
+            if(others.length === 0) {
+                speak("Sei solo. Passi il turno a te stesso.");
+                passTurn();
+            } else {
+                const btns = others.map(p => ({
+                    text: p.nome,
+                    cls: 'btn-secondary',
+                    action: async () => {
+                         await supabase.from('stanze').update({
+                             id_giocatore_corrente: p.indice, 
+                             ultima_azione:'timeout', 
+                             ultimo_messaggio: `Turno ceduto a ${p.nome}`, 
+                             azione_timestamp:new Date().toISOString()
+                         }).eq('id',roomId);
+                         fetchFullState();
+                    }
+                }));
+                showDialog("SCEGLI AVVERSARIO", "A chi passi la mano?", btns);
+            }
+        }
+
+        async function handleSpinResult(v, prefixMsg="") {
+            const myName=document.getElementById('inp-name').value;
+            if (v === 'BANCAROTTA' || v === 'PASSA') {
+                const me = currentStanza.giocatori.find(p => p.id === myId);
+                const jollys = (me.jolly_scadenze && Array.isArray(me.jolly_scadenze)) ? me.jolly_scadenze : [];
+                
+                if (jollys.length > 0) {
+                    isSpinning = false;
+                    showDialog("USARE JOLLY?", `È uscito ${v}. Hai ${jollys.length} Jolly. Usarne uno per salvarti?`, [
+                        { text: "SÌ, USA JOLLY", cls: "btn-primary", action: async () => {
+                            let newJollys = [...jollys];
+                            newJollys.sort((a,b)=>a-b); 
+                            newJollys.shift(); // Usa quello che scade prima
+                            await supabase.from('giocatori').update({jolly_scadenze:newJollys}).eq('id', myId);
+                            speak("Jolly usato! Ti salvi.");
+                            setBtnState('btn-spin', false); 
+                            fetchFullState();
+                        }},
+                        { text: "NO, SUBISCI", cls: "btn-danger", action: async () => {
+                            if(v==='BANCAROTTA') await supabase.from('giocatori').update({punteggio_round:0}).eq('id',myId);
+                            passTurn();
+                        }}
+                    ]);
+                    return;
+                }
+            }
+
+            isSpinning=false;
+            let msg=`${prefixMsg}${myName} gira: ${v}`;
+            
+            if(typeof v==='number'&&v>=0){
                 await supabase.from('stanze').update({montepremi_round:v,ultima_azione:'gira_ruota',ultimo_messaggio:msg,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
                 fetchFullState();setTimeout(()=>openInput('letter'),500);
-            }else{
+            } else {
                 if(v==='BANCAROTTA')await supabase.from('giocatori').update({punteggio_round:0}).eq('id',myId);
                 const n=(myIndex+1)%currentStanza.giocatori.length;
                 await supabase.from('stanze').update({id_giocatore_corrente:n,montepremi_round:0,ultima_azione:'errore',ultimo_messaggio:msg,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
@@ -501,19 +667,17 @@
         function openInput(m){
             if(m==='vowel' && !document.getElementById('btn-free-vowel').checkVisibility()){
                 const me=currentStanza.giocatori.find(p=>p.id===myId);
-                if((me.punteggio_round||0)<500)return speak("Servono 500 euro");
+                if((me.punteggio_round||0)<500)return speak("Servono 500 euro nel round.");
             }
-            lastFocusedElement=document.activeElement;inputMode=m;
+            lastFocusedElement=document.activeElement;inputMode=m; isReadingList=false;
             document.getElementById('input-area').classList.remove('hidden');
             const inp=document.getElementById('game-input');inp.value='';
             if(m==='solve'){
                 let prefill="",gI=0,txt=currentPuzzleText.toUpperCase();
                 for(let i=0;i<txt.length;i++){
                     const c=txt[i];
-                    if(c.match(/[A-ZÀ-Ù]/)){
-                        prefill+=currentStanza.lettere_rivelate.includes(gI)?c:"*";
-                        gI++;
-                    }else prefill+=c;
+                    if(c.match(/[A-ZÀ-Ù]/)){ prefill+=currentStanza.lettere_rivelate.includes(gI)?c:"*"; gI++; }
+                    else prefill+=c;
                 }
                 inp.value=prefill;speak("Scrivi sugli asterischi.");
             }else if(m==='vowel_free'){
@@ -541,12 +705,9 @@
                     const me=currentStanza.giocatori.find(p=>p.id===myId);
                     let base=me.punteggio_round||0, bonus=base<1000?1000:(base<2000?700:400);
                     if(currentStanza.fase_speciale===10) { tot=500; }
-                    else if(currentStanza.fase_speciale > 0) { base=0; bonus=1000; } // Round speciale 4
-                    
+                    else if(currentStanza.fase_speciale > 0) { base=0; bonus=1000; }
                     let tot=(currentStanza.fase_speciale===10)?500:(base+bonus);
-
                     await supabase.from('giocatori').update({punteggio_totale:(me.punteggio_totale||0)+tot,punteggio_round:0}).eq('id',myId);
-                    
                     const sol=currentPuzzleText.toUpperCase();let allIdx=[],gIdx=0;for(let i=0;i<sol.length;i++){if(sol[i].match(/[A-ZÀ-Ù]/)){allIdx.push(gIdx);gIdx++;}}
                     await supabase.from('stanze').update({stato:'finito', ultima_azione:'vittoria', ultimo_messaggio:`${myName} VINCE €${tot}!`, lettere_rivelate:allIdx, azione_timestamp:new Date().toISOString()}).eq('id',roomId);
                 }else{
@@ -556,37 +717,35 @@
                 const sol=currentPuzzleText.toUpperCase();let fd=[],gI=0;
                 for(let i=0;i<sol.length;i++){if(sol[i].match(/[A-ZÀ-Ù]/)){if(cleanStr(sol[i])===cleanStr(c))fd.push(gI);gI++;}}
                 const oc=currentStanza.lettere_chiamate||[];
-                
                 let currentStep = currentStanza.vocali_speciali_chiamate || 0;
                 let nextStep = currentStep;
-                if(currentStanza.fase_speciale > 0 && currentStanza.fase_speciale !== 10 && currentStep < 5) {
-                     nextStep++;
-                }
+                if(currentStanza.fase_speciale > 0 && currentStanza.fase_speciale !== 10 && currentStep < 5) { nextStep++; }
 
                 if(oc.some(k=>cleanStr(k)===cleanStr(c))){
                       await supabase.from('stanze').update({id_giocatore_corrente:n, ultima_azione:'chiama_lettera', ultimo_messaggio:`${myName}: ${c} già detta`, montepremi_round:0, azione_timestamp:new Date().toISOString()}).eq('id',roomId);
                 } else {
                     const nc=[...new Set([...oc,c])],me=currentStanza.giocatori.find(p=>p.id===myId);
-                    
                     if(m==='vowel') await supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)-500}).eq('id',myId);
-                    
                     if(fd.length>0){
-                        if(m==='letter') await supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)+(currentStanza.montepremi_round*fd.length)}).eq('id',myId);
-                        
+                        if(m==='letter') {
+                             let gain = (currentStanza.montepremi_round * fd.length);
+                             if(pendingMultiplier > 1) {
+                                 gain = gain + (me.punteggio_round||0); 
+                                 pendingMultiplier = 1; 
+                             }
+                             await supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)+gain}).eq('id',myId);
+                        }
                         const newRev=[...new Set([...(currentStanza.lettere_rivelate||[]),...fd])];
                         await supabase.from('stanze').update({
-                            lettere_rivelate:newRev, lettere_chiamate:nc, 
-                            ultima_azione:'chiama_lettera', ultimo_messaggio:`${myName}: Trovate ${fd.length} ${c}`, 
-                            montepremi_round:0, vocali_speciali_chiamate: nextStep,
-                            azione_timestamp:new Date().toISOString()
+                            lettere_rivelate:newRev, lettere_chiamate:nc, ultima_azione:'chiama_lettera', ultimo_messaggio:`${myName}: Trovate ${fd.length} ${c}`, 
+                            montepremi_round:0, vocali_speciali_chiamate: nextStep, azione_timestamp:new Date().toISOString()
                         }).eq('id',roomId);
                     } else {
+                        pendingMultiplier = 1;
                         await supabase.from('stanze').update({
-                            lettere_chiamate:nc, 
-                            id_giocatore_corrente: (m==='vowel_free') ? myIndex : n,
+                            lettere_chiamate:nc, id_giocatore_corrente: (m==='vowel_free') ? myIndex : n,
                             ultima_azione:'chiama_lettera', ultimo_messaggio:`${myName}: ${c} non c'è`, 
-                            montepremi_round:0, vocali_speciali_chiamate: nextStep,
-                            azione_timestamp:new Date().toISOString()
+                            montepremi_round:0, vocali_speciali_chiamate: nextStep, azione_timestamp:new Date().toISOString()
                         }).eq('id',roomId);
                     }
                 }
@@ -597,48 +756,41 @@
         async function startNewRound(){
             if(!isHost)return speak("Solo l'host può.");
             let s = currentStanza;
-            let nextRoundIdx = s.round_giocati; 
-            let nextBufferIdx = s.indice_buffer;
-            let nextBuffer = s.buffer_frasi_speciali || [];
-            let nextFaseSpeciale = 0; 
+            let nextRoundIdx = s.round_giocati; let nextBufferIdx = s.indice_buffer;
+            let nextBuffer = s.buffer_frasi_speciali || []; let nextFaseSpeciale = 0; 
             
-            let maxBuffer = (s.fase_speciale >= 10) ? 2 : 3; 
-            
-            if(s.stato === 'finito' && nextBuffer.length > 0 && nextBufferIdx < maxBuffer) {
+            // Continua finché non esaurisci tutte le frasi caricate nel buffer (es. Filo Conduttore)
+            if(s.stato === 'finito' && nextBuffer.length > 0 && nextBufferIdx < nextBuffer.length - 1) {
                 nextBufferIdx++;
-                if(s.fase_speciale >= 10) nextFaseSpeciale = 10; 
-                else nextFaseSpeciale = (nextBufferIdx === 2) ? 3 : 2; 
-                // Nota: nextFaseSpeciale qui è solo indicativo per "tipo di frase", ma la logica vera è nello step
-                // Se era round 4/10, reimpostiamo solo se necessario, ma il campo step (vocali_speciali_chiamate) deve essere 0
+                if(s.fase_speciale >= 10) nextFaseSpeciale = 10; else nextFaseSpeciale = nextBufferIdx + 1;
                 
-                // Mappatura corretta per Round Speciali:
-                // Frase 1 -> FASE 1 (Sconto 50% Step 0)
-                // Frase 2 -> FASE 2 (Prezzo pieno) - Ma noi usiamo vocali_speciali_chiamate per gli step
-                // Frase 3 -> FASE 3 (Vocali)
-                // Frase 4 -> Normale
-                
-                // SEMPLIFICAZIONE: Usiamo fase_speciale solo per dire "SIAMO NEL ROUND SPECIALE" (es. valore 1)
-                // e usiamo vocali_speciali_chiamate per lo step.
-                // Tranne per Filo Conduttore (valore 10).
-                
-                if(s.fase_speciale >= 10) nextFaseSpeciale = 10;
-                else nextFaseSpeciale = nextBufferIdx + 1; // 1, 2, 3, 4
-
                 await supabase.from('giocatori').update({punteggio_round:0}).eq('stanza_id',roomId);
+                
                 await supabase.from('stanze').update({
-                    frase_corrente_id: nextBuffer[nextBufferIdx],
-                    stato: 'gioco',
+                    frase_corrente_id: nextBuffer[nextBufferIdx], stato: 'gioco',
                     lettere_rivelate: [], lettere_chiamate: [], montepremi_round: 0,
                     indice_buffer: nextBufferIdx, fase_speciale: nextFaseSpeciale, vocali_speciali_chiamate: 0,
                     ultima_azione: 'nuovo', ultimo_messaggio: `Frase ${nextBufferIdx+1}`,
                     azione_timestamp: new Date().toISOString()
-                }).eq('id', roomId);
-                fetchFullState();
-                return;
+                }).eq('id', roomId); fetchFullState(); return;
             }
 
             nextRoundIdx++;
             if(nextRoundIdx > 10) { await supabase.from('stanze').update({stato:'terminata'}).eq('id',roomId); return; }
+
+            // PULIZIA JOLLY SCADUTI
+            const {data: allPlayers} = await supabase.from('giocatori').select('*').eq('stanza_id', roomId);
+            if(allPlayers) {
+                for (const p of allPlayers) {
+                    if(p.jolly_scadenze && Array.isArray(p.jolly_scadenze) && p.jolly_scadenze.length > 0) {
+                        // Tieni jolly solo se il loro round di scadenza è >= al round attuale
+                        const validJollys = p.jolly_scadenze.filter(expiryRound => expiryRound >= nextRoundIdx);
+                        if(validJollys.length !== p.jolly_scadenze.length) {
+                             await supabase.from('giocatori').update({jolly_scadenze: validJollys}).eq('id', p.id);
+                        }
+                    }
+                }
+            }
 
             let nextFraseId = null, newBuffer = [], newFase = 0;
             if([4, 10].includes(nextRoundIdx)) {
@@ -647,11 +799,7 @@
                     const uniqueTemi = [...new Set(temi.map(i => i.tema))];
                     const randomTema = uniqueTemi[Math.floor(Math.random() * uniqueTemi.length)];
                     const {data: frasiSet} = await supabase.from('frasi').select('id').eq('categoria', 'SITUAZIONI QUOTIDIANE').eq('tema', randomTema).limit(4);
-                    if(frasiSet && frasiSet.length === 4) {
-                        newBuffer = frasiSet.map(f => f.id);
-                        nextFraseId = newBuffer[0];
-                        newFase = 1; 
-                    }
+                    if(frasiSet && frasiSet.length === 4) { newBuffer = frasiSet.map(f => f.id); nextFraseId = newBuffer[0]; newFase = 1; }
                 }
             } 
             else if(nextRoundIdx === 6) {
@@ -659,85 +807,63 @@
                 if(temi && temi.length) {
                     const uniqueTemi = [...new Set(temi.map(i => i.tema))];
                     const randomTema = uniqueTemi[Math.floor(Math.random() * uniqueTemi.length)];
-                    const {data: frasiSet} = await supabase.from('frasi').select('id').eq('categoria', 'FILO CONDUTTORE').eq('tema', randomTema).order('id', {ascending: true}).limit(3);
-                    if(frasiSet && frasiSet.length === 3) {
-                        newBuffer = frasiSet.map(f => f.id);
-                        nextFraseId = newBuffer[0];
-                        newFase = 10; 
-                    }
+                    // Carica fino a 4 frasi per il Filo Conduttore
+                    const {data: frasiSet} = await supabase.from('frasi').select('id').eq('categoria', 'FILO CONDUTTORE').eq('tema', randomTema).order('id', {ascending: true}).limit(4);
+                    if(frasiSet && frasiSet.length >= 3) { newBuffer = frasiSet.map(f => f.id); nextFraseId = newBuffer[0]; newFase = 10; }
                 }
             }
-            
             if(!nextFraseId) {
                 const {data:fr}=await supabase.from('frasi').select('id').neq('categoria','SITUAZIONI QUOTIDIANE').neq('categoria','FILO CONDUTTORE');
                 nextFraseId=fr[Math.floor(Math.random()*fr.length)].id;
             }
-
             await supabase.from('giocatori').update({punteggio_round:0}).eq('stanza_id',roomId);
             await supabase.from('stanze').update({
-                frase_corrente_id: nextFraseId,
-                stato: 'gioco',
-                round_giocati: nextRoundIdx,
-                buffer_frasi_speciali: newBuffer,
-                indice_buffer: 0,
-                fase_speciale: newFase,
-                vocali_speciali_chiamate: 0,
+                frase_corrente_id: nextFraseId, stato: 'gioco', round_giocati: nextRoundIdx,
+                buffer_frasi_speciali: newBuffer, indice_buffer: 0, fase_speciale: newFase, vocali_speciali_chiamate: 0,
                 lettere_rivelate: [], lettere_chiamate: [], montepremi_round: 0,
                 ultima_azione: 'nuovo', ultimo_messaggio: `Round ${nextRoundIdx}`,
                 azione_timestamp: new Date().toISOString()
-            }).eq('id', roomId);
-            fetchFullState();
+            }).eq('id', roomId); fetchFullState();
         }
         
         document.getElementById('game-input').addEventListener('keydown',function(e){if(inputMode!=='solve'||e.key.length>1)return;const p=this.selectionStart,v=this.value;if(v[p]==='*'&&e.key.match(/^[a-zA-Zà-ù0-9]$/i)){e.preventDefault();this.value=v.substring(0,p)+e.key.toUpperCase()+v.substring(p+1);this.setSelectionRange(p+1,p+1);}});
-        document.addEventListener('keydown',e=>{
-            if(!e.key)return;const k=e.key.toLowerCase(),ia=document.activeElement.tagName==='INPUT';
-            if(e.ctrlKey){
-                if(k==='l'){e.preventDefault();readRevealedLetters();}
-                if(k==='g'){e.preventDefault();doSpin();}
+        
+        document.addEventListener('keydown', e => {
+            if (!e.key) return;
+            const k = e.key.toLowerCase();
+            const ia = document.activeElement.tagName === 'INPUT';
+            const isInspectorOpen = !document.getElementById('inspector-overlay').classList.contains('hidden');
+            const isDialogGenericOpen = !document.getElementById('dialog-generic').classList.contains('hidden');
+
+            if (ia) {
+                if (k === 'enter') submitInput();
+                if (k === 'escape') closeInput();
                 return;
             }
-            if(ia){if(k==='enter')submitInput();if(k==='escape')closeInput();return;}
-            if(k==='enter'&&!document.getElementById('round-over-panel').classList.contains('hidden')){e.preventDefault();startNewRound();return;}
-            if(k==='escape'){if(inputMode)closeInput();else document.getElementById('privacy-dialog').classList.add('hidden');return;}
-            if(!inputMode){if(k==='g')doSpin();if(k==='v')openInput('vowel');if(k==='s')openInput('solve');if(k==='c')toggleContrast();if(k==='a')readHistory();if(k==='p')passTurn();}
-            if(k==='arrowright')e.ctrlKey?moveWordNav(1):moveNav(1);if(k==='arrowleft')e.ctrlKey?moveWordNav(-1):moveNav(-1);
+            if (isInspectorOpen) { if (k === 'escape') closeInspector(); return; }
+            if (isDialogGenericOpen) return; 
+
+            if (!inputMode) {
+                if (k === 'g' || (e.ctrlKey && k === 'g')) { e.preventDefault(); doSpin(); return; }
+                if (k === 'v' || (e.ctrlKey && k === 'v')) { e.preventDefault(); openInput('vowel'); return; }
+                if (k === 's' || (e.ctrlKey && k === 's')) { e.preventDefault(); openInput('solve'); return; }
+                if (k === 'p' || (e.ctrlKey && k === 'p')) { e.preventDefault(); passTurn(); return; }
+                if (k === 'l' || (e.ctrlKey && k === 'l')) { e.preventDefault(); readRevealedLetters(); return; }
+                if (k === 'i' || (e.ctrlKey && k === 'i')) { e.preventDefault(); openInspector(); return; }
+                
+                if (k === 'arrowright') { e.preventDefault(); moveNav(1); }
+                if (k === 'arrowleft') { e.preventDefault(); moveNav(-1); }
+                if (k === 'arrowup') { e.preventDefault(); moveWordNav(-1); }
+                if (k === 'arrowdown') { e.preventDefault(); moveWordNav(1); }
+                
+                if (k === 'enter' && !document.getElementById('round-over-panel').classList.contains('hidden')) { e.preventDefault(); startNewRound(); return; }
+                if (k === 'r') readFullBoard();
+                if (k === 'c') toggleContrast();
+                if (k === ' ') { e.preventDefault(); readSingleChar(); }
+                if (k === 'escape') { e.preventDefault(); if(document.getElementById('privacy-dialog').classList.contains('hidden') === false) document.getElementById('privacy-dialog').classList.add('hidden'); }
+            }
         });
 
-        function readRevealedLetters() {
-            if (!currentStanza || !currentStanza.lettere_rivelate) return speak("Nessuna lettera rivelata.");
-            const sol = currentPuzzleText.toUpperCase();
-            let revSet = new Set();
-            let gIdx = 0;
-            for (let i = 0; i < sol.length; i++) {
-                if (sol[i].match(/[A-ZÀ-Ù]/)) {
-                    if (currentStanza.lettere_rivelate.includes(gIdx)) {
-                        revSet.add(sol[i]);
-                    }
-                    gIdx++;
-                }
-            }
-            const arr = Array.from(revSet).sort();
-            if (arr.length === 0) speak("Nessuna lettera presente scoperta.");
-            else speak("Lettere presenti: " + arr.join(", "));
-        }
-        function readHistory() {
-            if (actionLog.length === 0) return speak("Nessuno storico azioni.");
-            const recent = actionLog.slice(0, 3).join(". ");
-            speak("Ultimi eventi: " + recent);
-        }
-        function openInspector() {
-            const el = document.getElementById('inspector-overlay');
-            const cnt = document.getElementById('inspector-content');
-            el.classList.remove('hidden');
-            let html = `<h3>STATO ATTUALE</h3>`;
-            html += `<p>Round: ${currentStanza.round_giocati}</p>`;
-            html += `<p>Fase: ${currentStanza.fase_speciale}</p>`;
-            html += `<p>Vocali Call: ${currentStanza.vocali_speciali_chiamate}</p>`;
-            cnt.innerHTML = html;
-            cnt.focus();
-            speak("Ispettore aperto.");
-        }
         function closeInspector() {
             document.getElementById('inspector-overlay').classList.add('hidden');
             if (lastFocusedElement) lastFocusedElement.focus();

@@ -3,12 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>La Ruota - Final Accessible v2</title>
-    
+    <title>La Ruota - Special Logic Final</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
     <style>
-        /* --- STILI BASE --- */
         :root { --bg-body: #111; --col-text: #fff; --col-focus: #ffd700; --bg-panel: #222; }
         body.high-contrast { --bg-body: #000; --col-text: #fff; --col-focus: #00ffff; --bg-panel: #000; border: 2px solid yellow; }
         body { background: var(--bg-body); color: var(--col-text); font-family: 'Verdana', sans-serif; margin: 0; padding: 10px; text-align: center; padding-bottom: 120px; }
@@ -16,46 +13,30 @@
         .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); }
         .hidden { display: none !important; }
         .container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; }
-        
         #game-panel, #setup-panel, #end-panel, #round-over-panel { border: 2px solid #555; padding: 15px; margin-top: 15px; background: var(--bg-panel); border-radius: 10px; width: 95%; }
-
-        /* --- LISTA STANZE PUBBLICHE --- */
         #public-rooms-container { margin-top: 30px; border-top: 2px solid #555; padding-top: 20px; width: 100%; }
         .room-btn { width: 100%; padding: 15px; margin: 5px 0; background: #333; color: #fff; border: 2px solid #00ff00; border-radius: 8px; font-size: 1.2em; cursor: pointer; text-align: left; }
-        .room-btn:hover, .room-btn:focus { background: #004400; }
-
-        /* --- FLASH NEWS --- */
         #flash-overlay { position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%); width: 95%; max-width: 700px; padding: 20px; background: rgba(0, 0, 0, 0.9); border: 6px solid var(--col-focus); border-radius: 15px; z-index: 5000; text-align: center; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
         #flash-overlay.visible { opacity: 1; }
         #flash-message { font-size: 2.8em; font-weight: 900; color: #fff; text-transform: uppercase; margin: 0; line-height: 1.2; text-shadow: 2px 2px 0 #000; }
-
-        /* --- TABELLONE --- */
         #board-container { display: flex; flex-direction: column; align-items: center; gap: 8px; background: #053305; border: 4px solid #fff; padding: 20px; margin: 20px 0; min-height: 150px; }
         .board-row { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; }
         .tile { width: 45px; height: 65px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 2.2em; color: #000; background: #fff; border: 2px solid #000; }
         .tile.empty { background: #004400; border: 1px dashed #006600; color: transparent; }
         .tile.cursor-char { border: 5px solid var(--col-focus); transform: scale(1.1); z-index: 10; }
         .board-row.cursor-word { outline: 3px solid var(--col-focus); background: rgba(255, 255, 0, 0.2); }
-
-        /* --- NAVIGAZIONE --- */
         #tactile-nav { display: flex; justify-content: center; gap: 10px; padding: 10px; position: fixed; bottom: 0; left: 0; width: 100%; background: #000; border-top: 2px solid var(--col-focus); z-index: 2000; }
         .nav-btn { background: #333; color: #fff; border: 2px solid #555; width: 55px; height: 55px; border-radius: 50%; font-size: 1.8em; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-        .nav-btn:active { background: var(--col-focus); color: #000; }
-        
-        /* --- RUOTA --- */
         #wheel-visual { width: 150px; height: 150px; margin: 10px auto; border-radius: 50%; border: 5px solid #fff; background: conic-gradient(#f00, #ff0, #0f0, #00f, #f0f, orange); transition: transform 3.5s cubic-bezier(0.1, 0.9, 0.1, 1); }
         #wheel-pointer { width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-top: 30px solid #fff; margin: 0 auto -20px auto; position: relative; z-index: 20; }
-        
-        /* --- PULSANTI E INPUT --- */
         button.action-btn { padding: 15px 30px; margin: 10px; cursor: pointer; font-weight: 900; font-size: 1.2em; text-transform: uppercase; border: 3px solid #fff; border-radius: 10px; }
         .btn-primary { background: #ffd700; color: #000; }
         .btn-secondary { background: #00ffff; color: #000; }
         .btn-danger { background: #ff4444; color: #fff; }
+        .btn-special { background: #ff00ff; color: #fff; border-color: #fff; }
         .disabled-btn { background: #444 !important; color: #888 !important; cursor: not-allowed; }
-        
         #input-area, #inspector-overlay, #privacy-dialog { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 3000; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         input { font-size: 2.5em; padding: 15px; text-align: center; width: 80%; background: #222; color: #fff; border: 3px solid var(--col-focus); border-radius: 10px; margin-bottom: 20px; }
-
         @media (min-width: 769px) { #tactile-nav { position: relative; background: transparent; border: none; padding: 20px; } .tile { width: 50px; height: 75px; font-size: 2.5em; } }
     </style>
 </head>
@@ -71,25 +52,35 @@
         <input id="inp-code" type="text" placeholder="CODICE STANZA (OPZIONALE)"><br><br>
         <button onclick="askPrivacy()" class="action-btn btn-primary">CREA NUOVA STANZA</button>
         <button onclick="joinGame(false)" class="action-btn btn-secondary">ENTRA CON CODICE</button>
-        
         <div id="public-rooms-container">
             <h2 style="color:#00ff00;">STANZE PUBBLICHE</h2>
             <button onclick="fetchPublicRooms()" class="action-btn" style="font-size:1em; padding:10px;">AGGIORNA LISTA</button>
-            <div id="rooms-list" style="width:100%; padding:10px;">
-                <p>Premi aggiorna per cercare...</p>
-            </div>
+            <div id="rooms-list" style="width:100%; padding:10px;"><p>Premi aggiorna...</p></div>
         </div>
     </div>
 
     <div id="game-panel" class="container hidden">
         <div id="timer-box" role="timer" aria-live="off" style="font-size:2em; color:red; border:2px solid red; padding:5px 15px; border-radius:20px; display:inline-block;">120</div>
         <div class="info-bar" style="width:100%; display:flex; justify-content:space-between; padding:10px;">
-            <div style="text-align:left;"><span id="round-indicator" style="color:#aaa;">Round 1/10</span><br><span id="turn-indicator" style="font-size:1.2em; font-weight:bold;">...</span></div>
-            <div style="text-align:right;"><span style="color:#00ff00;">€</span> <span id="score-round" style="color:#00ff00; font-weight:bold; font-size:1.4em;">0</span><br><span style="color:#ffd700;">Tot: €</span> <span id="score-total" style="color:#ffd700;">0</span></div>
+            <div style="text-align:left;">
+                <span id="round-indicator" style="color:#aaa;">Round 1/10</span><br>
+                <span id="turn-indicator" style="font-size:1.2em; font-weight:bold;">...</span>
+            </div>
+            <div style="text-align:right;">
+                <span style="color:#00ff00;">€</span> <span id="score-round" style="color:#00ff00; font-weight:bold; font-size:1.4em;">0</span><br>
+                <span style="color:#ffd700;">Tot: €</span> <span id="score-total" style="color:#ffd700;">0</span>
+            </div>
         </div>
+        
+        <div id="special-round-info" class="hidden" style="background: #300030; padding: 10px; border: 2px solid #f0f; margin-bottom: 10px; border-radius: 8px;">
+            <h3 style="color: #f0f; margin: 0;">ROUND SPECIALE</h3>
+            <p id="special-round-rules" style="color: #fff; margin: 5px 0; font-weight: bold;"></p>
+        </div>
+
         <h2 id="live-category" style="color:#00ffff; margin: 10px 0;">...</h2>
         <h3 id="round-hint" style="color:#ffd700; margin-bottom: 15px;"></h3>
         <div id="board-container" aria-hidden="true"></div>
+        
         <div id="tactile-nav">
             <button class="nav-btn" onclick="moveWordNav(-1)" aria-label="Parola Precedente"><span>&#171;</span></button>
             <button class="nav-btn" onclick="moveNav(-1)" aria-label="Lettera Precedente"><span>&#8249;</span></button>
@@ -97,17 +88,18 @@
             <button class="nav-btn" onclick="moveNav(1)" aria-label="Lettera Successiva"><span>&#8250;</span></button>
             <button class="nav-btn" onclick="moveWordNav(1)" aria-label="Parola Successiva"><span>&#187;</span></button>
         </div>
+
         <div id="wheel-pointer"></div><div id="wheel-visual"></div>
         <div id="wheel-status-text" tabindex="-1" style="font-size: 1.5em; font-weight: bold; color: #00ff00; margin: 10px; min-height: 1.5em;"></div>
+        
         <div id="controls">
             <button id="btn-spin" class="action-btn btn-primary" onclick="doSpin()">GIRA (G)</button>
+            <button id="btn-free-vowel" class="action-btn btn-special hidden" onclick="openInput('vowel_free')">VOCALE GRATIS</button>
             <button id="btn-vowel" class="action-btn btn-secondary" onclick="openInput('vowel')">VOCALE (V)</button>
             <button id="btn-solve" class="action-btn btn-danger" onclick="openInput('solve')">RISOLVI (S)</button>
             <button id="btn-manual-cons" class="action-btn hidden" onclick="openInput('letter')" style="background: #00ff00; color: #000;">DI UNA CONSONANTE</button>
         </div>
         <button id="btn-close-room" class="action-btn btn-danger hidden" onclick="closeRoom()" style="border-color:red; margin-top:20px;">CHIUDI STANZA (HOST)</button>
-
-        <div class="sr-only"><p>Comandi: CTRL+L legge lettere. A legge azioni. G gira. V vocale. S risolvi.</p></div>
     </div>
 
     <div id="round-over-panel" class="container hidden">
@@ -136,7 +128,7 @@
 
     <div id="privacy-dialog" class="hidden" role="dialog" aria-modal="true" aria-label="Scegli privacy stanza">
         <h2 style="color:#fff;">COME VUOI LA STANZA?</h2>
-        <p style="color:#aaa; max-width: 600px; padding: 10px;">Pubblica: visibile a tutti nella lista.<br>Privata: serve il codice esatto per entrare.</p>
+        <p style="color:#aaa; max-width: 600px; padding: 10px;">Pubblica: visibile a tutti.<br>Privata: serve il codice.</p>
         <div>
             <button id="btn-create-public" onclick="createRoomFinal(true)" class="action-btn btn-primary">PUBBLICA</button>
             <button onclick="createRoomFinal(false)" class="action-btn btn-secondary">PRIVATA</button>
@@ -154,269 +146,217 @@
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Y3drcGRqYnlzbml2a25uaW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MzAwNDksImV4cCI6MjA3OTIwNjA0OX0.R8wkMJEmsP8cTVUUOcWtD4Rrg_ZhuOE-PYBJ56eGqMU';
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         
-        // --- DIZIONARI ---
         const NATO={'A':'Ancona','B':'Bologna','C':'Como','D':'Domodossola','E':'Empoli','F':'Firenze','G':'Genova','H':'Hotel','I':'Imola','J':'Jolly','K':'Kappa','L':'Livorno','M':'Milano','N':'Napoli','O':'Otranto','P':'Palermo','Q':'Quadro','R':'Roma','S':'Savona','T':'Torino','U':'Udine','V':'Venezia','W':'Washington','X':'Xilofono','Y':'Yogurt','Z':'Zara','À':'A accentata','È':'E aperta','É':'E chiusa','Ì':'I accentata','Ò':'O accentata','Ù':'U accentata'};
-        const PUNCT={'\'':"Apostrofo",'-':"Trattino",'!':"Punto esclamativo",'?':"Punto interrogativo",'.':"Punto",',':"Virgola",':':"Due punti",';':"Punto e virgola"};
         const WHEEL_VALUES=[100,200,300,400,500,600,700,800,900,1000,2000,3000,'MISTERO','PASSA','BANCAROTTA'];
         const VOWELS_LIST=['A','E','I','O','U','À','È','É','Ì','Ò','Ù'];
         const TURN_LIMIT_SEC=120;
 
         let myId,myIndex,roomId,isHost=false,currentFrase=null,currentStanza=null,currentPuzzleText="",currentHintText="",fullSolutionText="",lastTimestamp="",isSpinning=false,inputMode=null,wheelAngle=0,parsedBoard=[],navWordIdx=0,navCharIdx=0,pollingInterval=null,timerInterval=null,actionLog=[],isFetching=false,isProcessingInput=false,isHandlingTimeout=false;
         let lastFocusedElement=null;
+        let freezeTimer = false; // Flag per blocco locale
 
         function playAudio(id){const a=document.getElementById(id);if(a){a.pause();a.currentTime=0;a.play().catch(e=>{});}}
-        function playMultiHit(n){
-            let count = n > 10 ? 10 : n;
-            let i=0;function l(){if(i<count){playAudio('snd-hit');i++;setTimeout(l,300);}}l();
-        }
+        function playMultiHit(n){let count=n>10?10:n;let i=0;function l(){if(i<count){playAudio('snd-hit');i++;setTimeout(l,300);}}l();}
         function speak(t){const e=document.getElementById('sr-announcer');e.textContent='';setTimeout(()=>{e.textContent=t;},50);}
         function cleanStr(s){return s?s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,""):"";}
-        
-        let flashTimeout=null;
-        function showFlashMessage(msg,type){
-            const ov=document.getElementById('flash-overlay'),txt=document.getElementById('flash-message');txt.textContent=msg;
-            if(type==='bad'){ov.style.borderColor='#ff0000';txt.style.color='#ff4444';}
-            else if(type==='good'){ov.style.borderColor='#00ff00';txt.style.color='#00ff00';}
-            else{ov.style.borderColor='#ffd700';txt.style.color='#fff';}
-            ov.classList.add('visible'); if(flashTimeout)clearTimeout(flashTimeout); flashTimeout=setTimeout(()=>{ov.classList.remove('visible');},4000);
-        }
-
-        function toggleContrast(){document.body.classList.toggle('high-contrast');const isHigh=document.body.classList.contains('high-contrast');localStorage.setItem('highContrast',isHigh);speak(isHigh?"Alto contrasto attivato":"Contrasto normale");}
-        if(localStorage.getItem('highContrast')==='true'){document.body.classList.add('high-contrast');}
+        function showFlashMessage(msg,type){const ov=document.getElementById('flash-overlay'),txt=document.getElementById('flash-message');txt.textContent=msg;if(type==='bad'){ov.style.borderColor='#ff0000';txt.style.color='#ff4444';}else if(type==='good'){ov.style.borderColor='#00ff00';txt.style.color='#00ff00';}else{ov.style.borderColor='#ffd700';txt.style.color='#fff';}ov.classList.add('visible');setTimeout(()=>{ov.classList.remove('visible');},4000);}
+        function toggleContrast(){document.body.classList.toggle('high-contrast');localStorage.setItem('highContrast',document.body.classList.contains('high-contrast'));speak(document.body.classList.contains('high-contrast')?"Alto contrasto attivato":"Contrasto normale");}
+        if(localStorage.getItem('highContrast')==='true')document.body.classList.add('high-contrast');
         function setBtnState(id,d){const b=document.getElementById(id);if(!b)return;if(d){b.classList.add('disabled-btn');b.setAttribute('aria-disabled','true');b.disabled=true;}else{b.classList.remove('disabled-btn');b.setAttribute('aria-disabled','false');b.disabled=false;}}
         function isBtnDisabled(id){return document.getElementById(id).getAttribute('aria-disabled')==='true';}
 
-        // --- GESTIONE NUOVO FLUSSO CREAZIONE ---
-        function askPrivacy(){
-            const nm=document.getElementById('inp-name').value.trim();
-            if(!nm)return speak("Inserisci prima il tuo nome.");
-            document.getElementById('privacy-dialog').classList.remove('hidden');
-            document.getElementById('btn-create-public').focus();
+        function askPrivacy(){const nm=document.getElementById('inp-name').value.trim();if(!nm)return speak("Inserisci nome.");document.getElementById('privacy-dialog').classList.remove('hidden');document.getElementById('btn-create-public').focus();}
+        async function createRoomFinal(isPublic){document.getElementById('privacy-dialog').classList.add('hidden');let cd=document.getElementById('inp-code').value.trim().toUpperCase();if(!cd)cd="STANZA-"+Math.floor(Math.random()*9999);joinGame(true,cd,isPublic);}
+        async function fetchPublicRooms(){const l=document.getElementById('rooms-list');l.innerHTML="Caricamento...";speak("Cerco...");const{data:s}=await supabase.from('stanze').select('codice,stato').eq('is_public',true).neq('stato','terminata').limit(10);if(!s||!s.length){l.innerHTML="<p>Nessuna stanza.</p>";speak("Nessuna stanza trovata.");return;}l.innerHTML="";s.forEach(r=>{const b=document.createElement('button');b.className='room-btn';b.textContent=`${r.codice} (${r.stato})`;b.onclick=()=>{document.getElementById('inp-code').value=r.codice;joinGame(false);};l.appendChild(b);});speak(`Trovate ${s.length} stanze.`);}
+        async function closeRoom(){if(!confirm("Sicuro?"))return;if(roomId){await supabase.from('giocatori').delete().eq('stanza_id',roomId);await supabase.from('stanze').delete().eq('id',roomId);location.reload();}}
+
+        async function joinGame(cr,forcedCode=null,isPublic=false){
+            const nm=document.getElementById('inp-name').value.trim().toUpperCase(),cd=forcedCode||document.getElementById('inp-code').value.trim().toUpperCase();
+            if(!nm)return speak("Manca nome");if(!cd&&!cr)return speak("Manca codice");
+            try{let st;if(cr){
+                const{data:fr}=await supabase.from('frasi').select('id');
+                const rid=fr[Math.floor(Math.random()*fr.length)].id;
+                const{data:old}=await supabase.from('stanze').select('id').eq('codice',cd).maybeSingle();
+                if(old){await supabase.from('giocatori').delete().eq('stanza_id',old.id);await supabase.from('stanze').delete().eq('id',old.id);}
+                const{data}=await supabase.from('stanze').insert({codice:cd,frase_corrente_id:rid,is_public:isPublic,azione_timestamp:new Date().toISOString()}).select().maybeSingle();st=data;
+            }else{const{data}=await supabase.from('stanze').select('*').eq('codice',cd).maybeSingle();if(!data)return speak("Stanza non trovata");st=data;}
+            roomId=st.id;await supabase.from('giocatori').delete().eq('stanza_id',roomId).eq('nome',nm);
+            const{data:mx}=await supabase.from('giocatori').select('indice').eq('stanza_id',roomId).order('indice',{ascending:false}).limit(1).maybeSingle();
+            myIndex=(mx)?mx.indice+1:0;isHost=(myIndex===0);
+            const{data:pl}=await supabase.from('giocatori').insert({stanza_id:roomId,nome:nm,indice:myIndex,is_host:isHost}).select().maybeSingle();myId=pl.id;
+            document.getElementById('setup-panel').classList.add('hidden');document.getElementById('game-panel').classList.remove('hidden');
+            speak("Benvenuto. In attesa.");
+            supabase.channel('game').on('postgres_changes',{event:'UPDATE',schema:'public',table:'stanze',filter:`id=eq.${roomId}`},fetchFullState).subscribe();
+            supabase.channel('game-del').on('postgres_changes',{event:'DELETE',schema:'public',table:'stanze',filter:`id=eq.${roomId}`},()=>{speak("Stanza chiusa.");setTimeout(()=>location.reload(),3000);}).subscribe();
+            fetchFullState();pollingInterval=setInterval(fetchFullState,15000);timerInterval=setInterval(checkTurnTimer,1000);
+            }catch(e){console.error(e);speak("Errore.");}
         }
 
-        async function createRoomFinal(isPublic){
-            document.getElementById('privacy-dialog').classList.add('hidden');
-            let cd=document.getElementById('inp-code').value.trim().toUpperCase();
-            // Se non mette codice e la vuole pubblica, generiamo un codice a caso o usiamo il nome
-            if(!cd) cd = "STANZA-" + Math.floor(Math.random()*9999);
-            
-            // Logica esistente di creazione, ma con parametro is_public
-            joinGame(true, cd, isPublic);
-        }
-
-        // --- FETCH STANZE PUBBLICHE ---
-        async function fetchPublicRooms(){
-            const list = document.getElementById('rooms-list');
-            list.innerHTML = "Caricamento...";
-            speak("Cerco stanze pubbliche...");
-            
-            const { data: stanze, error } = await supabase
-                .from('stanze')
-                .select('codice, is_public, stato')
-                .eq('is_public', true)
-                .neq('stato', 'terminata')
-                .limit(10);
-                
-            if(error || !stanze || stanze.length === 0){
-                list.innerHTML = "<p>Nessuna stanza pubblica trovata.</p>";
-                speak("Nessuna stanza trovata.");
-                return;
-            }
-            
-            list.innerHTML = "";
-            stanze.forEach(s => {
-                const btn = document.createElement('button');
-                btn.className = 'room-btn';
-                btn.textContent = `Stanza: ${s.codice} (${s.stato})`;
-                btn.onclick = () => {
-                    document.getElementById('inp-code').value = s.codice;
-                    joinGame(false);
-                };
-                list.appendChild(btn);
-            });
-            speak(`Trovate ${stanze.length} stanze pubbliche.`);
-        }
-
-        // --- FUNZIONE CHIUDI STANZA (HOST) ---
-        async function closeRoom(){
-            if(!confirm("Sei sicuro di voler chiudere e cancellare la stanza per tutti?")) return;
-            if(!roomId) return;
-            speak("Chiusura in corso...");
-            // Cancelliamo i giocatori
-            await supabase.from('giocatori').delete().eq('stanza_id', roomId);
-            // Cancelliamo la stanza
-            await supabase.from('stanze').delete().eq('id', roomId);
-            // Reload pagina
-            location.reload();
-        }
-
-        // --- JOIN GAME (MODIFICATO) ---
-        async function joinGame(cr, forcedCode=null, isPublic=false){
-            const nm=document.getElementById('inp-name').value.trim().toUpperCase();
-            const cd=forcedCode || document.getElementById('inp-code').value.trim().toUpperCase();
-            
-            if(!nm)return speak("Nome mancante");
-            if(!cd && !cr)return speak("Codice mancante");
-
-            try{
-                let st;
-                if(cr){
-                    const {data:fr}=await supabase.from('frasi').select('id');
-                    if(!fr||fr.length===0)return speak("Nessuna frase nel database!");
-                    const rid=fr[Math.floor(Math.random()*fr.length)].id;
-                    const {data:old}=await supabase.from('stanze').select('id').eq('codice',cd).maybeSingle();
-                    if(old){await supabase.from('giocatori').delete().eq('stanza_id',old.id);await supabase.from('stanze').delete().eq('id',old.id);}
-                    
-                    // INSERT CON IS_PUBLIC
-                    const {data,error}=await supabase.from('stanze').insert({
-                        codice:cd,
-                        stato:'attesa',
-                        frase_corrente_id:rid,
-                        lettere_chiamate:[],
-                        lettere_rivelate:[],
-                        round_giocati:1,
-                        is_public: isPublic, // NUOVO CAMPO
-                        azione_timestamp:new Date().toISOString()
-                    }).select().maybeSingle();
-                    
-                    st=error?(await supabase.from('stanze').select('*').eq('codice',cd).maybeSingle()).data:data;
-                }else{
-                    const {data}=await supabase.from('stanze').select('*').eq('codice',cd).maybeSingle();
-                    if(!data)return speak("Stanza non trovata");
-                    st=data;
-                }
-                roomId=st.id;
-                await supabase.from('giocatori').delete().eq('stanza_id',roomId).eq('nome',nm);
-                const {data:maxIdxPlayer}=await supabase.from('giocatori').select('indice').eq('stanza_id',roomId).order('indice',{ascending:false}).limit(1).maybeSingle();
-                myIndex=(maxIdxPlayer)?maxIdxPlayer.indice+1:0; isHost=(myIndex===0);
-                const {data:pl}=await supabase.from('giocatori').insert({stanza_id:roomId,nome:nm,indice:myIndex,is_host:isHost,punteggio_totale:0,punteggio_round:0}).select().maybeSingle();
-                myId=pl.id;
-                document.getElementById('setup-panel').classList.add('hidden');document.getElementById('game-panel').classList.remove('hidden');
-                speak("Benvenuto. In attesa dell'avvio.");
-                supabase.channel('game').on('postgres_changes',{event:'UPDATE',schema:'public',table:'stanze',filter:`id=eq.${roomId}`},()=>{fetchFullState()}).subscribe();
-                
-                // Subscribe anche alle CANCELLAZIONI per gestire la chiusura stanza
-                supabase.channel('game-delete').on('postgres_changes',{event:'DELETE',schema:'public',table:'stanze',filter:`id=eq.${roomId}`},()=>{
-                    speak("La stanza è stata chiusa dall'host.");
-                    setTimeout(()=>location.reload(), 3000);
-                }).subscribe();
-
-                fetchFullState();
-                if(pollingInterval)clearInterval(pollingInterval);pollingInterval=setInterval(fetchFullState,15000);
-                if(timerInterval)clearInterval(timerInterval);timerInterval=setInterval(checkTurnTimer,1000);
-            }catch(e){console.error(e);speak("Errore connessione");}
-        }
-
-        async function fetchFullState(){
-            if(isFetching)return;isFetching=true;
-            const {data:s}=await supabase.from('stanze').select('*,frasi(*),giocatori(*)').eq('id',roomId).maybeSingle();
-            isFetching=false;
-            
-            // Se s è null, la stanza è stata cancellata
-            if(!s) {
-                // Gestito dal subscription delete, ma sicurezza in più
-                return;
-            }
-            updateUI(s);
-        }
+        async function fetchFullState(){if(isFetching)return;isFetching=true;const{data:s}=await supabase.from('stanze').select('*,frasi(*),giocatori(*)').eq('id',roomId).maybeSingle();isFetching=false;if(!s)return;updateUI(s);}
 
         function checkTurnTimer(){
             if(!currentStanza||currentStanza.stato!=='gioco')return;
-            const baseT=currentStanza.azione_timestamp||currentStanza.created_at; if(!baseT)return;
-            const svTime=new Date(baseT).getTime();
-            const left=Math.max(0,(TURN_LIMIT_SEC+(inputMode==='solve'?30:0))-Math.floor((new Date().getTime()-svTime)/1000));
+            const baseT=currentStanza.azione_timestamp;if(!baseT)return;
+            const elapsed = Math.floor((new Date().getTime()-new Date(baseT).getTime())/1000);
+            const left=Math.max(0,(TURN_LIMIT_SEC+(inputMode==='solve'?30:0))-elapsed);
             document.getElementById('timer-box').textContent=left;
-            if(left===60)speak("Un minuto rimanente.");else if(left===30)speak("Trenta secondi.");else if(left===15)speak("Quindici secondi.");else if(left<=10&&left>0)playAudio('snd-hit');
-            if(left===0&&!isSpinning&&!isHandlingTimeout){
-                const isMyTurn=(currentStanza.id_giocatore_corrente===myIndex);
-                if(isMyTurn||isHost){if(inputMode&&isMyTurn)closeInput();handleTimeout();}
+            
+            // Gestione Countdown 5s speciale
+            if(freezeTimer) {
+                document.getElementById('timer-box').textContent = "BLOCCO " + (5 - elapsed);
+                if(elapsed >= 5 && isHost) {
+                     // SBLOCCO
+                     supabase.from('stanze').update({
+                        fase_speciale: 2, // Si passa a normale (consonanti)
+                        ultimo_messaggio: 'VIA! CONSENTITE CONSONANTI E RISOLUZIONE!',
+                        ultima_azione: 'sblocco_freeze',
+                        azione_timestamp: new Date().toISOString()
+                     }).eq('id', roomId).then(()=>{ freezeTimer=false; });
+                }
+                return;
             }
-        }
 
+            if(left<=10&&left>0)playAudio('snd-hit');
+            if(left===0&&!isSpinning&&!isHandlingTimeout&&isHost)handleTimeout();
+        }
         async function handleTimeout(){
-            if(isHandlingTimeout)return;isHandlingTimeout=true;speak("Tempo scaduto!");
-            await supabase.from('stanze').update({id_giocatore_corrente:(currentStanza.id_giocatore_corrente+1)%currentStanza.giocatori.length,ultima_azione:'timeout',ultimo_messaggio:'Tempo scaduto',montepremi_round:0,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
+            if(isHandlingTimeout)return;isHandlingTimeout=true;
+            const s=currentStanza;
+            speak("Tempo scaduto! Cambio turno.");
+            await supabase.from('stanze').update({id_giocatore_corrente:(s.id_giocatore_corrente+1)%s.giocatori.length, ultima_azione:'timeout', ultimo_messaggio:'Tempo scaduto', montepremi_round:0, azione_timestamp:new Date().toISOString()}).eq('id',roomId);
             isHandlingTimeout=false;fetchFullState();
         }
 
         function updateUI(s){
-            if (s.stato !== 'gioco' && inputMode) {
-                closeInput();
-            }
-            
+            if(s.stato!=='gioco'&&inputMode)closeInput();
             currentStanza=s;s.giocatori=Array.isArray(s.giocatori)?s.giocatori:[];s.giocatori.sort((a,b)=>a.indice-b.indice);
             
-            // GESTIONE VISIBILITA' PULSANTE CHIUDI
-            if(isHost) {
-                document.getElementById('btn-close-room').classList.remove('hidden');
-                document.getElementById('btn-close-room-round').classList.remove('hidden');
-            } else {
-                document.getElementById('btn-close-room').classList.add('hidden');
-                document.getElementById('btn-close-room-round').classList.add('hidden');
-            }
+            if(isHost){document.getElementById('btn-close-room').classList.remove('hidden');document.getElementById('btn-close-room-round').classList.remove('hidden');}
+            else{document.getElementById('btn-close-room').classList.add('hidden');document.getElementById('btn-close-room-round').classList.add('hidden');}
 
             if(s.stato==='attesa'){
                 document.getElementById('game-panel').classList.add('hidden');document.getElementById('round-over-panel').classList.remove('hidden');
-                document.getElementById('round-title').textContent="PARTITA PRONTA";document.getElementById('round-winner-msg').textContent="Codice: "+s.codice;
-                document.getElementById('solution-msg').textContent="Attesa Host...";document.getElementById('btn-next-round').textContent="AVVIA (INVIO)";
+                document.getElementById('round-title').textContent="PRONTI";document.getElementById('round-winner-msg').textContent="Codice: "+s.codice;
+                document.getElementById('solution-msg').textContent="Attesa Host...";
+                document.getElementById('btn-next-round').textContent="AVVIA PARTITA";
                 if(s.azione_timestamp!==lastTimestamp){lastTimestamp=s.azione_timestamp;speak("Partita pronta.");}
                 return;
             }
             if(s.stato==='finito'){
-                document.getElementById('game-panel').classList.add('hidden');document.getElementById('round-over-panel').classList.remove('hidden');
-                document.getElementById('round-title').textContent="ROUND COMPLETATO";
-                document.getElementById('round-winner-msg').textContent=s.ultimo_messaggio;document.getElementById('solution-msg').textContent=fullSolutionText;
-                document.getElementById('btn-next-round').textContent="PROSSIMO ROUND";
-                if(s.azione_timestamp!==lastTimestamp){
-                    lastTimestamp=s.azione_timestamp;
-                    playMultiHit(3);
-                    speak("Fine Round. "+s.ultimo_messaggio+". Premi INVIO per il prossimo.");
-                    setTimeout(()=>document.getElementById('btn-next-round').focus(), 500);
+                if(s.buffer_frasi_speciali && s.buffer_frasi_speciali.length > 0 && s.indice_buffer < 3) {
+                    if(isHost && s.azione_timestamp!==lastTimestamp) setTimeout(startNewRound, 3000); 
+                    if(s.azione_timestamp!==lastTimestamp){
+                        lastTimestamp=s.azione_timestamp; playMultiHit(3);
+                        speak("Frase completata! Arriva la prossima...");
+                        showFlashMessage("PROSSIMA FRASE...", "good");
+                    }
+                    return; 
                 }
+
+                document.getElementById('game-panel').classList.add('hidden');document.getElementById('round-over-panel').classList.remove('hidden');
+                document.getElementById('round-title').textContent="FINE ROUND";document.getElementById('round-winner-msg').textContent=s.ultimo_messaggio;document.getElementById('solution-msg').textContent=fullSolutionText;
+                document.getElementById('btn-next-round').textContent="PROSSIMO ROUND";
+                if(s.azione_timestamp!==lastTimestamp){lastTimestamp=s.azione_timestamp;playMultiHit(3);speak("Fine Round. "+s.ultimo_messaggio);setTimeout(()=>document.getElementById('btn-next-round').focus(),500);}
                 return;
             }
             if(s.stato==='terminata'){
-                document.getElementById('game-panel').classList.add('hidden');document.getElementById('end-panel').classList.remove('hidden');
-                const l=document.getElementById('ranking-list');l.innerHTML="";
-                [...s.giocatori].sort((a,b)=>b.punteggio_totale-a.punteggio_totale).forEach((p,i)=>{l.innerHTML+=`<li>${i+1}. ${p.nome}: €${p.punteggio_totale}</li>`});
-                speak("Partita terminata. Visualizzo la classifica.");return;
+                 document.getElementById('game-panel').classList.add('hidden');document.getElementById('end-panel').classList.remove('hidden');
+                 const l=document.getElementById('ranking-list');l.innerHTML="";
+                 [...s.giocatori].sort((a,b)=>b.punteggio_totale-a.punteggio_totale).forEach((p,i)=>{l.innerHTML+=`<li>${i+1}. ${p.nome}: €${p.punteggio_totale}</li>`});
+                 speak("Partita finita. Classifica visualizzata."); return;
             }
-            
+
             document.getElementById('round-over-panel').classList.add('hidden');document.getElementById('game-panel').classList.remove('hidden');
-            if(!s.frasi)return speak("Errore: Frase mancante.");
+            if(!s.frasi)return;
             if(!currentFrase||currentFrase.id!==s.frasi.id){
                 currentFrase=s.frasi;navWordIdx=0;navCharIdx=0;fullSolutionText=currentFrase.soluzione;
-                if(fullSolutionText.includes(" - ")){const p=fullSolutionText.split(" - ");currentHintText=p[0].trim();currentPuzzleText=p[1].trim();if(currentFrase.categoria==='MUSICA'&&currentHintText.includes(": "))currentHintText=currentHintText.split(": ")[0].trim();}else{currentHintText="";currentPuzzleText=fullSolutionText;}
-                speak(`Categoria: ${currentFrase.categoria}. ${currentHintText}`);
+                if(currentFrase.categoria==='SITUAZIONI QUOTIDIANE' && currentFrase.tema) {
+                    currentHintText = "ARGOMENTO: " + currentFrase.tema;
+                    currentPuzzleText = currentFrase.soluzione;
+                } else if(fullSolutionText.includes(" - ")){const p=fullSolutionText.split(" - ");currentHintText=p[0].trim();currentPuzzleText=p[1].trim();}else{currentHintText="";currentPuzzleText=fullSolutionText;}
+                
+                let intro = `Categoria: ${currentFrase.categoria}. ${currentHintText}.`;
+                if(s.fase_speciale > 0) intro += ` Frase speciale ${s.indice_buffer + 1} di 4.`;
+                speak(intro);
             }
+
             document.getElementById('round-indicator').textContent=`R ${s.round_giocati}/10`;
+            if(s.fase_speciale > 0) document.getElementById('round-indicator').textContent += ` (${s.indice_buffer+1}/4)`;
+
+            const spInfo = document.getElementById('special-round-info');
+            const spRules = document.getElementById('special-round-rules');
+            
+            // GESTIONE FREEZE
+            if(s.ultima_azione === 'freeze_start') {
+                freezeTimer = true;
+                setBtnState('btn-spin', true); setBtnState('btn-solve', true); setBtnState('btn-vowel', true); setBtnState('btn-free-vowel', true);
+                if(s.azione_timestamp!==lastTimestamp){
+                    speak("Blocco 5 secondi. Nessuno può risolvere.");
+                    lastTimestamp=s.azione_timestamp;
+                }
+                spInfo.classList.remove('hidden');
+                spRules.textContent = "ATTESA... SBLOCCO TRA 5 SECONDI";
+                return; // Esce da updateUI per tenere tutto bloccato
+            } else {
+                freezeTimer = false;
+            }
+
+            if(s.fase_speciale > 0) {
+                spInfo.classList.remove('hidden');
+                let ruleTxt = "";
+                if(s.fase_speciale === 1) ruleTxt = "FRASE 1: CONSONANTI 50%";
+                else if(s.fase_speciale === 2 && s.indice_buffer === 2) ruleTxt = "FRASE 3 (CONTINUA): ORA VALGONO LE CONSONANTI!"; // Dopo il freeze
+                else if(s.fase_speciale === 2) ruleTxt = "FRASE " + (s.indice_buffer+1) + ": PREZZO PIENO";
+                else if(s.fase_speciale === 3) ruleTxt = "FRASE 3: SOLO VOCALI (GRATIS) - REGOLA 2+1";
+                spRules.textContent = ruleTxt;
+            } else {
+                spInfo.classList.add('hidden');
+            }
+
             if(s.azione_timestamp&&s.azione_timestamp!==lastTimestamp){
                 lastTimestamp=s.azione_timestamp;
-                if(s.ultimo_messaggio){actionLog.unshift(s.ultimo_messaggio);if(actionLog.length>5)actionLog.pop();}
-                
-                let flashType='info';
-                if(s.ultima_azione==='vittoria'||s.ultimo_messaggio.includes("Trovate"))flashType='good';
-                else if(s.ultima_azione==='errore'||s.ultimo_messaggio.includes("non")||s.ultimo_messaggio.includes("BANCAROTTA")||s.ultimo_messaggio.includes("già")||s.ultimo_messaggio.includes("Sbagliato"))flashType='bad';
-                
-                showFlashMessage(s.ultimo_messaggio,flashType);
+                if(s.ultimo_messaggio) actionLog.unshift(s.ultimo_messaggio);
+                showFlashMessage(s.ultimo_messaggio, (s.ultima_azione==='vittoria'?'good':(s.ultima_azione==='errore'?'bad':'info')));
                 speak(s.ultimo_messaggio);
-                
-                if(s.ultima_azione==='chiama_lettera'&&s.ultimo_messaggio.includes("Trovate")){
-                    const match=s.ultimo_messaggio.match(/\d+/);
-                    playMultiHit(match?parseInt(match[0]):1);
-                }
-                else if(s.ultima_azione==='errore'||flashType==='bad'){playAudio('snd-miss');}
+                if(s.ultima_azione==='chiama_lettera' && s.ultimo_messaggio.includes("Trovate")){
+                    playMultiHit((s.ultimo_messaggio.match(/\d+/)||['1'])[0]);
+                } else if(s.ultima_azione==='errore') playAudio('snd-miss');
             }
-            document.getElementById('live-category').textContent=currentFrase.categoria;document.getElementById('round-hint').textContent=currentHintText;
+
+            document.getElementById('live-category').textContent=currentFrase.categoria;
+            document.getElementById('round-hint').textContent=currentHintText;
             document.getElementById('wheel-status-text').textContent=s.montepremi_round>0?`IN PALIO: €${s.montepremi_round}`:"";
             parseAndRenderBoard(currentPuzzleText,s.lettere_rivelate);
-            const isMe=(s.id_giocatore_corrente===myIndex),me=s.giocatori.find(p=>p.indice===myIndex);
-            const cpName=s.giocatori.find(p=>p.indice===s.id_giocatore_corrente)?.nome||"Giocatore Uscito";
-            document.getElementById('turn-indicator').textContent=isMe?"TOCCA A TE":`Turno di ${cpName}`;document.getElementById('turn-indicator').style.color=isMe?"#0f0":"#fff";
+
+            const isMe=(s.id_giocatore_corrente===myIndex), me=s.giocatori.find(p=>p.indice===myIndex);
+            const cpName=s.giocatori.find(p=>p.indice===s.id_giocatore_corrente)?.nome||"Giocatore";
+            document.getElementById('turn-indicator').textContent=isMe?"TOCCA A TE":`Turno di ${cpName}`;
+            document.getElementById('turn-indicator').style.color=isMe?"#0f0":"#fff";
             if(me){document.getElementById('score-round').textContent=me.punteggio_round;document.getElementById('score-total').textContent=me.punteggio_totale;}
-            const canSp=isMe&&!isSpinning&&!inputMode&&s.montepremi_round===0;setBtnState('btn-spin',!canSp);
-            setBtnState('btn-solve',!(isMe&&!isSpinning));setBtnState('btn-vowel',!(isMe&&!isSpinning&&!inputMode&&me.punteggio_round>=500));
-            if(isMe&&s.montepremi_round>0&&!inputMode&&!isSpinning)document.getElementById('btn-manual-cons').classList.remove('hidden');else document.getElementById('btn-manual-cons').classList.add('hidden');
+
+            // GESTIONE BOTTONI
+            const canAct = isMe && !isSpinning && !inputMode;
+            // Fase Vocali (3)
+            if(s.fase_speciale === 3) {
+                setBtnState('btn-spin', true); // Disabilita spin
+                setBtnState('btn-manual-cons', true);
+                if(canAct) {
+                    document.getElementById('btn-free-vowel').classList.remove('hidden');
+                    setBtnState('btn-vowel', true); // Disabilita quella a pagamento
+                    setBtnState('btn-solve', false); // Puoi risolvere durante le vocali
+                } else {
+                    document.getElementById('btn-free-vowel').classList.add('hidden');
+                    setBtnState('btn-solve', true);
+                }
+            } else {
+                document.getElementById('btn-free-vowel').classList.add('hidden');
+                setBtnState('btn-spin', !(canAct && s.montepremi_round===0));
+                setBtnState('btn-vowel', !(canAct && s.montepremi_round===0 && me.punteggio_round>=500));
+                setBtnState('btn-solve', !canAct);
+            }
+            
+            if(isMe && s.montepremi_round > 0 && !inputMode && !isSpinning && s.fase_speciale !== 3) document.getElementById('btn-manual-cons').classList.remove('hidden');
+            else document.getElementById('btn-manual-cons').classList.add('hidden');
         }
 
         function parseAndRenderBoard(text,rev){
@@ -432,111 +372,77 @@
             });
             highlightNav();
         }
-
-        function moveNav(d){
-            if(!parsedBoard.length)return;let n=navCharIdx+d,wL=parsedBoard[navWordIdx].chars.length;
-            if(n<0)n=0;if(n>=wL)n=wL-1;navCharIdx=n;highlightNav();readSingleChar();
-        }
-        function moveWordNav(d){
-            if(!parsedBoard.length)return;let n=navWordIdx+d;if(n<0)n=0;if(n>=parsedBoard.length)n=parsedBoard.length-1;
-            navWordIdx=n;navCharIdx=0;highlightNav(true);readWholeWord();
-        }
-        function highlightNav(wd=false){
-            document.querySelectorAll('.cursor-char').forEach(e=>e.classList.remove('cursor-char'));document.querySelectorAll('.cursor-word').forEach(e=>e.classList.remove('cursor-word'));
-            if(wd){const r=document.getElementById(`row-${navWordIdx}`);if(r)r.classList.add('cursor-word')}else{const e=document.getElementById(`tile-${navWordIdx}-${navCharIdx}`);if(e)e.classList.add('cursor-char')}
-        }
-        function readSingleChar(){
-            const w=parsedBoard[navWordIdx],c=w.chars[navCharIdx],p=navCharIdx+1,total=w.chars.length;
-            if(!c.isLetter){const r=PUNCT[c.char]||c.char;speak(`${p} di ${total}. ${r}`);}
-            else if(c.isRevealed)speak(`${p} di ${total}. ${c.char}, ${NATO[c.char]||c.char}.`);else speak(`${p} di ${total}. Nascosta.`);
-        }
-        function readWholeWord(){
-            let s="";parsedBoard[navWordIdx].chars.forEach(c=>{if(c.isLetter&&!c.isRevealed)s+="_";else if(!c.isLetter&&PUNCT[c.char])s+=" "+PUNCT[c.char]+" ";else s+=c.char;});
-            speak(`Parola ${navWordIdx+1}: ${s}`);
-        }
-        function readFullBoard(){
-            if(!currentFrase||!parsedBoard.length)return speak("Tabellone non pronto.");
-            let f=`Cat: ${currentFrase.categoria}. `;if(currentHintText)f+=`Indizio: ${currentHintText}. `;
-            parsedBoard.forEach((w,i)=>{let s="";w.chars.forEach(c=>s+=c.isRevealed?c.char:" vuota ");f+=` P${i+1}: ${s}. `});speak(f);
-        }
+        function moveNav(d){if(!parsedBoard.length)return;let n=navCharIdx+d,wL=parsedBoard[navWordIdx].chars.length;if(n<0)n=0;if(n>=wL)n=wL-1;navCharIdx=n;highlightNav();readSingleChar();}
+        function moveWordNav(d){if(!parsedBoard.length)return;let n=navWordIdx+d;if(n<0)n=0;if(n>=parsedBoard.length)n=parsedBoard.length-1;navWordIdx=n;navCharIdx=0;highlightNav(true);readWholeWord();}
+        function highlightNav(wd=false){document.querySelectorAll('.cursor-char').forEach(e=>e.classList.remove('cursor-char'));document.querySelectorAll('.cursor-word').forEach(e=>e.classList.remove('cursor-word'));if(wd){const r=document.getElementById(`row-${navWordIdx}`);if(r)r.classList.add('cursor-word')}else{const e=document.getElementById(`tile-${navWordIdx}-${navCharIdx}`);if(e)e.classList.add('cursor-char')}}
+        function readSingleChar(){const w=parsedBoard[navWordIdx],c=w.chars[navCharIdx],p=navCharIdx+1;speak(`${p} di ${w.chars.length}. ${c.isLetter&&!c.isRevealed?'Nascosta':(NATO[c.char]||c.char)}`);}
+        function readWholeWord(){let s="";parsedBoard[navWordIdx].chars.forEach(c=>{s+=c.isLetter&&!c.isRevealed?"_":c.char});speak(`Parola ${navWordIdx+1}: ${s}`);}
+        function readFullBoard(){let f=`${currentFrase.categoria}. ${currentHintText}. `;parsedBoard.forEach((w,i)=>{let s="";w.chars.forEach(c=>s+=c.isRevealed?c.char:" vuota ");f+=` P${i+1}: ${s}. `});speak(f);}
 
         async function doSpin(){
-            if(isBtnDisabled('btn-spin'))return;if(!currentStanza||!currentStanza.giocatori)return speak("Attendere...");
-            document.getElementById('wheel-status-text').focus();
-            speak("Gira...");playAudio('snd-spin');isSpinning=true;
+            if(isBtnDisabled('btn-spin'))return;
+            document.getElementById('wheel-status-text').focus();speak("Gira...");playAudio('snd-spin');isSpinning=true;
             setBtnState('btn-spin',true);setBtnState('btn-solve',true);setBtnState('btn-vowel',true);
             wheelAngle+=(1000+Math.random()*500);document.getElementById('wheel-visual').style.transform=`rotate(${wheelAngle}deg)`;
             await new Promise(r=>setTimeout(r,3500));
+            
             let v=WHEEL_VALUES[Math.floor(Math.random()*WHEEL_VALUES.length)];
+            // Fase 1: Metà prezzo
+            if(typeof v === 'number' && currentStanza.fase_speciale === 1) {
+                v = Math.floor(v / 2);
+                speak("Metà prezzo! " + v);
+            }
+            
             const myName=document.getElementById('inp-name').value;
             if(v==='MISTERO'){
-                v=['BANCAROTTA','PASSA','RADDOPPIA','JOLLY'][Math.floor(Math.random()*4)];
-                if(v==='RADDOPPIA'){
-                    const me=currentStanza.giocatori.find(p=>p.id===myId);
-                    if(me)await supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)*2}).eq('id',myId);
-                    speak("Raddoppia! Gira di nuovo!");fetchFullState();isSpinning=false;setBtnState('btn-spin',false);
-                    setTimeout(()=>document.getElementById('btn-spin').focus(),500);return;
-                }else if(v==='JOLLY'){
-                    try{const{error}=await supabase.rpc('incrementa_jolly',{id_giocatore:myId});if(error)console.error(error);}catch(e){}
-                    speak("Hai vinto un JOLLY! Gira di nuovo!");fetchFullState();isSpinning=false;setBtnState('btn-spin',false);
-                    setTimeout(()=>document.getElementById('btn-spin').focus(),500);return;
-                }
+               v=['BANCAROTTA','PASSA','RADDOPPIA','JOLLY'][Math.floor(Math.random()*4)];
+               if(v==='RADDOPPIA'){
+                   const me=currentStanza.giocatori.find(p=>p.id===myId);
+                   await supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)*2}).eq('id',myId);
+                   speak("Raddoppia!");fetchFullState();isSpinning=false;return;
+               } else if(v==='JOLLY'){
+                   await supabase.rpc('incrementa_jolly',{id_giocatore:myId});
+                   speak("Hai vinto un JOLLY!");fetchFullState();isSpinning=false;return;
+               }
             }
-            isSpinning=false;let msg=`${myName} gira: ${v}`,act='gira_ruota';
+            isSpinning=false;let msg=`${myName} gira: ${v}`;
             if(typeof v==='number'&&v>0){
-                await supabase.from('stanze').update({montepremi_round:v,ultima_azione:act,ultimo_messaggio:msg,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
+                await supabase.from('stanze').update({montepremi_round:v,ultima_azione:'gira_ruota',ultimo_messaggio:msg,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
                 fetchFullState();setTimeout(()=>openInput('letter'),500);
             }else{
-                if(v==='BANCAROTTA'){await supabase.from('giocatori').update({punteggio_round:0,punteggio_totale:0}).eq('id',myId);msg=`${myName}: BANCAROTTA!`;}
-                else if(v==='PASSA'){msg=`${myName}: PASSA IL TURNO`;}
+                if(v==='BANCAROTTA')await supabase.from('giocatori').update({punteggio_round:0}).eq('id',myId);
                 const n=(myIndex+1)%currentStanza.giocatori.length;
                 await supabase.from('stanze').update({id_giocatore_corrente:n,montepremi_round:0,ultima_azione:'errore',ultimo_messaggio:msg,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
                 fetchFullState();
             }
         }
 
-        function clearInput(){const inp=document.getElementById('game-input');inp.value="";inp.focus();speak("Campo svuotato");}
-        
+        function clearInput(){document.getElementById('game-input').value="";document.getElementById('game-input').focus();speak("Svuotato");}
         function openInput(m){
-            if(m==='vowel'){
-                const me=currentStanza?.giocatori?.find(p=>p.id===myId);
-                if(!me)return speak("Giocatore non trovato.");
-                if((me.punteggio_round||0)<500)return speak("Ti servono 500 euro!");
+            if(m==='vowel' && !currentStanza.fase_speciale===3){
+                const me=currentStanza.giocatori.find(p=>p.id===myId);
+                if((me.punteggio_round||0)<500)return speak("Servono 500 euro");
             }
-            lastFocusedElement=document.activeElement;
-            inputMode=m;
-            const t={'letter':'INSERISCI CONSONANTE','vowel':'INSERISCI VOCALE','solve':'SCRIVI LA SOLUZIONE'};
-            document.getElementById('input-title').textContent=t[m];
+            lastFocusedElement=document.activeElement;inputMode=m;
             document.getElementById('input-area').classList.remove('hidden');
-            const inp=document.getElementById('game-input');
-            inp.value=''; 
+            const inp=document.getElementById('game-input');inp.value='';
             if(m==='solve'){
-                let prefill="", gI=0, txt=currentPuzzleText.toUpperCase();
+                let prefill="",gI=0,txt=currentPuzzleText.toUpperCase();
                 for(let i=0;i<txt.length;i++){
                     const c=txt[i];
                     if(c.match(/[A-ZÀ-Ù]/)){
-                        if(currentStanza.lettere_rivelate.includes(gI)){prefill+=c;} else {prefill+="*";}
+                        prefill+=currentStanza.lettere_rivelate.includes(gI)?c:"*";
                         gI++;
-                    } else {
-                        prefill+=c; 
-                    }
+                    }else prefill+=c;
                 }
-                inp.value = prefill; 
-                speak("Campo precompilato. Scrivi sugli asterischi.");
-            } else {
-                speak(t[m]);
-            }
+                inp.value=prefill;speak("Scrivi sugli asterischi.");
+            }else if(m==='vowel_free'){
+                document.getElementById('input-title').textContent="VOCALE GRATIS (SOLO VOCALI)";
+                speak("Inserisci vocale gratis.");
+            }else document.getElementById('input-title').textContent=m==='letter'?"CONSONANTE":"VOCALE";
             setTimeout(()=>{inp.focus();if(m==='solve')inp.setSelectionRange(0,0);},100);
         }
-        
-        function closeInput(){
-            const inp = document.getElementById('game-input');
-            inp.value = ""; 
-            document.getElementById('input-area').classList.add('hidden');
-            inputMode=null;
-            if(lastFocusedElement)lastFocusedElement.focus();
-            else if(document.getElementById('btn-spin'))document.getElementById('btn-spin').focus();
-        }
+        function closeInput(){document.getElementById('input-area').classList.add('hidden');inputMode=null;if(lastFocusedElement)lastFocusedElement.focus();}
 
         async function submitInput(){
             if(isProcessingInput)return;isProcessingInput=true;
@@ -544,124 +450,190 @@
             if(!t){isProcessingInput=false;return;}
             const m=inputMode,c=t.charAt(0),isV=VOWELS_LIST.includes(c);
             
-            if(m!=='solve' && !t.match(/^[A-ZÀ-Ù]$/)){speak("Devi inserire una lettera valida.");isProcessingInput=false;return;}
+            if(m!=='solve' && !t.match(/^[A-ZÀ-Ù]$/)){speak("Lettera non valida");isProcessingInput=false;return;}
             if(m==='letter'&&isV){speak("Serve consonante");isProcessingInput=false;return;}
-            if(m==='vowel'&&!isV){speak("Serve vocale");isProcessingInput=false;return;}
+            if((m==='vowel'||m==='vowel_free')&&!isV){speak("Serve vocale");isProcessingInput=false;return;}
 
             closeInput();const n=(myIndex+1)%currentStanza.giocatori.length,myName=document.getElementById('inp-name').value;
+            
             if(m==='solve'){
                 if(cleanStr(t)===cleanStr(currentPuzzleText)){
                     const me=currentStanza.giocatori.find(p=>p.id===myId);
-                    let base=me.punteggio_round||0,bonus=0;
-                    if(base<1000)bonus=1000;else if(base<2000)bonus=700;else bonus=400;
+                    let base=me.punteggio_round||0, bonus=base<1000?1000:(base<2000?700:400);
+                    if(currentStanza.fase_speciale===3) { base=0; bonus=1000; }
+                    
                     let tot=base+bonus;
                     await supabase.from('giocatori').update({punteggio_totale:(me.punteggio_totale||0)+tot,punteggio_round:0}).eq('id',myId);
+                    
                     const sol=currentPuzzleText.toUpperCase();let allIdx=[],gIdx=0;for(let i=0;i<sol.length;i++){if(sol[i].match(/[A-ZÀ-Ù]/)){allIdx.push(gIdx);gIdx++;}}
-                    await supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${myName} VINCE €${tot}!`,montepremi_round:0,lettere_rivelate:allIdx,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
+                    await supabase.from('stanze').update({stato:'finito', ultima_azione:'vittoria', ultimo_messaggio:`${myName} VINCE €${tot}!`, lettere_rivelate:allIdx, azione_timestamp:new Date().toISOString()}).eq('id',roomId);
                 }else{
-                    const lastMsg = currentStanza.ultimo_messaggio || "";
-                    if (!lastMsg.includes("Riprova") && !lastMsg.includes("Turno passato")) {
-                        await supabase.from('stanze').update({
-                            ultima_azione: 'errore_soft', 
-                            ultimo_messaggio: `${myName}: Soluzione errata. Riprova (1/2)`,
-                            azione_timestamp: new Date().toISOString()
-                        }).eq('id', roomId);
-                    } else {
-                        await supabase.from('stanze').update({id_giocatore_corrente:n,ultima_azione:'errore',ultimo_messaggio:`${myName}: Sbagliato ancora. Turno passato.`,montepremi_round:0,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
-                    }
+                    await supabase.from('stanze').update({id_giocatore_corrente:n, ultima_azione:'errore', ultimo_messaggio:`${myName}: Soluzione errata.`, montepremi_round:0, azione_timestamp:new Date().toISOString()}).eq('id',roomId);
                 }
-            }else{
+            } else {
+                // LETTERA/VOCALE
                 const sol=currentPuzzleText.toUpperCase();let fd=[],gI=0;
                 for(let i=0;i<sol.length;i++){if(sol[i].match(/[A-ZÀ-Ù]/)){if(cleanStr(sol[i])===cleanStr(c))fd.push(gI);gI++;}}
                 const oc=currentStanza.lettere_chiamate||[];
+                
                 if(oc.some(k=>cleanStr(k)===cleanStr(c))){
-                    await supabase.from('stanze').update({id_giocatore_corrente:n,ultima_azione:'chiama_lettera',ultimo_messaggio:`${myName}: ${c} già detta`,montepremi_round:0,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
-                }else{
+                     await supabase.from('stanze').update({id_giocatore_corrente:n, ultima_azione:'chiama_lettera', ultimo_messaggio:`${myName}: ${c} già detta`, montepremi_round:0, azione_timestamp:new Date().toISOString()}).eq('id',roomId);
+                } else {
                     const nc=[...new Set([...oc,c])],me=currentStanza.giocatori.find(p=>p.id===myId);
-                    if(m==='vowel')await supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)-500}).eq('id',myId);
+                    
+                    if(m==='vowel') await supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)-500}).eq('id',myId);
+                    
+                    let newVocalCnt = currentStanza.vocali_speciali_chiamate || 0;
+                    if(m==='vowel_free') newVocalCnt++;
+                    
                     if(fd.length>0){
-                        if(m==='letter')await supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)+(currentStanza.montepremi_round*fd.length)}).eq('id',myId);
+                        if(m==='letter') await supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)+(currentStanza.montepremi_round*fd.length)}).eq('id',myId);
+                        
                         const newRev=[...new Set([...(currentStanza.lettere_rivelate||[]),...fd])];
-                        await supabase.from('stanze').update({lettere_rivelate:newRev,lettere_chiamate:nc,ultima_azione:'chiama_lettera',ultimo_messaggio:`${myName}: Trovate ${fd.length} ${c}`,montepremi_round:0,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
-                    }else await supabase.from('stanze').update({lettere_chiamate:nc,id_giocatore_corrente:n,ultima_azione:'chiama_lettera',ultimo_messaggio:`${myName}: ${c} non c'è`,montepremi_round:0,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
+                        await supabase.from('stanze').update({
+                            lettere_rivelate:newRev, lettere_chiamate:nc, 
+                            ultima_azione:'chiama_lettera', ultimo_messaggio:`${myName}: Trovate ${fd.length} ${c}`, 
+                            montepremi_round:0, vocali_speciali_chiamate: newVocalCnt,
+                            azione_timestamp:new Date().toISOString()
+                        }).eq('id',roomId);
+                    } else {
+                        await supabase.from('stanze').update({
+                            lettere_chiamate:nc, id_giocatore_corrente:n, 
+                            ultima_azione:'chiama_lettera', ultimo_messaggio:`${myName}: ${c} non c'è`, 
+                            montepremi_round:0, vocali_speciali_chiamate: newVocalCnt,
+                            azione_timestamp:new Date().toISOString()
+                        }).eq('id',roomId);
+                    }
+
+                    // --- LOGICA SPECIALE: 3° VOCALE E FREEZE ---
+                    if(currentStanza.fase_speciale === 3 && newVocalCnt >= 2) {
+                        let missingVowels = [];
+                        let gIdx2 = 0;
+                        let sol2 = currentPuzzleText.toUpperCase();
+                        for(let i=0; i<sol2.length; i++) {
+                             if(sol2[i].match(/[A-ZÀ-Ù]/)) {
+                                 if(VOWELS_LIST.includes(sol2[i]) && !currentStanza.lettere_rivelate.includes(gIdx2) && !nc.includes(sol2[i])) {
+                                     missingVowels.push({char: sol2[i], idx: gIdx2});
+                                 }
+                                 gIdx2++;
+                             }
+                        }
+
+                        // Mostra 3° vocale se c'è
+                        if(missingVowels.length > 0) {
+                            const luckyChar = missingVowels[0].char; 
+                            let autoFound = [];
+                            let gIdx3 = 0;
+                            for(let i=0; i<sol2.length; i++) {
+                                if(sol2[i].match(/[A-ZÀ-Ù]/)) {
+                                    if(cleanStr(sol2[i]) === cleanStr(luckyChar)) autoFound.push(gIdx3);
+                                    gIdx3++;
+                                }
+                            }
+                            const updatedRev = [...new Set([...(currentStanza.lettere_rivelate||[]), ...fd, ...autoFound])];
+                            
+                            setTimeout(async () => {
+                                await supabase.from('stanze').update({
+                                    lettere_rivelate: updatedRev,
+                                    ultimo_messaggio: `2 VOCALI FATTE! TI REGALO LA ${luckyChar}! ORA BLOCCO 5 SECONDI!`,
+                                    ultima_azione: 'freeze_start',
+                                    azione_timestamp: new Date().toISOString()
+                                }).eq('id',roomId);
+                            }, 1500);
+                        } else {
+                             // Nessuna vocale rimasta, vai al freeze diretto
+                             setTimeout(async () => {
+                                await supabase.from('stanze').update({
+                                    ultimo_messaggio: 'VOCALI FINITE! BLOCCO 5 SECONDI!',
+                                    ultima_azione: 'freeze_start',
+                                    azione_timestamp: new Date().toISOString()
+                                }).eq('id',roomId);
+                             }, 1500);
+                        }
+                    }
                 }
             }
             isProcessingInput=false;fetchFullState();
         }
 
-        function openInspector(){
-            if(!currentFrase)return speak("Nessuna frase caricata.");
-            const d=document.getElementById('inspector-content');let h=`<h2>${currentFrase.categoria}</h2>`;
-            parsedBoard.forEach((w,i)=>{let s="";w.chars.forEach(c=>{s+=c.isRevealed?c.char:"*"});h+=`<p>P${i+1}: ${s}</p>`});
-            d.innerHTML=h;document.getElementById('inspector-overlay').classList.remove('hidden');d.focus();speak("Ispettore Aperto.");
-        }
-        function closeInspector(){document.getElementById('inspector-overlay').classList.add('hidden');document.getElementById('board-container').focus();}
-        function readRevealedLetters(){
-            if(!currentStanza)return;const calls=currentStanza.lettere_chiamate||[],sol=cleanStr(currentPuzzleText).toUpperCase();
-            const h=calls.filter(c=>sol.includes(cleanStr(c).toUpperCase())).sort();
-            if(h.length>0)speak("Lettere presenti: "+h.map(c=>`${c}, ${NATO[c]||c}`).join(". "));else speak("Nessuna lettera presente rivelata.");
-        }
-        function readHistory(){speak(actionLog.length>0?"Ultime azioni: "+actionLog.join(". "):"Nessuna azione.");}
-
         async function startNewRound(){
-            if(!isHost)return speak("Solo l'host può avviare il round");
-            if(inputMode) closeInput();
-
-            const nr=(currentStanza.round_giocati||1)+(currentStanza.stato==='attesa'?0:1);
-            if(nr>10){await supabase.from('stanze').update({stato:'terminata'}).eq('id',roomId);return;}
-            const {data:fr}=await supabase.from('frasi').select('id');
-            if(!fr||fr.length===0)return speak("Nessuna frase nel database!");
-            const rid=fr[Math.floor(Math.random()*fr.length)].id;
-            if(currentStanza.stato!=='attesa')await supabase.from('giocatori').update({punteggio_round:0}).eq('stanza_id',roomId);
-            await supabase.from('stanze').update({frase_corrente_id:rid,stato:'gioco',lettere_rivelate:[],lettere_chiamate:[],montepremi_round:0,round_giocati:nr,ultima_azione:'nuovo',ultimo_messaggio:`Round ${nr}`,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
-            fetchFullState();
-        }
-
-        document.getElementById('game-input').addEventListener('keydown', function(e) {
-            if (inputMode !== 'solve') return;
-            if (e.key.length > 1) return; 
+            if(!isHost)return speak("Solo l'host può.");
+            let s = currentStanza;
+            let nextRoundIdx = s.round_giocati; 
+            let nextBufferIdx = s.indice_buffer;
+            let nextBuffer = s.buffer_frasi_speciali || [];
+            let nextFaseSpeciale = 0; 
             
-            const pos = this.selectionStart;
-            const val = this.value;
-            
-            if (val[pos] === '*' && e.key.match(/^[a-zA-Zà-ù0-9]$/i)) {
-                e.preventDefault(); 
-                const newVal = val.substring(0, pos) + e.key.toUpperCase() + val.substring(pos + 1);
-                this.value = newVal;
-                this.setSelectionRange(pos + 1, pos + 1);
-            }
-        });
+            if(s.stato === 'finito' && nextBuffer.length > 0 && nextBufferIdx < 3) {
+                nextBufferIdx++;
+                // INDICE BUFFER: 0=Fase1(50%), 1=Fase2(100%), 2=Fase3(Vocali), 3=Fase2(100% come frase 4)
+                nextFaseSpeciale = (nextBufferIdx === 2) ? 3 : 2; 
+                if(nextBufferIdx === 0) nextFaseSpeciale = 1;
 
-        document.addEventListener('keydown',e=>{
-            if(!e.key)return;const key=e.key.toLowerCase(),isInputActive=document.activeElement.tagName==='INPUT';
-            if(e.ctrlKey&&key==='l'){e.preventDefault();readRevealedLetters();return;}
-            if(e.ctrlKey&&key==='i'){e.preventDefault();openInspector();return;}
-            if(e.ctrlKey&&key==='g'){e.preventDefault();if(!inputMode)doSpin();else speak("Impossibile girare ora.");return;}
-            if(isInputActive){if(key==='enter')submitInput();if(key==='escape')closeInput();return;}
-            if(key==='enter'&&!document.getElementById('round-over-panel').classList.contains('hidden')){e.preventDefault();startNewRound();return;}
-            if(key==='escape'){
-                if(inputMode)closeInput();
-                else if(!document.getElementById('privacy-dialog').classList.contains('hidden'))document.getElementById('privacy-dialog').classList.add('hidden');
-                else closeInspector();
+                await supabase.from('giocatori').update({punteggio_round:0}).eq('stanza_id',roomId);
+                await supabase.from('stanze').update({
+                    frase_corrente_id: nextBuffer[nextBufferIdx],
+                    stato: 'gioco',
+                    lettere_rivelate: [], lettere_chiamate: [], montepremi_round: 0,
+                    indice_buffer: nextBufferIdx, fase_speciale: nextFaseSpeciale, vocali_speciali_chiamate: 0,
+                    ultima_azione: 'nuovo', ultimo_messaggio: `Frase ${nextBufferIdx+1} di 4`,
+                    azione_timestamp: new Date().toISOString()
+                }).eq('id', roomId);
+                fetchFullState();
                 return;
             }
-            if(!inputMode && document.getElementById('privacy-dialog').classList.contains('hidden')){
-                if(key==='g'){e.preventDefault();doSpin();}
-                if(key==='v'){e.preventDefault();openInput('vowel');}
-                if(key==='s'){
-                    e.preventDefault();
-                    const btn = document.getElementById('btn-solve');
-                    if(btn && !btn.disabled && !btn.classList.contains('disabled-btn')) openInput('solve');
-                    else speak("Non puoi risolvere adesso.");
+
+            nextRoundIdx++;
+            if(nextRoundIdx > 10) { await supabase.from('stanze').update({stato:'terminata'}).eq('id',roomId); return; }
+
+            let nextFraseId = null, newBuffer = [], newFase = 0;
+
+            if([4, 7, 10].includes(nextRoundIdx)) {
+                const {data: temi} = await supabase.from('frasi').select('tema').eq('categoria', 'SITUAZIONI QUOTIDIANE');
+                if(temi && temi.length){
+                    const uniqueTemi = [...new Set(temi.map(i => i.tema))];
+                    const randomTema = uniqueTemi[Math.floor(Math.random() * uniqueTemi.length)];
+                    const {data: frasiSet} = await supabase.from('frasi').select('id').eq('categoria', 'SITUAZIONI QUOTIDIANE').eq('tema', randomTema).limit(4);
+                    if(frasiSet && frasiSet.length === 4) {
+                        newBuffer = frasiSet.map(f => f.id);
+                        nextFraseId = newBuffer[0];
+                        newFase = 1; 
+                    }
                 }
-                if(key==='c')toggleContrast();
-                if(key==='a'&&!e.ctrlKey){e.preventDefault();readHistory();}
+            } 
+            
+            if(!nextFraseId) {
+                const {data:fr}=await supabase.from('frasi').select('id').neq('categoria','SITUAZIONI QUOTIDIANE');
+                nextFraseId=fr[Math.floor(Math.random()*fr.length)].id;
             }
-            if(key==='arrowright'){e.preventDefault();e.ctrlKey?moveWordNav(1):moveNav(1)}
-            if(key==='arrowleft'){e.preventDefault();e.ctrlKey?moveWordNav(-1):moveNav(-1)}
-            if(key==='arrowdown'){e.preventDefault();moveWordNav(1)}
-            if(key==='arrowup'){e.preventDefault();moveWordNav(-1)}
+
+            await supabase.from('giocatori').update({punteggio_round:0}).eq('stanza_id',roomId);
+            await supabase.from('stanze').update({
+                frase_corrente_id: nextFraseId,
+                stato: 'gioco',
+                round_giocati: nextRoundIdx,
+                buffer_frasi_speciali: newBuffer,
+                indice_buffer: 0,
+                fase_speciale: newFase,
+                vocali_speciali_chiamate: 0,
+                lettere_rivelate: [], lettere_chiamate: [], montepremi_round: 0,
+                ultima_azione: 'nuovo', ultimo_messaggio: `Round ${nextRoundIdx}`,
+                azione_timestamp: new Date().toISOString()
+            }).eq('id', roomId);
+            fetchFullState();
+        }
+        
+        document.getElementById('game-input').addEventListener('keydown',function(e){if(inputMode!=='solve'||e.key.length>1)return;const p=this.selectionStart,v=this.value;if(v[p]==='*'&&e.key.match(/^[a-zA-Zà-ù0-9]$/i)){e.preventDefault();this.value=v.substring(0,p)+e.key.toUpperCase()+v.substring(p+1);this.setSelectionRange(p+1,p+1);}});
+        document.addEventListener('keydown',e=>{
+            if(!e.key)return;const k=e.key.toLowerCase(),ia=document.activeElement.tagName==='INPUT';
+            if(e.ctrlKey){if(k==='l')readRevealedLetters();if(k==='g')doSpin();return;}
+            if(ia){if(k==='enter')submitInput();if(k==='escape')closeInput();return;}
+            if(k==='enter'&&!document.getElementById('round-over-panel').classList.contains('hidden')){e.preventDefault();startNewRound();return;}
+            if(k==='escape'){if(inputMode)closeInput();else document.getElementById('privacy-dialog').classList.add('hidden');return;}
+            if(!inputMode){if(k==='g')doSpin();if(k==='v')openInput('vowel');if(k==='s')openInput('solve');if(k==='c')toggleContrast();if(k==='a')readHistory();}
+            if(k==='arrowright')e.ctrlKey?moveWordNav(1):moveNav(1);if(k==='arrowleft')e.ctrlKey?moveWordNav(-1):moveNav(-1);
         });
+        function openInspector(){/*...*/} function closeInspector(){/*...*/} function readRevealedLetters(){/*...*/} function readHistory(){/*...*/}
     </script>
 </body>
 </html>

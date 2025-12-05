@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>La Ruota - V25 Final</title>
+    <title>La Ruota - V27 Final Fixed</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { --bg-body: #111; --col-text: #fff; --col-focus: #ffd700; --bg-panel: #222; }
         body.high-contrast { --bg-body: #000; --col-text: #fff; --col-focus: #00ffff; --bg-panel: #000; border: 2px solid yellow; }
         body { background: var(--bg-body); color: var(--col-text); font-family: 'Verdana', sans-serif; margin: 0; padding: 10px; text-align: center; padding-bottom: 120px; }
         
-        /* Focus visibile molto forte */
         *:focus { outline: 4px solid var(--col-focus) !important; box-shadow: 0 0 15px var(--col-focus); }
         
         .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); }
@@ -24,12 +23,12 @@
         #flash-overlay.visible { opacity: 1; }
         #flash-message { font-size: 2.8em; font-weight: 900; color: #fff; text-transform: uppercase; margin: 0; line-height: 1.2; text-shadow: 2px 2px 0 #000; }
         
-        /* Tabellone */
         #board-container { display: flex; flex-direction: column; align-items: center; gap: 8px; background: #053305; border: 4px solid #fff; padding: 20px; margin: 20px 0; min-height: 150px; outline: none; }
         .board-row { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; }
         .tile { width: 45px; height: 65px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 2.2em; color: #000; background: #fff; border: 2px solid #000; }
         .tile.empty { background: #004400; border: 1px dashed #006600; color: transparent; }
-        /* Cursori di navigazione in-game */
+        .tile.punct { background: #ccc; color: #000; border: 1px solid #999; } /* Stile per punteggiatura/numeri */
+        
         .tile.cursor-char { border: 5px solid var(--col-focus); transform: scale(1.1); z-index: 10; }
         .board-row.cursor-word { outline: 3px solid var(--col-focus); background: rgba(255, 255, 0, 0.2); }
         
@@ -47,11 +46,9 @@
         .btn-pass { background: #888; color: #fff; border-color: #aaa; }
         .disabled-btn { background: #444 !important; color: #888 !important; cursor: not-allowed; }
         
-        /* Modali Overlay */
         #input-area, #inspector-overlay, #privacy-dialog, #dialog-generic { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 3000; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         input { font-size: 2.5em; padding: 15px; text-align: center; width: 80%; background: #222; color: #fff; border: 3px solid var(--col-focus); border-radius: 10px; margin-bottom: 20px; }
         
-        /* Stili specifici per i modali di scelta */
         .modal-content { background: #222; border: 4px solid var(--col-focus); padding: 20px; width: 90%; border-radius: 15px; text-align: center; }
         .modal-title { color: #ffd700; font-size: 2em; margin-bottom: 20px; text-transform: uppercase; }
         .modal-body { color: #fff; font-size: 1.5em; margin-bottom: 30px; }
@@ -66,7 +63,7 @@
     <audio id="snd-spin" src="ruota.wav"></audio><audio id="snd-hit" src="lettera presente.wav"></audio><audio id="snd-miss" src="lettera assente.wav"></audio>
 
     <div id="setup-panel" class="container">
-        <h1 style="color:#ffd700;">LA RUOTA V25</h1>
+        <h1 style="color:#ffd700;">LA RUOTA V27 FINAL</h1>
         <input id="inp-name" type="text" placeholder="IL TUO NOME"><br><br>
         <input id="inp-code" type="text" placeholder="CODICE STANZA (OPZIONALE)"><br><br>
         <button onclick="askPrivacy()" class="action-btn btn-primary">CREA NUOVA STANZA</button>
@@ -176,9 +173,10 @@
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Y3drcGRqYnlzbml2a25uaW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MzAwNDksImV4cCI6MjA3OTIwNjA0OX0.R8wkMJEmsP8cTVUUOcWtD4Rrg_ZhuOE-PYBJ56eGqMU';
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         
-        const NATO={'A':'Ancona','B':'Bologna','C':'Como','D':'Domodossola','E':'Empoli','F':'Firenze','G':'Genova','H':'Hotel','I':'Imola','J':'Jolly','K':'Kappa','L':'Livorno','M':'Milano','N':'Napoli','O':'Otranto','P':'Palermo','Q':'Quadro','R':'Roma','S':'Savona','T':'Torino','U':'Udine','V':'Venezia','W':'Washington','X':'Xilofono','Y':'Yogurt','Z':'Zara','À':'A accentata','È':'E aperta','É':'E chiusa','Ì':'I accentata','Ò':'O accentata','Ù':'U accentata'};
+        const NATO={'A':'Ancona','B':'Bologna','C':'Como','D':'Domodossola','E':'Empoli','F':'Firenze','G':'Genova','H':'Hotel','I':'Imola','J':'Jolly','K':'Kappa','L':'Livorno','M':'Milano','N':'Napoli','O':'Otranto','P':'Palermo','Q':'Quadro','R':'Roma','S':'Savona','T':'Torino','U':'Udine','V':'Venezia','W':'Washington','X':'Xilofono','Y':'Yogurt','Z':'Zara','À':'A accentata','È':'E aperta','É':'E chiusa','Ì':'I accentata','Ò':'O accentata','Ù':'U accentata', "'": "Apostrofo", "?": "Punto di domanda", "!": "Punto esclamativo", ".": "Punto", ",": "Virgola", "0":"Zero", "1":"Uno", "2":"Due", "3":"Tre", "4":"Quattro", "5":"Cinque", "6":"Sei", "7":"Sette", "8":"Otto", "9":"Nove"};
         const WHEEL_VALUES=[100,200,300,400,500,600,700,800,900,1000,2000,'MISTERO','PASSA','BANCAROTTA'];
         const VOWELS_LIST=['A','E','I','O','U','À','È','É','Ì','Ò','Ù'];
+        const AUTO_VOWELS=['A','E','I','O']; // U Esclusa per il regalo automatico
         const TURN_LIMIT_SEC=120;
 
         let myId,myIndex,roomId,isHost=false,currentFrase=null,currentStanza=null,currentPuzzleText="",currentHintText="",fullSolutionText="",lastTimestamp="",isSpinning=false,inputMode=null,wheelAngle=0,parsedBoard=[],navWordIdx=0,navCharIdx=0,pollingInterval=null,timerInterval=null,actionLog=[],isFetching=false,isProcessingInput=false,isHandlingTimeout=false;
@@ -212,7 +210,6 @@
                 const{data}=await supabase.from('stanze').insert({codice:cd,frase_corrente_id:rid,is_public:isPublic,azione_timestamp:new Date().toISOString()}).select().maybeSingle();st=data;
             }else{const{data}=await supabase.from('stanze').select('*').eq('codice',cd).maybeSingle();if(!data)return speak("Stanza non trovata");st=data;
             roomId=st.id;await supabase.from('giocatori').delete().eq('stanza_id',roomId).eq('nome',nm);} 
-            // Corretto blocco sopra: la rimozione del giocatore vecchio per riconnessione è OK
             
             roomId=st.id;
             const{data:mx}=await supabase.from('giocatori').select('indice').eq('stanza_id',roomId).order('indice',{ascending:false}).limit(1).maybeSingle();
@@ -234,7 +231,6 @@
             const elapsed = Math.floor((new Date().getTime()-new Date(baseT).getTime())/1000);
             const left=Math.max(0,(TURN_LIMIT_SEC+(inputMode==='solve'?30:0))-elapsed);
             document.getElementById('timer-box').textContent=left;
-            
             if(left<=10&&left>0)playAudio('snd-hit');
             if(left===0&&!isSpinning&&!isHandlingTimeout&&isHost)handleTimeout();
         }
@@ -245,12 +241,34 @@
             if(isHandlingTimeout)return; isHandlingTimeout=true;
             const s=currentStanza;
             const n=(s.id_giocatore_corrente+1)%s.giocatori.length;
-            let currentStep = s.vocali_speciali_chiamate || 0;
-            let nextStep = currentStep;
-            if(s.fase_speciale > 0 && s.fase_speciale !== 10 && currentStep < 5) { nextStep++; }
+            
+            // Logica Avanzamento Fasi Speciali
+            let currentPhase = s.vocali_speciali_chiamate || 0;
+            let nextPhase = currentPhase;
+            const isLastPlayerOfLap = (s.id_giocatore_corrente === s.giocatori[s.giocatori.length - 1].indice);
+
+            if(s.fase_speciale > 0 && s.fase_speciale !== 10) {
+                 // Fasi 0, 1, 3: Avanza fase solo se era l'ultimo del giro
+                 if(isLastPlayerOfLap && (currentPhase === 0 || currentPhase === 1 || currentPhase === 3)) {
+                     nextPhase++;
+                 }
+                 
+                 // Fase 2 (Vocali): Se finisce il giro (anche in timeout), il sistema deve completare.
+                 if(currentPhase === 2 && isLastPlayerOfLap) {
+                     await giveAutomaticVowels(s, true); 
+                     return;
+                 }
+                 
+                 // Se finisce fase 3 (Cons pagate), rivela le rimanenti
+                 if(currentPhase === 3 && isLastPlayerOfLap) {
+                     await revealRemainingVowels(s);
+                     return; 
+                 }
+            }
+
             await supabase.from('stanze').update({
                 id_giocatore_corrente: n, 
-                vocali_speciali_chiamate: nextStep, 
+                vocali_speciali_chiamate: nextPhase, 
                 ultima_azione:'timeout', 
                 ultimo_messaggio: "Passo il turno.", 
                 montepremi_round:0, 
@@ -259,44 +277,83 @@
             isHandlingTimeout=false; fetchFullState();
         }
 
-        async function giveAutomaticVowels(s) {
+        async function giveAutomaticVowels(s, forceEnd=false) {
             isProcessingInput = true;
             const numPlayers = s.giocatori.length;
-            let vowelsToGift = 3 - numPlayers; if(vowelsToGift < 0) vowelsToGift = 0;
+            
+            let needed = 3 - numPlayers; 
+            if(needed < 0) needed = 0;
+
             let missingVowels = [], gIdx = 0, sol = currentPuzzleText.toUpperCase();
             const revealed = s.lettere_rivelate || [];
             
-            for(let i=0; i<sol.length; i++) {
-                if(sol[i].match(/[A-ZÀ-Ù]/)) {
-                    if(VOWELS_LIST.includes(sol[i]) && !revealed.includes(gIdx)) { missingVowels.push({char: sol[i], idx: gIdx}); }
-                    gIdx++;
-                }
-            }
-            missingVowels.sort(() => Math.random() - 0.5);
-            const selected = missingVowels.slice(0, vowelsToGift);
-            let newRevealed = [...revealed], msg = "";
-
-            if(selected.length > 0) {
-                let charsFound = [];
-                selected.forEach(v => {
-                    charsFound.push(v.char);
-                    let gI2 = 0;
-                    for(let i=0; i<sol.length; i++) {
-                        if(sol[i].match(/[A-ZÀ-Ù]/)) {
-                            if(cleanStr(sol[i]) === cleanStr(v.char)) newRevealed.push(gI2);
-                            gI2++;
+            // Cerchiamo le vocali MANCANTI (Solo A,E,I,O, NO U)
+            let candidates = [...AUTO_VOWELS];
+            const called = s.lettere_chiamate || [];
+            candidates = candidates.filter(c => !called.includes(c)); 
+            
+            candidates.sort(() => Math.random() - 0.5);
+            const selectedChars = candidates.slice(0, needed);
+            
+            let newRevealed = [...revealed];
+            let foundChars = [];
+            
+            selectedChars.forEach(char => {
+                let gI2 = 0;
+                let foundAny = false;
+                for(let i=0; i<sol.length; i++) {
+                    if(sol[i].match(/[A-ZÀ-Ù]/)) {
+                        if(cleanStr(sol[i]) === cleanStr(char)) {
+                            newRevealed.push(gI2);
+                            foundAny = true;
                         }
+                        gI2++;
                     }
-                });
-                msg = `IL SISTEMA REGALA: ${charsFound.join(", ")}!`;
-            } else { msg = "NESSUN REGALO! TOCCA A VOI!"; }
-            let nextStep = 2 + vowelsToGift;
+                }
+                if(foundAny) foundChars.push(char);
+            });
+
+            let msg = foundChars.length > 0 ? `SISTEMA AGGIUNGE: ${foundChars.join(", ")}` : "NESSUN ALTRO AIUTO";
+            let nextPhase = 3; // Passa alla fase Consonanti Pagate
+
             await supabase.from('stanze').update({
-                lettere_rivelate: [...new Set(newRevealed)], vocali_speciali_chiamate: nextStep,
-                ultimo_messaggio: msg, ultima_azione: 'info', azione_timestamp: new Date().toISOString()
+                lettere_rivelate: [...new Set(newRevealed)], 
+                vocali_speciali_chiamate: nextPhase,
+                ultimo_messaggio: msg, 
+                ultima_azione: 'info', 
+                id_giocatore_corrente: (s.id_giocatore_corrente+1)%s.giocatori.length, 
+                azione_timestamp: new Date().toISOString()
             }).eq('id', roomId);
             isProcessingInput = false;
         }
+
+        async function revealRemainingVowels(s) {
+            isProcessingInput = true;
+            let sol = currentPuzzleText.toUpperCase();
+            let newRevealed = [...(s.lettere_rivelate || [])];
+            let gIdx = 0;
+            
+            // Rivela TUTTE le vocali rimanenti (incluse U)
+            for(let i=0; i<sol.length; i++) {
+                if(sol[i].match(/[A-ZÀ-Ù]/)) {
+                    if(VOWELS_LIST.includes(sol[i])) {
+                        newRevealed.push(gIdx);
+                    }
+                    gIdx++;
+                }
+            }
+            
+            await supabase.from('stanze').update({
+                lettere_rivelate: [...new Set(newRevealed)], 
+                vocali_speciali_chiamate: 4, // Fase Fine
+                ultimo_messaggio: "TUTTE LE VOCALI RIVELATE!", 
+                ultima_azione: 'info', 
+                id_giocatore_corrente: (s.id_giocatore_corrente+1)%s.giocatori.length,
+                azione_timestamp: new Date().toISOString()
+            }).eq('id', roomId);
+            isProcessingInput = false;
+        }
+
 
         function updateUI(s){
             if(s.stato!=='gioco'&&inputMode)closeInput();
@@ -350,12 +407,12 @@
                 let intro = `Categoria: ${currentFrase.categoria}. ${currentHintText}.`;
                 if(s.fase_speciale > 0) intro += ` Frase speciale.`;
                 speak(intro);
-                pendingMultiplier = 1; // reset multiplier
+                pendingMultiplier = 1; 
             }
 
             document.getElementById('round-indicator').textContent=`R ${s.round_giocati}/10`;
 
-            const step = s.vocali_speciali_chiamate || 0;
+            const phase = s.vocali_speciali_chiamate || 0;
             const spInfo = document.getElementById('special-round-info');
             const spRules = document.getElementById('special-round-rules');
             const isMe = (s.id_giocatore_corrente===myIndex);
@@ -364,10 +421,17 @@
             
             if(s.fase_speciale > 0 && s.fase_speciale !== 10) { 
                 spInfo.classList.remove('hidden');
-                if(step === 0) { spRules.textContent = "AZIONE 1: CONSONANTI AL 50%"; canSpin=true; canSolve=true; canVowel=true; }
-                else if(step === 1) { spRules.textContent = "AZIONE 2: CONSONANTI PREZZO PIENO"; canSpin=true; canSolve=true; canVowel=true; }
-                else if(step >= 2 && step < 5) { spRules.textContent = "FASE 3: SOLO VOCALI (GRATIS)"; canFreeVowel=true; canPass=true; }
-                else { spRules.textContent = "FASE 4: SOLO CONSONANTI (PAGATE)"; canSpin=true; canSolve=true; canVowel=false; canManual=true; }
+                if(phase === 0) { spRules.textContent = "GIRO 1: SOLO CONSONANTI (50%)"; canSpin=true; canSolve=true; canVowel=false; }
+                else if(phase === 1) { spRules.textContent = "GIRO 2: SOLO CONSONANTI (100%)"; canSpin=true; canSolve=true; canVowel=false; }
+                else if(phase === 2) { 
+                    spRules.textContent = "GIRO 3: SOLO VOCALI (GRATIS)"; 
+                    canFreeVowel=true; 
+                    canPass=false; 
+                    canSpin=false; 
+                    canSolve=true; // FIX: ABILITATO SOLVE
+                } 
+                else if(phase === 3) { spRules.textContent = "GIRO 4: SOLO CONSONANTI (PAGATE)"; canSpin=true; canSolve=true; canVowel=false; canManual=true; }
+                else { spRules.textContent = "FINALE: LIBERO"; canSpin=true; canSolve=true; canVowel=true; }
             } else if (s.fase_speciale === 10) {
                  spInfo.classList.remove('hidden'); spRules.textContent = "FILO CONDUTTORE: 0€ CHIAMATA, 500€ SOLUZIONE"; canSpin=true; canSolve=true; canVowel=false;
             } else {
@@ -387,8 +451,6 @@
             }
             if(canManual && s.montepremi_round > 0) document.getElementById('btn-manual-cons').classList.remove('hidden');
             else document.getElementById('btn-manual-cons').classList.add('hidden');
-
-            if(s.fase_speciale > 0 && s.fase_speciale !== 10 && step === 2 && isHost && !isProcessingInput) { giveAutomaticVowels(s); }
 
             if(s.azione_timestamp && s.azione_timestamp!==lastTimestamp){
                 lastTimestamp=s.azione_timestamp;
@@ -417,13 +479,34 @@
         }
 
         function parseAndRenderBoard(text,rev){
-            rev=Array.isArray(rev)?rev:[];const c=document.getElementById('board-container');c.innerHTML='';parsedBoard=[];let gI=0;
+            rev=Array.isArray(rev)?rev:[];
+            const c=document.getElementById('board-container');c.innerHTML='';parsedBoard=[];
+            let gI=0;
             text.toUpperCase().split(' ').forEach(wS=>{
-                let wO={str:wS,chars:[]};const r=document.createElement('div');r.className='board-row';
+                let wO={str:wS,chars:[]};
+                const r=document.createElement('div');r.className='board-row';
                 for(let j=0;j<wS.length;j++){
-                    const ch=wS[j],isL=ch.match(/[A-ZÀ-Ù]/),isR=!isL||rev.includes(gI);wO.chars.push({char:ch,isRevealed:isR,isLetter:!!isL});
-                    const d=document.createElement('div');d.className='tile'+(isL&&isR?' revealed':(isL?' empty':''));
-                    d.textContent=(isL&&!isR)?'':ch;d.id=`tile-${parsedBoard.length}-${j}`;r.appendChild(d);if(isL)gI++;
+                    const ch=wS[j];
+                    const isL = ch.match(/[A-ZÀ-Ù]/);
+                    // Numeri e punteggiatura non sono Lettere (A-Z) -> Sono sempre visibili
+                    const isR = !isL || rev.includes(gI);
+                    
+                    wO.chars.push({char:ch, isRevealed:isR, isLetter:!!isL});
+                    
+                    const d=document.createElement('div');
+                    let cls = 'tile';
+                    if(isL) {
+                        if(isR) cls += ' revealed';
+                        else cls += ' empty';
+                    } else {
+                        cls += ' punct'; // Stile per numeri e simboli
+                    }
+                    d.className = cls;
+                    d.textContent = (isL && !isR) ? '' : ch;
+                    d.id=`tile-${parsedBoard.length}-${j}`;
+                    r.appendChild(d);
+                    
+                    if(isL) gI++; 
                 }
                 r.id=`row-${parsedBoard.length}`;c.appendChild(r);parsedBoard.push(wO);
             });
@@ -451,7 +534,9 @@
             const c = wordObj.chars[cIdx];
             const pos = (cIdx + 1) + " di " + wordObj.chars.length;
             if (c.isLetter && !c.isRevealed) return `Nascosta, ${pos}`;
-            return `${c.char}, ${NATO[c.char] || c.char}, ${pos}`;
+            let speakChar = NATO[c.char] || c.char;
+            if (!c.isLetter) speakChar = NATO[c.char] || "Simbolo " + c.char;
+            return `${c.char}, ${speakChar}, ${pos}`;
         }
         function readSingleChar(){ const w = parsedBoard[navWordIdx]; speak(getCharReadString(w, navCharIdx)); }
         function readWholeWord(){
@@ -550,8 +635,8 @@
             await new Promise(r=>setTimeout(r,3500));
             
             let v=WHEEL_VALUES[Math.floor(Math.random()*WHEEL_VALUES.length)];
-            const step = currentStanza.vocali_speciali_chiamate || 0;
-            if(typeof v === 'number' && currentStanza.fase_speciale > 0 && currentStanza.fase_speciale !== 10 && step === 0) {
+            const phase = currentStanza.vocali_speciali_chiamate || 0;
+            if(typeof v === 'number' && currentStanza.fase_speciale > 0 && currentStanza.fase_speciale !== 10 && phase === 0) {
                 v = Math.floor(v / 2); speak("Metà prezzo! " + v);
             }
             
@@ -657,9 +742,7 @@
                 fetchFullState();setTimeout(()=>openInput('letter'),500);
             } else {
                 if(v==='BANCAROTTA')await supabase.from('giocatori').update({punteggio_round:0}).eq('id',myId);
-                const n=(myIndex+1)%currentStanza.giocatori.length;
-                await supabase.from('stanze').update({id_giocatore_corrente:n,montepremi_round:0,ultima_azione:'errore',ultimo_messaggio:msg,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
-                fetchFullState();
+                await passTurn();
             }
         }
 
@@ -677,7 +760,7 @@
                 for(let i=0;i<txt.length;i++){
                     const c=txt[i];
                     if(c.match(/[A-ZÀ-Ù]/)){ prefill+=currentStanza.lettere_rivelate.includes(gI)?c:"*"; gI++; }
-                    else prefill+=c;
+                    else prefill+=c; 
                 }
                 inp.value=prefill;speak("Scrivi sugli asterischi.");
             }else if(m==='vowel_free'){
@@ -699,6 +782,7 @@
             if((m==='vowel'||m==='vowel_free')&&!isV){speak("Serve vocale");isProcessingInput=false;return;}
 
             closeInput();const n=(myIndex+1)%currentStanza.giocatori.length,myName=document.getElementById('inp-name').value;
+            const isLastPlayerOfLap = (myIndex === currentStanza.giocatori[currentStanza.giocatori.length - 1].indice);
             
             if(m==='solve'){
                 if(cleanStr(t)===cleanStr(currentPuzzleText)){
@@ -711,44 +795,90 @@
                     const sol=currentPuzzleText.toUpperCase();let allIdx=[],gIdx=0;for(let i=0;i<sol.length;i++){if(sol[i].match(/[A-ZÀ-Ù]/)){allIdx.push(gIdx);gIdx++;}}
                     await supabase.from('stanze').update({stato:'finito', ultima_azione:'vittoria', ultimo_messaggio:`${myName} VINCE €${tot}!`, lettere_rivelate:allIdx, azione_timestamp:new Date().toISOString()}).eq('id',roomId);
                 }else{
-                    await supabase.from('stanze').update({id_giocatore_corrente:n, ultima_azione:'errore', ultimo_messaggio:`${myName}: Soluzione errata.`, montepremi_round:0, azione_timestamp:new Date().toISOString()}).eq('id',roomId);
+                    let nextPhase = currentStanza.vocali_speciali_chiamate || 0;
+                    if(currentStanza.fase_speciale > 0 && currentStanza.fase_speciale !== 10 && isLastPlayerOfLap && (nextPhase===0 || nextPhase===1 || nextPhase===3)) nextPhase++;
+                    
+                    await supabase.from('stanze').update({
+                        id_giocatore_corrente:n, 
+                        vocali_speciali_chiamate: nextPhase,
+                        ultima_azione:'errore', 
+                        ultimo_messaggio:`${myName}: Soluzione errata.`, 
+                        montepremi_round:0, 
+                        azione_timestamp:new Date().toISOString()
+                    }).eq('id',roomId);
+                    
+                    if(currentStanza.fase_speciale > 0 && nextPhase === 3 && isLastPlayerOfLap) { await revealRemainingVowels(currentStanza); }
                 }
             } else {
                 const sol=currentPuzzleText.toUpperCase();let fd=[],gI=0;
                 for(let i=0;i<sol.length;i++){if(sol[i].match(/[A-ZÀ-Ù]/)){if(cleanStr(sol[i])===cleanStr(c))fd.push(gI);gI++;}}
                 const oc=currentStanza.lettere_chiamate||[];
-                let currentStep = currentStanza.vocali_speciali_chiamate || 0;
-                let nextStep = currentStep;
-                if(currentStanza.fase_speciale > 0 && currentStanza.fase_speciale !== 10 && currentStep < 5) { nextStep++; }
+                
+                // --- Logica Fasi Speciali ---
+                let currentPhase = currentStanza.vocali_speciali_chiamate || 0;
+                let nextPhase = currentPhase;
+                let autoVowelsTrigger = false;
+                let remainingRevealTrigger = false;
+
+                if(currentStanza.fase_speciale > 0 && currentStanza.fase_speciale !== 10) {
+                     if(isLastPlayerOfLap) {
+                         if(currentPhase === 0 || currentPhase === 1) nextPhase++;
+                         if(currentPhase === 2) { autoVowelsTrigger = true; }
+                         if(currentPhase === 3) { remainingRevealTrigger = true; }
+                     }
+                }
+                // -----------------------------
 
                 if(oc.some(k=>cleanStr(k)===cleanStr(c))){
-                      await supabase.from('stanze').update({id_giocatore_corrente:n, ultima_azione:'chiama_lettera', ultimo_messaggio:`${myName}: ${c} già detta`, montepremi_round:0, azione_timestamp:new Date().toISOString()}).eq('id',roomId);
+                      await supabase.from('stanze').update({
+                          id_giocatore_corrente:n, 
+                          vocali_speciali_chiamate: nextPhase,
+                          ultima_azione:'chiama_lettera', 
+                          ultimo_messaggio:`${myName}: ${c} già detta`, 
+                          montepremi_round:0, 
+                          azione_timestamp:new Date().toISOString()
+                      }).eq('id',roomId);
                 } else {
                     const nc=[...new Set([...oc,c])],me=currentStanza.giocatori.find(p=>p.id===myId);
                     if(m==='vowel') await supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)-500}).eq('id',myId);
+                    
                     if(fd.length>0){
                         if(m==='letter') {
                              let gain = (currentStanza.montepremi_round * fd.length);
-                             if(pendingMultiplier > 1) {
-                                 gain = gain + (me.punteggio_round||0); 
-                                 pendingMultiplier = 1; 
-                             }
+                             if(pendingMultiplier > 1) { gain = gain + (me.punteggio_round||0); pendingMultiplier = 1; }
                              await supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)+gain}).eq('id',myId);
                         }
                         const newRev=[...new Set([...(currentStanza.lettere_rivelate||[]),...fd])];
+                        
+                        let nextPlayer = myIndex; 
+                        if(m === 'vowel_free') nextPlayer = n; // Vocali Gratis: giro secco, passa al prossimo
+                        
                         await supabase.from('stanze').update({
-                            lettere_rivelate:newRev, lettere_chiamate:nc, ultima_azione:'chiama_lettera', ultimo_messaggio:`${myName}: Trovate ${fd.length} ${c}`, 
-                            montepremi_round:0, vocali_speciali_chiamate: nextStep, azione_timestamp:new Date().toISOString()
+                            lettere_rivelate:newRev, 
+                            lettere_chiamate:nc, 
+                            id_giocatore_corrente: nextPlayer,
+                            ultima_azione:'chiama_lettera', 
+                            ultimo_messaggio:`${myName}: Trovate ${fd.length} ${c}`, 
+                            montepremi_round:0, 
+                            vocali_speciali_chiamate: nextPhase, 
+                            azione_timestamp:new Date().toISOString()
                         }).eq('id',roomId);
                     } else {
                         pendingMultiplier = 1;
                         await supabase.from('stanze').update({
-                            lettere_chiamate:nc, id_giocatore_corrente: (m==='vowel_free') ? myIndex : n,
-                            ultima_azione:'chiama_lettera', ultimo_messaggio:`${myName}: ${c} non c'è`, 
-                            montepremi_round:0, vocali_speciali_chiamate: nextStep, azione_timestamp:new Date().toISOString()
+                            lettere_chiamate:nc, 
+                            id_giocatore_corrente: n,
+                            ultima_azione:'chiama_lettera', 
+                            ultimo_messaggio:`${myName}: ${c} non c'è`, 
+                            montepremi_round:0, 
+                            vocali_speciali_chiamate: nextPhase, 
+                            azione_timestamp:new Date().toISOString()
                         }).eq('id',roomId);
                     }
                 }
+                
+                if(autoVowelsTrigger) { setTimeout(() => giveAutomaticVowels(currentStanza), 500); }
+                else if(remainingRevealTrigger) { setTimeout(() => revealRemainingVowels(currentStanza), 500); }
             }
             isProcessingInput=false;fetchFullState();
         }
@@ -759,17 +889,18 @@
             let nextRoundIdx = s.round_giocati; let nextBufferIdx = s.indice_buffer;
             let nextBuffer = s.buffer_frasi_speciali || []; let nextFaseSpeciale = 0; 
             
-            // Continua finché non esaurisci tutte le frasi caricate nel buffer (es. Filo Conduttore)
             if(s.stato === 'finito' && nextBuffer.length > 0 && nextBufferIdx < nextBuffer.length - 1) {
                 nextBufferIdx++;
-                if(s.fase_speciale >= 10) nextFaseSpeciale = 10; else nextFaseSpeciale = nextBufferIdx + 1;
+                if(s.fase_speciale >= 10) nextFaseSpeciale = 10; else nextFaseSpeciale = nextBufferIdx + 1; 
                 
                 await supabase.from('giocatori').update({punteggio_round:0}).eq('stanza_id',roomId);
                 
                 await supabase.from('stanze').update({
                     frase_corrente_id: nextBuffer[nextBufferIdx], stato: 'gioco',
                     lettere_rivelate: [], lettere_chiamate: [], montepremi_round: 0,
-                    indice_buffer: nextBufferIdx, fase_speciale: nextFaseSpeciale, vocali_speciali_chiamate: 0,
+                    indice_buffer: nextBufferIdx, 
+                    fase_speciale: nextFaseSpeciale, 
+                    vocali_speciali_chiamate: 0, 
                     ultima_azione: 'nuovo', ultimo_messaggio: `Frase ${nextBufferIdx+1}`,
                     azione_timestamp: new Date().toISOString()
                 }).eq('id', roomId); fetchFullState(); return;
@@ -778,12 +909,10 @@
             nextRoundIdx++;
             if(nextRoundIdx > 10) { await supabase.from('stanze').update({stato:'terminata'}).eq('id',roomId); return; }
 
-            // PULIZIA JOLLY SCADUTI
             const {data: allPlayers} = await supabase.from('giocatori').select('*').eq('stanza_id', roomId);
             if(allPlayers) {
                 for (const p of allPlayers) {
                     if(p.jolly_scadenze && Array.isArray(p.jolly_scadenze) && p.jolly_scadenze.length > 0) {
-                        // Tieni jolly solo se il loro round di scadenza è >= al round attuale
                         const validJollys = p.jolly_scadenze.filter(expiryRound => expiryRound >= nextRoundIdx);
                         if(validJollys.length !== p.jolly_scadenze.length) {
                              await supabase.from('giocatori').update({jolly_scadenze: validJollys}).eq('id', p.id);
@@ -807,7 +936,6 @@
                 if(temi && temi.length) {
                     const uniqueTemi = [...new Set(temi.map(i => i.tema))];
                     const randomTema = uniqueTemi[Math.floor(Math.random() * uniqueTemi.length)];
-                    // Carica fino a 4 frasi per il Filo Conduttore
                     const {data: frasiSet} = await supabase.from('frasi').select('id').eq('categoria', 'FILO CONDUTTORE').eq('tema', randomTema).order('id', {ascending: true}).limit(4);
                     if(frasiSet && frasiSet.length >= 3) { newBuffer = frasiSet.map(f => f.id); nextFraseId = newBuffer[0]; newFase = 10; }
                 }
@@ -819,7 +947,8 @@
             await supabase.from('giocatori').update({punteggio_round:0}).eq('stanza_id',roomId);
             await supabase.from('stanze').update({
                 frase_corrente_id: nextFraseId, stato: 'gioco', round_giocati: nextRoundIdx,
-                buffer_frasi_speciali: newBuffer, indice_buffer: 0, fase_speciale: newFase, vocali_speciali_chiamate: 0,
+                buffer_frasi_speciali: newBuffer, indice_buffer: 0, fase_speciale: newFase, 
+                vocali_speciali_chiamate: 0, 
                 lettere_rivelate: [], lettere_chiamate: [], montepremi_round: 0,
                 ultima_azione: 'nuovo', ultimo_messaggio: `Round ${nextRoundIdx}`,
                 azione_timestamp: new Date().toISOString()

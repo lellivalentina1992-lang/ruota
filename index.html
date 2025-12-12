@@ -1,13 +1,9 @@
-{
-type: uploaded file
-fileName: index.html
-fullContent:
 <!DOCTYPE html>
 <html lang="it">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>La Ruota - V29 Final Custom</title>
+    <title>La Ruota - V32 Final Dynamic Adjust</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { --bg-body: #111; --col-text: #fff; --col-focus: #ffd700; --bg-panel: #222; }
@@ -67,7 +63,7 @@ fullContent:
     <audio id="snd-spin" src="ruota.wav"></audio><audio id="snd-hit" src="lettera presente.wav"></audio><audio id="snd-miss" src="lettera assente.wav"></audio>
 
     <div id="setup-panel" class="container">
-        <h1 style="color:#ffd700;">LA RUOTA V29 FINAL CUSTOM</h1>
+        <h1 style="color:#ffd700;">LA RUOTA V32 FINAL ADJUST</h1>
         <input id="inp-name" type="text" placeholder="IL TUO NOME"><br><br>
         <input id="inp-code" type="text" placeholder="CODICE STANZA (OPZIONALE)"><br><br>
         <button onclick="askPrivacy()" class="action-btn btn-primary">CREA NUOVA STANZA</button>
@@ -182,12 +178,12 @@ fullContent:
         const VOWELS_LIST=['A','E','I','O','U','À','È','É','Ì','Ò','Ù'];
         const AUTO_VOWELS=['A','E','I','O']; 
         const TURN_LIMIT_SEC=120;
-        const COSTO_VOCALE = 1000;
 
         let myId,myIndex,roomId,isHost=false,currentFrase=null,currentStanza=null,currentPuzzleText="",currentHintText="",fullSolutionText="",lastTimestamp="",isSpinning=false,inputMode=null,wheelAngle=0,parsedBoard=[],navWordIdx=0,navCharIdx=0,pollingInterval=null,timerInterval=null,actionLog=[],isFetching=false,isProcessingInput=false,isHandlingTimeout=false;
         let lastFocusedElement=null;
         let isReadingList=false;
         let pendingMultiplier=1; 
+        let vowelsBoughtThisTurn = 0;
 
         function playAudio(id){const a=document.getElementById(id);if(a){a.pause();a.currentTime=0;a.play().catch(e=>{});}}
         function playMultiHit(n){let count=n>10?10:n;let i=0;function l(){if(i<count){playAudio('snd-hit');i++;setTimeout(l,300);}}l();}
@@ -242,12 +238,24 @@ fullContent:
         
         async function handleTimeout(){ passTurn(); }
 
+        // --- CALCOLO COSTO VOCALE DINAMICO ---
+        function getDynamicVowelCost() {
+            if(!currentPuzzleText) return 1000;
+            const len = currentPuzzleText.length; // Lunghezza inclusi spazi
+            if(len <= 50) return 500;
+            if(len <= 80) return 1000;
+            return 2000;
+        }
+
         // --- GESTIONE TURNI ---
         async function passTurn(){
             if(isHandlingTimeout)return; isHandlingTimeout=true;
             const s=currentStanza;
             const n=(s.id_giocatore_corrente+1)%s.giocatori.length;
             
+            // RESET VARIABILI TURNO LOCALI
+            vowelsBoughtThisTurn = 0;
+
             let currentPhase = s.vocali_speciali_chiamate || 0;
             let nextPhase = currentPhase;
             const isLastPlayerOfLap = (s.id_giocatore_corrente === s.giocatori[s.giocatori.length - 1].indice);
@@ -408,6 +416,7 @@ fullContent:
                 if(s.fase_speciale > 0) intro += ` Round Situazioni Quotidiane.`;
                 speak(intro);
                 pendingMultiplier = 1; 
+                vowelsBoughtThisTurn = 0; // Nuovo round
             }
 
             document.getElementById('round-indicator').textContent=`R ${s.round_giocati}/10`;
@@ -474,7 +483,8 @@ fullContent:
             if(canFreeVowel) { document.getElementById('btn-free-vowel').classList.remove('hidden'); setBtnState('btn-vowel', true); } 
             else {
                  const me=s.giocatori.find(p=>p.indice===myIndex);
-                 const hasMoney = (me && me.punteggio_round >= COSTO_VOCALE);
+                 const currentCost = getDynamicVowelCost();
+                 const hasMoney = (me && me.punteggio_round >= currentCost);
                  setBtnState('btn-vowel', !(canVowel && hasMoney));
             }
             if(canManual) document.getElementById('btn-manual-cons').classList.remove('hidden');
@@ -634,10 +644,15 @@ fullContent:
             setTimeout(() => acts.firstChild.focus(), 100);
         }
 
-        async function doSpin(){
-            if(isBtnDisabled('btn-spin'))return;
+        async function doSpin(isReSpin = false){
+            if(!isReSpin && isBtnDisabled('btn-spin'))return;
             
-            document.getElementById('wheel-status-text').focus();speak("Gira...");playAudio('snd-spin');isSpinning=true;
+            document.getElementById('wheel-status-text').focus();
+            
+            if(isReSpin) speak("La ruota gira da sola per il Raddoppia!");
+            else speak("Gira...");
+            
+            playAudio('snd-spin');isSpinning=true;
             setBtnState('btn-spin',true);setBtnState('btn-solve',true);setBtnState('btn-vowel',true);
             wheelAngle+=(1000+Math.random()*500);document.getElementById('wheel-visual').style.transform=`rotate(${wheelAngle}deg)`;
             await new Promise(r=>setTimeout(r,3500));
@@ -649,12 +664,16 @@ fullContent:
             }
             
             if(v === 'MISTERO') {
-                isSpinning = false;
-                showDialog("MISTERO!", "Vuoi tenere 500€ sicuri o aprire il Mistero?", [
-                    { text: "TIENI 500€", cls: "btn-primary", action: () => handleMysteryOutcome('SAFE') },
-                    { text: "APRI MISTERO", cls: "btn-special", action: () => handleMysteryOutcome('RISK') }
-                ]);
-                return;
+                if(isReSpin) { 
+                    v = 1000; 
+                } else {
+                    isSpinning = false;
+                    showDialog("MISTERO!", "Vuoi tenere 500€ sicuri o aprire il Mistero?", [
+                        { text: "TIENI 500€", cls: "btn-primary", action: () => handleMysteryOutcome('SAFE') },
+                        { text: "APRI MISTERO", cls: "btn-special", action: () => handleMysteryOutcome('RISK') }
+                    ]);
+                    return;
+                }
             }
 
             handleSpinResult(v);
@@ -671,7 +690,9 @@ fullContent:
                 
                 if(res === 'RADDOPPIA') {
                     pendingMultiplier = 2;
-                    handleSpinResult(1000, "Mistero Raddoppia! "); 
+                    speak("Raddoppia attivo! Gira di nuovo!");
+                    setTimeout(() => doSpin(true), 1000); 
+                    return; 
                 } else if (res === 'DIMEZZA') {
                      const me = currentStanza.giocatori.find(p=>p.id===myId);
                      const newScore = Math.floor((me.punteggio_round||0) / 2);
@@ -682,7 +703,7 @@ fullContent:
                 } else if (res === 'JOLLY') {
                     const me = currentStanza.giocatori.find(p=>p.id===myId);
                     let myJollys = (me.jolly_scadenze && Array.isArray(me.jolly_scadenze)) ? [...me.jolly_scadenze] : [];
-                    const expiry = currentStanza.round_giocati + 4; // SCADE DOPO 5 ROUND (corrente + 4)
+                    const expiry = currentStanza.round_giocati + 4; 
                     myJollys.push(expiry);
                     await supabase.from('giocatori').update({jolly_scadenze:myJollys}).eq('id',myId);
                     handleSpinResult(500, "Hai vinto un JOLLY! Vale fino al round " + expiry + ". ");
@@ -717,6 +738,13 @@ fullContent:
 
         async function handleSpinResult(v, prefixMsg="") {
             const myName=document.getElementById('inp-name').value;
+            
+            if (typeof v !== 'number' && pendingMultiplier > 1) {
+                pendingMultiplier = 1;
+                speak("Casella speciale! Raddoppia annullato.");
+                await new Promise(r=>setTimeout(r,1500));
+            }
+
             if (v === 'BANCAROTTA' || v === 'PASSA') {
                 const me = currentStanza.giocatori.find(p => p.id === myId);
                 const jollys = (me.jolly_scadenze && Array.isArray(me.jolly_scadenze)) ? me.jolly_scadenze : [];
@@ -746,6 +774,11 @@ fullContent:
             let msg=`${prefixMsg}${myName} gira: ${v}`;
             
             if(typeof v==='number'&&v>=0){
+                if(pendingMultiplier > 1) {
+                    v = v * pendingMultiplier;
+                    msg += ` (X${pendingMultiplier}!)`;
+                }
+
                 await supabase.from('stanze').update({montepremi_round:v,ultima_azione:'gira_ruota',ultimo_messaggio:msg,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
                 fetchFullState();setTimeout(()=>openInput('letter'),500);
             } else {
@@ -757,9 +790,16 @@ fullContent:
         function clearInput(){document.getElementById('game-input').value="";document.getElementById('game-input').focus();speak("Svuotato");}
         function openInput(m){
             const me=currentStanza.giocatori.find(p=>p.id===myId);
-            if(m==='vowel' && !document.getElementById('btn-free-vowel').checkVisibility()){
-                if((me.punteggio_round||0)<COSTO_VOCALE)return speak(`Servono ${COSTO_VOCALE} euro nel round.`);
+            const dynamicCost = getDynamicVowelCost();
+            
+            if(m==='vowel') {
+                if(!document.getElementById('btn-free-vowel').checkVisibility()){
+                     if((me.punteggio_round||0)<dynamicCost) return speak(`Servono ${dynamicCost} euro.`);
+                     if(vowelsBoughtThisTurn >= 1) return speak("Hai già comprato una vocale in questo turno.");
+                     speak(`Costo vocale: ${dynamicCost} euro. Inserisci vocale.`);
+                }
             }
+            
             lastFocusedElement=document.activeElement;inputMode=m; isReadingList=false;
             document.getElementById('input-area').classList.remove('hidden');
             const inp=document.getElementById('game-input');inp.value='';
@@ -774,7 +814,9 @@ fullContent:
             }else if(m==='vowel_free'){
                 document.getElementById('input-title').textContent="VOCALE GRATIS";
                 speak("Inserisci vocale gratis.");
-            }else document.getElementById('input-title').textContent=m==='letter'?"CONSONANTE":"VOCALE";
+            }else if(m!=='vowel') document.getElementById('input-title').textContent="CONSONANTE"; 
+            else document.getElementById('input-title').textContent=`VOCALE (${dynamicCost}€)`; // Titolo dinamico
+
             setTimeout(()=>{inp.focus();if(m==='solve')inp.setSelectionRange(0,0);},100);
         }
         function closeInput(){document.getElementById('input-area').classList.add('hidden');inputMode=null;if(lastFocusedElement)lastFocusedElement.focus();}
@@ -813,10 +855,11 @@ fullContent:
                     }).eq('id',roomId);
                 }
             } else {
-                // SE E' UNA VOCALE PAGATA, SOTTRAGGO I SOLDI ORA
                 const me=currentStanza.giocatori.find(p=>p.id===myId);
                 if(m==='vowel') {
-                    await supabase.from('giocatori').update({punteggio_round: (me.punteggio_round || 0) - COSTO_VOCALE}).eq('id', myId);
+                    const dynamicCost = getDynamicVowelCost();
+                    await supabase.from('giocatori').update({punteggio_round: (me.punteggio_round || 0) - dynamicCost}).eq('id', myId);
+                    vowelsBoughtThisTurn++;
                 }
 
                 const sol=currentPuzzleText.toUpperCase();let fd=[],gI=0;
@@ -857,7 +900,6 @@ fullContent:
                              let val = currentStanza.montepremi_round;
                              if(currentStanza.fase_speciale === 1 && currentPhase === 0) val = Math.floor(val/2);
                              let gain = (val * fd.length);
-                             if(pendingMultiplier > 1) { gain += (me.punteggio_round||0); pendingMultiplier = 1; }
                              await supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)+gain}).eq('id',myId);
                         }
                         const newRev=[...new Set([...(currentStanza.lettere_rivelate||[]),...fd])];
@@ -897,6 +939,9 @@ fullContent:
                      }, 1000);
                 }
             }
+            
+            pendingMultiplier = 1;
+
             isProcessingInput=false; fetchFullState();
         }
 
@@ -994,15 +1039,14 @@ fullContent:
             if (isDialogGenericOpen) return; 
 
             if (!inputMode) {
-                // HOTKEYS AGGIORNATE CON SUPPORTO CTRL PER TUTTI
                 if (k === 'g' || (e.ctrlKey && k === 'g')) { e.preventDefault(); doSpin(); return; }
                 if (k === 'v' || (e.ctrlKey && k === 'v')) { e.preventDefault(); openInput('vowel'); return; }
                 if (k === 's' || (e.ctrlKey && k === 's')) { e.preventDefault(); openInput('solve'); return; }
                 if (k === 'p' || (e.ctrlKey && k === 'p')) { e.preventDefault(); passTurn(); return; }
                 if (k === 'l' || (e.ctrlKey && k === 'l')) { e.preventDefault(); readRevealedLetters(); return; }
                 if (k === 'i' || (e.ctrlKey && k === 'i')) { e.preventDefault(); openInspector(); return; }
-                if (k === 'r' || (e.ctrlKey && k === 'r')) { e.preventDefault(); readFullBoard(); return; } // Aggiunto Ctrl
-                if (k === 'c' || (e.ctrlKey && k === 'c')) { e.preventDefault(); toggleContrast(); return; } // Aggiunto Ctrl
+                if (k === 'r' || (e.ctrlKey && k === 'r')) { e.preventDefault(); readFullBoard(); return; } 
+                if (k === 'c' || (e.ctrlKey && k === 'c')) { e.preventDefault(); toggleContrast(); return; } 
                 
                 if (k === 'arrowright') { e.preventDefault(); moveNav(1); }
                 if (k === 'arrowleft') { e.preventDefault(); moveNav(-1); }

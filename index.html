@@ -1030,6 +1030,11 @@
             const isInspectorOpen = !document.getElementById('inspector-overlay').classList.contains('hidden');
             const isDialogGenericOpen = !document.getElementById('dialog-generic').classList.contains('hidden');
 
+            if (e.ctrlKey && k === 'l') { e.preventDefault(); readRevealedLetters(); return; }
+            if (e.ctrlKey && k === 'i') { e.preventDefault(); openInspector(); return; }
+            if (e.ctrlKey && k === 'r') { e.preventDefault(); readFullBoard(); return; }
+            if (e.ctrlKey && k === 'c') { e.preventDefault(); toggleContrast(); return; }
+
             if (ia) {
                 if (k === 'enter') submitInput();
                 if (k === 'escape') closeInput();
@@ -1043,10 +1048,11 @@
                 if (k === 'v' || (e.ctrlKey && k === 'v')) { e.preventDefault(); openInput('vowel'); return; }
                 if (k === 's' || (e.ctrlKey && k === 's')) { e.preventDefault(); openInput('solve'); return; }
                 if (k === 'p' || (e.ctrlKey && k === 'p')) { e.preventDefault(); passTurn(); return; }
-                if (k === 'l' || (e.ctrlKey && k === 'l')) { e.preventDefault(); readRevealedLetters(); return; }
-                if (k === 'i' || (e.ctrlKey && k === 'i')) { e.preventDefault(); openInspector(); return; }
-                if (k === 'r' || (e.ctrlKey && k === 'r')) { e.preventDefault(); readFullBoard(); return; } 
-                if (k === 'c' || (e.ctrlKey && k === 'c')) { e.preventDefault(); toggleContrast(); return; } 
+                
+                if (k === 'l') { e.preventDefault(); readRevealedLetters(); return; }
+                if (k === 'i') { e.preventDefault(); openInspector(); return; }
+                if (k === 'r') { e.preventDefault(); readFullBoard(); return; } 
+                if (k === 'c') { e.preventDefault(); toggleContrast(); return; } 
                 
                 if (k === 'arrowright') { e.preventDefault(); moveNav(1); }
                 if (k === 'arrowleft') { e.preventDefault(); moveNav(-1); }

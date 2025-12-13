@@ -1046,8 +1046,18 @@
             if (!e.key) return;
             const k = e.key.toLowerCase();
             const ia = document.activeElement.tagName === 'INPUT';
+
+            if (ia) {
+                if (k === 'enter') submitInput();
+                if (k === 'escape') closeInput();
+                return; 
+            }
+
             const isInspectorOpen = !document.getElementById('inspector-overlay').classList.contains('hidden');
             const isDialogGenericOpen = !document.getElementById('dialog-generic').classList.contains('hidden');
+
+            if (isInspectorOpen) { if (k === 'escape') closeInspector(); return; }
+            if (isDialogGenericOpen) return; 
 
             if (e.ctrlKey && k === 'l') { e.preventDefault(); readRevealedLetters(); return; }
             if (e.ctrlKey && k === 'i') { e.preventDefault(); openInspector(); return; }
@@ -1056,19 +1066,10 @@
             
             if (k === 'a' || (e.ctrlKey && k === 'a')) { e.preventDefault(); openActionHistory(); return; }
             
-            // TASTI RAPIDI EMOTE
             if (k === '1') { playAudio('snd-clap'); return; }
             if (k === '2') { playAudio('snd-laugh'); return; }
             if (k === '3') { playAudio('snd-boo'); return; }
             if (k === '4') { playAudio('snd-ooh'); return; }
-
-            if (ia) {
-                if (k === 'enter') submitInput();
-                if (k === 'escape') closeInput();
-                return;
-            }
-            if (isInspectorOpen) { if (k === 'escape') closeInspector(); return; }
-            if (isDialogGenericOpen) return; 
 
             if (!inputMode) {
                 if (k === 'g' || (e.ctrlKey && k === 'g')) { e.preventDefault(); doSpin(); return; }

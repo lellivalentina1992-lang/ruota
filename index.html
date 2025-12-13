@@ -207,7 +207,7 @@
         let isReadingList=false;
         let pendingMultiplier=1; 
         let vowelsBoughtThisTurn = 0;
-        let wasMyTurn = false; // Per rilevare cambio turno
+        let wasMyTurn = false; 
 
         function playAudio(id){const a=document.getElementById(id);if(a){a.pause();a.currentTime=0;a.play().catch(e=>{});}}
         function playMultiHit(n){let count=n>10?10:n;let i=0;function l(){if(i<count){playAudio('snd-hit');i++;setTimeout(l,300);}}l();}
@@ -225,27 +225,79 @@
         async function closeRoom(){if(!confirm("Sicuro?"))return;if(roomId){await supabase.from('giocatori').delete().eq('stanza_id',roomId);await supabase.from('stanze').delete().eq('id',roomId);location.reload();}}
 
         async function joinGame(cr,forcedCode=null,isPublic=false){
-            const nm=document.getElementById('inp-name').value.trim().toUpperCase(),cd=forcedCode||document.getElementById('inp-code').value.trim().toUpperCase();
-            if(!nm)return speak("Manca nome");if(!cd&&!cr)return speak("Manca codice");
-            try{let st;if(cr){
-                const{data:fr}=await supabase.from('frasi').select('id');
-                const rid=fr[Math.floor(Math.random()*fr.length)].id;
-                const{data:old}=await supabase.from('stanze').select('id').eq('codice',cd).maybeSingle();
-                if(old){await supabase.from('giocatori').delete().eq('stanza_id',old.id);await supabase.from('stanze').delete().eq('id',old.id);}
-                const{data}=await supabase.from('stanze').insert({codice:cd,frase_corrente_id:rid,is_public:isPublic,azione_timestamp:new Date().toISOString()}).select().maybeSingle();st=data;
-            }else{const{data}=await supabase.from('stanze').select('*').eq('codice',cd).maybeSingle();if(!data)return speak("Stanza non trovata");st=data;
-            roomId=st.id;await supabase.from('giocatori').delete().eq('stanza_id',roomId).eq('nome',nm);} 
+            const nm=document.getElementById('inp-name').value.trim().toUpperCase();
+            const cd=forcedCode||document.getElementById('inp-code').value.trim().toUpperCase();
             
-            roomId=st.id;
-            const{data:mx}=await supabase.from('giocatori').select('indice').eq('stanza_id',roomId).order('indice',{ascending:false}).limit(1).maybeSingle();
-            myIndex=(mx)?mx.indice+1:0;isHost=(myIndex===0);
-            const{data:pl}=await supabase.from('giocatori').insert({stanza_id:roomId,nome:nm,indice:myIndex,is_host:isHost,jolly_scadenze:[]}).select().maybeSingle();myId=pl.id;
-            document.getElementById('setup-panel').classList.add('hidden');document.getElementById('game-panel').classList.remove('hidden');
-            speak("Benvenuto. In attesa.");
-            supabase.channel('game').on('postgres_changes',{event:'UPDATE',schema:'public',table:'stanze',filter:`id=eq.${roomId}`},fetchFullState).subscribe();
-            supabase.channel('game-del').on('postgres_changes',{event:'DELETE',schema:'public',table:'stanze',filter:`id=eq.${roomId}`},()=>{speak("Stanza chiusa.");setTimeout(()=>location.reload(),3000);}).subscribe();
-            fetchFullState();pollingInterval=setInterval(fetchFullState,15000);timerInterval=setInterval(checkTurnTimer,1000);
-            }catch(e){console.error(e);speak("Errore.");}
+            if(!nm)return speak("Manca nome");
+            if(!cd&&!cr)return speak("Manca codice");
+
+            try{
+                let st;
+                if(cr){
+                    const{data:fr}=await supabase.from('frasi').select('id');
+                    const rid=fr[Math.floor(Math.random()*fr.length)].id;
+                    const{data:old}=await supabase.from('stanze').select('id').eq('codice',cd).maybeSingle();
+                    if(old){
+                        await supabase.from('giocatori').delete().eq('stanza_id',old.id);
+                        await supabase.from('stanze').delete().eq('id',old.id);
+                    }
+                    const{data}=await supabase.from('stanze').insert({
+                        codice:cd,
+                        frase_corrente_id:rid,
+                        is_public:isPublic,
+                        azione_timestamp:new Date().toISOString()
+                    }).select().maybeSingle();
+                    st=data;
+                } else {
+                    const{data}=await supabase.from('stanze').select('*').eq('codice',cd).maybeSingle();
+                    if(!data)return speak("Stanza non trovata");
+                    st=data;
+                } 
+                
+                roomId=st.id;
+
+                const { data: existingPlayer } = await supabase
+                    .from('giocatori')
+                    .select('*')
+                    .eq('stanza_id', roomId)
+                    .eq('nome', nm)
+                    .maybeSingle();
+
+                if (existingPlayer) {
+                    myId = existingPlayer.id;
+                    myIndex = existingPlayer.indice;
+                    isHost = existingPlayer.is_host;
+                    speak("Bentornato " + nm);
+                } else {
+                    const{data:mx}=await supabase.from('giocatori').select('indice').eq('stanza_id',roomId).order('indice',{ascending:false}).limit(1).maybeSingle();
+                    myIndex=(mx)?mx.indice+1:0;
+                    isHost=(myIndex===0); 
+
+                    const{data:pl}=await supabase.from('giocatori').insert({
+                        stanza_id:roomId,
+                        nome:nm,
+                        indice:myIndex,
+                        is_host:isHost,
+                        jolly_scadenze:[]
+                    }).select().maybeSingle();
+                    myId=pl.id;
+                    speak("Benvenuto. In attesa.");
+                }
+
+                document.getElementById('setup-panel').classList.add('hidden');
+                document.getElementById('game-panel').classList.remove('hidden');
+                
+                supabase.channel('game').on('postgres_changes',{event:'UPDATE',schema:'public',table:'stanze',filter:`id=eq.${roomId}`},fetchFullState).subscribe();
+                supabase.channel('game-del').on('postgres_changes',{event:'DELETE',schema:'public',table:'stanze',filter:`id=eq.${roomId}`},()=>{speak("Stanza chiusa.");setTimeout(()=>location.reload(),3000);}).subscribe();
+                
+                fetchFullState();
+                pollingInterval=setInterval(fetchFullState,15000);
+                timerInterval=setInterval(checkTurnTimer,1000);
+
+            } catch(e) {
+                console.error(e);
+                speak("Errore ingresso.");
+            }
         }
 
         async function fetchFullState(){if(isFetching)return;isFetching=true;const{data:s}=await supabase.from('stanze').select('*,frasi(*),giocatori(*)').eq('id',roomId).maybeSingle();isFetching=false;if(!s)return;updateUI(s);}
@@ -450,10 +502,8 @@
             const spRules = document.getElementById('special-round-rules');
             const isMe = (s.id_giocatore_corrente===myIndex);
             
-            // ALERT SUONO TURNO
             if(isMe && !wasMyTurn) {
                 playAudio('snd-turn');
-                // speak("Tocca a te!"); // Ridondante se c'è il suono, ma utile
             }
             wasMyTurn = isMe;
 
@@ -532,7 +582,6 @@
                 }
                 showFlashMessage(s.ultimo_messaggio, (s.ultima_azione==='vittoria'?'good':(s.ultima_azione==='errore'?'bad':'info')));
                 
-                // Se non è il MISTERO (che gestiamo a mano), leggi il messaggio
                 if(!s.ultimo_messaggio.includes("MISTERO")) {
                     speak(s.ultimo_messaggio);
                 }
@@ -734,7 +783,6 @@
         async function handleMysteryOutcome(choice) {
             if(choice === 'SAFE') { handleSpinResult(500); } 
             else {
-                // LOGICA SUSPENSE (Richiesta 4)
                 speak("Apro la busta...");
                 playAudio('snd-drum');
                 await new Promise(r => setTimeout(r, 3000));
@@ -784,7 +832,7 @@
             if (typeof v !== 'number' && pendingMultiplier > 1) { pendingMultiplier = 1; speak("Casella speciale! Raddoppia annullato."); await new Promise(r=>setTimeout(r,1500)); }
             if (v === 'BANCAROTTA' || v === 'PASSA') {
                 const me = currentStanza.giocatori.find(p => p.id === myId);
-                if(v === 'BANCAROTTA') playAudio('snd-bankrupt'); // SUONO BANCAROTTA
+                if(v === 'BANCAROTTA') playAudio('snd-bankrupt'); 
                 
                 const jollys = (me.jolly_scadenze && Array.isArray(me.jolly_scadenze)) ? me.jolly_scadenze : [];
                 if (jollys.length > 0) {
@@ -1047,36 +1095,54 @@
             const k = e.key.toLowerCase();
             const ia = document.activeElement.tagName === 'INPUT';
 
+            // GESTIONE QUANDO SI E' IN UN CAMPO DI TESTO
             if (ia) {
+                // Se premo CTRL, voglio eseguire i comandi del gioco e NON quelli del browser
+                if (e.ctrlKey) {
+                    if (k === 'l') { e.preventDefault(); readRevealedLetters(); return; }
+                    if (k === 'i') { e.preventDefault(); openInspector(); return; }
+                    if (k === 'r') { e.preventDefault(); readFullBoard(); return; }
+                    if (k === 'c') { e.preventDefault(); toggleContrast(); return; }
+                    if (k === 'a') { e.preventDefault(); openActionHistory(); return; }
+                    return;
+                }
+
+                // Tasti speciali di conferma/uscita dall'input
                 if (k === 'enter') submitInput();
                 if (k === 'escape') closeInput();
+                
+                // Se non c'è Ctrl e non sono tasti speciali, lascio scrivere la lettera (return)
                 return; 
             }
 
+            // GESTIONE NORMALE (QUANDO NON SI SCRIVE)
             const isInspectorOpen = !document.getElementById('inspector-overlay').classList.contains('hidden');
             const isDialogGenericOpen = !document.getElementById('dialog-generic').classList.contains('hidden');
 
             if (isInspectorOpen) { if (k === 'escape') closeInspector(); return; }
             if (isDialogGenericOpen) return; 
 
+            // Scorciatoie Globali (funzionano anche senza input, con o senza Ctrl)
             if (e.ctrlKey && k === 'l') { e.preventDefault(); readRevealedLetters(); return; }
             if (e.ctrlKey && k === 'i') { e.preventDefault(); openInspector(); return; }
             if (e.ctrlKey && k === 'r') { e.preventDefault(); readFullBoard(); return; }
             if (e.ctrlKey && k === 'c') { e.preventDefault(); toggleContrast(); return; }
-            
             if (k === 'a' || (e.ctrlKey && k === 'a')) { e.preventDefault(); openActionHistory(); return; }
             
+            // Emote
             if (k === '1') { playAudio('snd-clap'); return; }
             if (k === '2') { playAudio('snd-laugh'); return; }
             if (k === '3') { playAudio('snd-boo'); return; }
             if (k === '4') { playAudio('snd-ooh'); return; }
 
+            // Comandi di gioco (G, V, S, P, Frecce...) - Solo se non c'è input mode attivo
             if (!inputMode) {
                 if (k === 'g' || (e.ctrlKey && k === 'g')) { e.preventDefault(); doSpin(); return; }
                 if (k === 'v' || (e.ctrlKey && k === 'v')) { e.preventDefault(); openInput('vowel'); return; }
                 if (k === 's' || (e.ctrlKey && k === 's')) { e.preventDefault(); openInput('solve'); return; }
                 if (k === 'p' || (e.ctrlKey && k === 'p')) { e.preventDefault(); passTurn(); return; }
                 
+                // Replico i comandi di lettura anche senza Ctrl se non sto scrivendo (comodità)
                 if (k === 'l') { e.preventDefault(); readRevealedLetters(); return; }
                 if (k === 'i') { e.preventDefault(); openInspector(); return; }
                 if (k === 'r') { e.preventDefault(); readFullBoard(); return; } 

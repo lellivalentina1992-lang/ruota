@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>La Ruota - V32 Final Dynamic Adjust</title>
+    <title>La Ruota - V35 Audio Experience</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { --bg-body: #111; --col-text: #fff; --col-focus: #ffd700; --bg-panel: #222; }
@@ -59,11 +59,27 @@
 <body>
     <div id="sr-announcer" class="sr-only" aria-live="assertive"></div>
     <div id="flash-overlay" aria-hidden="true"><div id="flash-title">ULTIMA AZIONE</div><p id="flash-message"></p></div>
-    <button id="contrast-toggle-btn" onclick="toggleContrast()" style="margin-bottom:10px;">Cambia Contrasto (C)</button>
-    <audio id="snd-spin" src="ruota.wav"></audio><audio id="snd-hit" src="lettera presente.wav"></audio><audio id="snd-miss" src="lettera assente.wav"></audio>
+    <div style="display:flex; justify-content:space-between; width:95%; max-width:900px; margin:0 auto;">
+         <button id="contrast-toggle-btn" onclick="toggleContrast()" style="margin-bottom:10px;">Cambia Contrasto (C)</button>
+         <button id="history-btn" onclick="openActionHistory()" style="margin-bottom:10px;">Storico (A)</button>
+    </div>
+
+    <audio id="snd-spin" src="ruota.wav"></audio>
+    <audio id="snd-hit" src="lettera presente.wav"></audio>
+    <audio id="snd-miss" src="lettera assente.wav"></audio>
+    
+    <audio id="snd-turn" src="tocca_a_te.mp3"></audio>
+    <audio id="snd-bankrupt" src="bancarotta.mp3"></audio>
+    <audio id="snd-win" src="vittoria.mp3"></audio>
+    <audio id="snd-drum" src="rullo.mp3"></audio>
+    
+    <audio id="snd-clap" src="applausi.mp3"></audio>
+    <audio id="snd-laugh" src="risata.mp3"></audio>
+    <audio id="snd-boo" src="buuu.mp3"></audio>
+    <audio id="snd-ooh" src="peccato.mp3"></audio>
 
     <div id="setup-panel" class="container">
-        <h1 style="color:#ffd700;">LA RUOTA V32 FINAL ADJUST</h1>
+        <h1 style="color:#ffd700;">LA RUOTA V35 AUDIO EXP</h1>
         <input id="inp-name" type="text" placeholder="IL TUO NOME"><br><br>
         <input id="inp-code" type="text" placeholder="CODICE STANZA (OPZIONALE)"><br><br>
         <button onclick="askPrivacy()" class="action-btn btn-primary">CREA NUOVA STANZA</button>
@@ -116,6 +132,13 @@
             <button id="btn-solve" class="action-btn btn-danger" onclick="openInput('solve')">RISOLVI (S)</button>
             <button id="btn-pass" class="action-btn btn-pass" onclick="passTurn()">PASSA (P)</button>
             <button id="btn-manual-cons" class="action-btn hidden" onclick="openInput('letter')" style="background: #00ff00; color: #000;">DI UNA CONSONANTE</button>
+        </div>
+        <div style="margin-top:10px; border-top:1px solid #555; padding-top:10px;">
+            <p style="color:#aaa; font-size:0.9em;">REAZIONI RAPIDE (Tasti 1-4)</p>
+            <button onclick="playAudio('snd-clap')" class="action-btn" style="padding:10px; font-size:1em;">👏 (1)</button>
+            <button onclick="playAudio('snd-laugh')" class="action-btn" style="padding:10px; font-size:1em;">😂 (2)</button>
+            <button onclick="playAudio('snd-boo')" class="action-btn" style="padding:10px; font-size:1em;">👎 (3)</button>
+            <button onclick="playAudio('snd-ooh')" class="action-btn" style="padding:10px; font-size:1em;">😓 (4)</button>
         </div>
         <button id="btn-close-room" class="action-btn btn-danger hidden" onclick="closeRoom()" style="border-color:red; margin-top:20px;">CHIUDI STANZA (HOST)</button>
     </div>
@@ -184,6 +207,7 @@
         let isReadingList=false;
         let pendingMultiplier=1; 
         let vowelsBoughtThisTurn = 0;
+        let wasMyTurn = false; // Per rilevare cambio turno
 
         function playAudio(id){const a=document.getElementById(id);if(a){a.pause();a.currentTime=0;a.play().catch(e=>{});}}
         function playMultiHit(n){let count=n>10?10:n;let i=0;function l(){if(i<count){playAudio('snd-hit');i++;setTimeout(l,300);}}l();}
@@ -230,7 +254,7 @@
             if(!currentStanza||currentStanza.stato!=='gioco')return;
             const baseT=currentStanza.azione_timestamp;if(!baseT)return;
             const elapsed = Math.floor((new Date().getTime()-new Date(baseT).getTime())/1000);
-            const left=Math.max(0,(TURN_LIMIT_SEC+(inputMode==='solve'?30:0))-elapsed);
+            const left=Math.max(0,(TURN_LIMIT_SEC+(inputMode==='solve'||inputMode==='letter'?30:0))-elapsed);
             document.getElementById('timer-box').textContent=left;
             if(left<=10&&left>0)playAudio('snd-hit');
             if(left===0&&!isSpinning&&!isHandlingTimeout&&isHost)handleTimeout();
@@ -238,22 +262,19 @@
         
         async function handleTimeout(){ passTurn(); }
 
-        // --- CALCOLO COSTO VOCALE DINAMICO ---
         function getDynamicVowelCost() {
             if(!currentPuzzleText) return 1000;
-            const len = currentPuzzleText.length; // Lunghezza inclusi spazi
+            const len = currentPuzzleText.length; 
             if(len <= 50) return 500;
             if(len <= 80) return 1000;
             return 2000;
         }
 
-        // --- GESTIONE TURNI ---
         async function passTurn(){
             if(isHandlingTimeout)return; isHandlingTimeout=true;
             const s=currentStanza;
             const n=(s.id_giocatore_corrente+1)%s.giocatori.length;
             
-            // RESET VARIABILI TURNO LOCALI
             vowelsBoughtThisTurn = 0;
 
             let currentPhase = s.vocali_speciali_chiamate || 0;
@@ -261,7 +282,7 @@
             const isLastPlayerOfLap = (s.id_giocatore_corrente === s.giocatori[s.giocatori.length - 1].indice);
             let nullRoundTrigger = false;
 
-            if(s.fase_speciale === 1) { // Situazioni Quotidiane
+            if(s.fase_speciale === 1) { 
                 if(isLastPlayerOfLap && (currentPhase === 0 || currentPhase === 1)) {
                     nextPhase++;
                 }
@@ -299,7 +320,6 @@
             isHandlingTimeout=false; fetchFullState();
         }
 
-        // --- AUTOMAZIONE VOCALI ---
         async function giveAutomaticVowels(s) {
             if(isProcessingInput) return; isProcessingInput = true;
             
@@ -314,7 +334,7 @@
                 msg = `IL SISTEMA REGALA ${vowelsToGive} VOCALI!`;
                 
                 let sol = currentPuzzleText.toUpperCase();
-                let candidates = [...AUTO_VOWELS]; // A, E, I, O
+                let candidates = [...AUTO_VOWELS]; 
                 const called = s.lettere_chiamate || [];
                 candidates = candidates.filter(c => !called.includes(c));
                 
@@ -350,10 +370,9 @@
 
             isProcessingInput = false;
 
-            // Pausa 5 secondi, poi Fase 100 (Consonanti)
             setTimeout(async () => {
                 await supabase.from('stanze').update({
-                    vocali_speciali_chiamate: 100, // 100 = Start 12 Consonanti
+                    vocali_speciali_chiamate: 100, 
                     id_giocatore_corrente: 0, 
                     ultimo_messaggio: "VIA ALLE 12 CONSONANTI! ORA!",
                     ultima_azione: 'info',
@@ -362,7 +381,6 @@
             }, 5000);
         }
 
-        // --- UPDATE UI ---
         function updateUI(s){
             if(s.stato!=='gioco'&&inputMode)closeInput();
             currentStanza=s;s.giocatori=Array.isArray(s.giocatori)?s.giocatori:[];s.giocatori.sort((a,b)=>a.indice-b.indice);
@@ -399,7 +417,12 @@
                 document.getElementById('game-panel').classList.add('hidden');document.getElementById('round-over-panel').classList.remove('hidden');
                 document.getElementById('round-title').textContent="FINE ROUND";document.getElementById('round-winner-msg').textContent=s.ultimo_messaggio;document.getElementById('solution-msg').textContent=fullSolutionText;
                 document.getElementById('btn-next-round').textContent="PROSSIMO ROUND";
-                if(s.azione_timestamp!==lastTimestamp){lastTimestamp=s.azione_timestamp;playMultiHit(3);speak("Fine Round. "+s.ultimo_messaggio);setTimeout(()=>document.getElementById('btn-next-round').focus(),500);}
+                if(s.azione_timestamp!==lastTimestamp){
+                    lastTimestamp=s.azione_timestamp;
+                    playAudio('snd-win'); // SUONO VITTORIA
+                    speak("Fine Round. "+s.ultimo_messaggio);
+                    setTimeout(()=>document.getElementById('btn-next-round').focus(),500);
+                }
                 return;
             }
 
@@ -416,7 +439,8 @@
                 if(s.fase_speciale > 0) intro += ` Round Situazioni Quotidiane.`;
                 speak(intro);
                 pendingMultiplier = 1; 
-                vowelsBoughtThisTurn = 0; // Nuovo round
+                vowelsBoughtThisTurn = 0; 
+                wasMyTurn = false;
             }
 
             document.getElementById('round-indicator').textContent=`R ${s.round_giocati}/10`;
@@ -426,9 +450,16 @@
             const spRules = document.getElementById('special-round-rules');
             const isMe = (s.id_giocatore_corrente===myIndex);
             
+            // ALERT SUONO TURNO
+            if(isMe && !wasMyTurn) {
+                playAudio('snd-turn');
+                // speak("Tocca a te!"); // Ridondante se c'è il suono, ma utile
+            }
+            wasMyTurn = isMe;
+
             let canSpin = false, canSolve = false, canVowel = false, canFreeVowel = false, canPass = true, canManual = false;
             
-            if(s.fase_speciale === 1) { // ROUND 4, 7 e 10
+            if(s.fase_speciale === 1) { 
                 spInfo.classList.remove('hidden');
                 if(phase === 0) { 
                     spRules.textContent = "GIRO 1: CONSONANTI (VALORE 50%)"; spRules.style.color = "#fff";
@@ -492,9 +523,20 @@
 
             if(s.azione_timestamp && s.azione_timestamp!==lastTimestamp){
                 lastTimestamp=s.azione_timestamp;
-                if(s.ultimo_messaggio) actionLog.unshift(s.ultimo_messaggio);
+                if(s.ultimo_messaggio) {
+                     if(actionLog.length === 0 || actionLog[0].msg !== s.ultimo_messaggio) {
+                         const time = new Date().toLocaleTimeString('it-IT', {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+                         actionLog.unshift({time: time, msg: s.ultimo_messaggio});
+                         if(actionLog.length > 20) actionLog.pop();
+                     }
+                }
                 showFlashMessage(s.ultimo_messaggio, (s.ultima_azione==='vittoria'?'good':(s.ultima_azione==='errore'?'bad':'info')));
-                speak(s.ultimo_messaggio);
+                
+                // Se non è il MISTERO (che gestiamo a mano), leggi il messaggio
+                if(!s.ultimo_messaggio.includes("MISTERO")) {
+                    speak(s.ultimo_messaggio);
+                }
+
                 if(s.ultima_azione==='chiama_lettera' && s.ultimo_messaggio.includes("Trovate")){ playMultiHit((s.ultimo_messaggio.match(/\d+/)||['1'])[0]); }
                 else if(s.ultima_azione==='errore') playAudio('snd-miss');
             }
@@ -516,6 +558,24 @@
             }
         }
 
+        function openActionHistory() {
+            if(!actionLog || actionLog.length === 0) return speak("Nessuna azione nello storico.");
+            const el = document.getElementById('inspector-overlay');
+            const cnt = document.getElementById('inspector-content');
+            let html = `<h2 style="color:#ffd700; border-bottom: 2px solid #fff; padding-bottom:10px;">ULTIME AZIONI</h2>`;
+            actionLog.forEach((item, i) => {
+                html += `<div style="margin-bottom: 10px; border-bottom: 1px solid #444; padding: 10px 0;">
+                            <span style="color:#888; font-size:0.8em;">${item.time}</span><br>
+                            <span style="color:#fff;">${item.msg}</span>
+                         </div>`;
+            });
+            html += `<button onclick="closeInspector()" class="action-btn" style="margin-top:20px;">CHIUDI (ESC)</button>`;
+            cnt.innerHTML = html;
+            el.classList.remove('hidden');
+            cnt.focus();
+            speak("Storico aperto.");
+        }
+
         function parseAndRenderBoard(text,rev){
             rev=Array.isArray(rev)?rev:[];
             const c=document.getElementById('board-container');c.innerHTML='';parsedBoard=[];
@@ -527,9 +587,7 @@
                     const ch=wS[j];
                     const isL = ch.match(/[A-ZÀ-Ù]/);
                     const isR = !isL || rev.includes(gI);
-                    
                     wO.chars.push({char:ch, isRevealed:isR, isLetter:!!isL});
-                    
                     const d=document.createElement('div');
                     let cls = 'tile';
                     if(isL) {
@@ -542,7 +600,6 @@
                     d.textContent = (isL && !isR) ? '' : ch;
                     d.id=`tile-${parsedBoard.length}-${j}`;
                     r.appendChild(d);
-                    
                     if(isL) gI++; 
                 }
                 r.id=`row-${parsedBoard.length}`;c.appendChild(r);parsedBoard.push(wO);
@@ -646,12 +703,9 @@
 
         async function doSpin(isReSpin = false){
             if(!isReSpin && isBtnDisabled('btn-spin'))return;
-            
             document.getElementById('wheel-status-text').focus();
-            
             if(isReSpin) speak("La ruota gira da sola per il Raddoppia!");
             else speak("Gira...");
-            
             playAudio('snd-spin');isSpinning=true;
             setBtnState('btn-spin',true);setBtnState('btn-solve',true);setBtnState('btn-vowel',true);
             wheelAngle+=(1000+Math.random()*500);document.getElementById('wheel-visual').style.transform=`rotate(${wheelAngle}deg)`;
@@ -664,9 +718,8 @@
             }
             
             if(v === 'MISTERO') {
-                if(isReSpin) { 
-                    v = 1000; 
-                } else {
+                if(isReSpin) { v = 1000; } 
+                else {
                     isSpinning = false;
                     showDialog("MISTERO!", "Vuoi tenere 500€ sicuri o aprire il Mistero?", [
                         { text: "TIENI 500€", cls: "btn-primary", action: () => handleMysteryOutcome('SAFE') },
@@ -675,60 +728,50 @@
                     return;
                 }
             }
-
             handleSpinResult(v);
         }
 
         async function handleMysteryOutcome(choice) {
-            if(choice === 'SAFE') {
-                handleSpinResult(500); 
-            } else {
+            if(choice === 'SAFE') { handleSpinResult(500); } 
+            else {
+                // LOGICA SUSPENSE (Richiesta 4)
+                speak("Apro la busta...");
+                playAudio('snd-drum');
+                await new Promise(r => setTimeout(r, 3000));
+
                 const opts = ['RADDOPPIA', 'DIMEZZA', 'BANCAROTTA', 'PASSA', 'JOLLY', 'SCEGLI_AVVERSARIO'];
                 const res = opts[Math.floor(Math.random() * opts.length)];
                 speak("Il mistero contiene: " + res);
                 await new Promise(r => setTimeout(r, 1500));
                 
                 if(res === 'RADDOPPIA') {
-                    pendingMultiplier = 2;
-                    speak("Raddoppia attivo! Gira di nuovo!");
-                    setTimeout(() => doSpin(true), 1000); 
-                    return; 
+                    pendingMultiplier = 2; speak("Raddoppia attivo! Gira di nuovo!"); setTimeout(() => doSpin(true), 1000); return; 
                 } else if (res === 'DIMEZZA') {
                      const me = currentStanza.giocatori.find(p=>p.id===myId);
                      const newScore = Math.floor((me.punteggio_round||0) / 2);
                      await supabase.from('giocatori').update({punteggio_round:newScore}).eq('id',myId);
                      handleSpinResult(500, "Dimezzato! ");
-                } else if (res === 'SCEGLI_AVVERSARIO') {
-                    chooseOpponent();
-                } else if (res === 'JOLLY') {
+                } else if (res === 'SCEGLI_AVVERSARIO') { chooseOpponent(); } 
+                else if (res === 'JOLLY') {
                     const me = currentStanza.giocatori.find(p=>p.id===myId);
                     let myJollys = (me.jolly_scadenze && Array.isArray(me.jolly_scadenze)) ? [...me.jolly_scadenze] : [];
                     const expiry = currentStanza.round_giocati + 4; 
                     myJollys.push(expiry);
                     await supabase.from('giocatori').update({jolly_scadenze:myJollys}).eq('id',myId);
                     handleSpinResult(500, "Hai vinto un JOLLY! Vale fino al round " + expiry + ". ");
-                } else {
-                    handleSpinResult(res);
-                }
+                } else { handleSpinResult(res); }
             }
         }
 
         function chooseOpponent() {
             const others = currentStanza.giocatori.filter(p => p.id !== myId);
-            if(others.length === 0) {
-                speak("Sei solo. Passi il turno a te stesso.");
-                passTurn();
-            } else {
+            if(others.length === 0) { speak("Sei solo. Passi il turno a te stesso."); passTurn(); } 
+            else {
                 const btns = others.map(p => ({
                     text: p.nome,
                     cls: 'btn-secondary',
                     action: async () => {
-                         await supabase.from('stanze').update({
-                             id_giocatore_corrente: p.indice, 
-                             ultima_azione:'timeout', 
-                             ultimo_messaggio: `Turno ceduto a ${p.nome}`, 
-                             azione_timestamp:new Date().toISOString()
-                         }).eq('id',roomId);
+                         await supabase.from('stanze').update({id_giocatore_corrente: p.indice, ultima_azione:'timeout', ultimo_messaggio: `Turno ceduto a ${p.nome}`, azione_timestamp:new Date().toISOString()}).eq('id',roomId);
                          fetchFullState();
                     }
                 }));
@@ -738,47 +781,29 @@
 
         async function handleSpinResult(v, prefixMsg="") {
             const myName=document.getElementById('inp-name').value;
-            
-            if (typeof v !== 'number' && pendingMultiplier > 1) {
-                pendingMultiplier = 1;
-                speak("Casella speciale! Raddoppia annullato.");
-                await new Promise(r=>setTimeout(r,1500));
-            }
-
+            if (typeof v !== 'number' && pendingMultiplier > 1) { pendingMultiplier = 1; speak("Casella speciale! Raddoppia annullato."); await new Promise(r=>setTimeout(r,1500)); }
             if (v === 'BANCAROTTA' || v === 'PASSA') {
                 const me = currentStanza.giocatori.find(p => p.id === myId);
-                const jollys = (me.jolly_scadenze && Array.isArray(me.jolly_scadenze)) ? me.jolly_scadenze : [];
+                if(v === 'BANCAROTTA') playAudio('snd-bankrupt'); // SUONO BANCAROTTA
                 
+                const jollys = (me.jolly_scadenze && Array.isArray(me.jolly_scadenze)) ? me.jolly_scadenze : [];
                 if (jollys.length > 0) {
                     isSpinning = false;
                     showDialog("USARE JOLLY?", `È uscito ${v}. Hai ${jollys.length} Jolly. Usarne uno per salvarti?`, [
                         { text: "SÌ, USA JOLLY", cls: "btn-primary", action: async () => {
-                            let newJollys = [...jollys];
-                            newJollys.sort((a,b)=>a-b); 
-                            newJollys.shift(); 
+                            let newJollys = [...jollys]; newJollys.sort((a,b)=>a-b); newJollys.shift(); 
                             await supabase.from('giocatori').update({jolly_scadenze:newJollys}).eq('id', myId);
-                            speak("Jolly usato! Ti salvi.");
-                            setBtnState('btn-spin', false); 
-                            fetchFullState();
+                            speak("Jolly usato! Ti salvi."); setBtnState('btn-spin', false); fetchFullState();
                         }},
-                        { text: "NO, SUBISCI", cls: "btn-danger", action: async () => {
-                            if(v==='BANCAROTTA') await supabase.from('giocatori').update({punteggio_round:0}).eq('id',myId);
-                            passTurn();
-                        }}
+                        { text: "NO, SUBISCI", cls: "btn-danger", action: async () => { if(v==='BANCAROTTA') await supabase.from('giocatori').update({punteggio_round:0}).eq('id',myId); passTurn(); }}
                     ]);
                     return;
                 }
             }
-
             isSpinning=false;
             let msg=`${prefixMsg}${myName} gira: ${v}`;
-            
             if(typeof v==='number'&&v>=0){
-                if(pendingMultiplier > 1) {
-                    v = v * pendingMultiplier;
-                    msg += ` (X${pendingMultiplier}!)`;
-                }
-
+                if(pendingMultiplier > 1) { v = v * pendingMultiplier; msg += ` (X${pendingMultiplier}!)`; }
                 await supabase.from('stanze').update({montepremi_round:v,ultima_azione:'gira_ruota',ultimo_messaggio:msg,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
                 fetchFullState();setTimeout(()=>openInput('letter'),500);
             } else {
@@ -791,15 +816,13 @@
         function openInput(m){
             const me=currentStanza.giocatori.find(p=>p.id===myId);
             const dynamicCost = getDynamicVowelCost();
-            
             if(m==='vowel') {
                 if(!document.getElementById('btn-free-vowel').checkVisibility()){
                      if((me.punteggio_round||0)<dynamicCost) return speak(`Servono ${dynamicCost} euro.`);
-                     if(vowelsBoughtThisTurn >= 1) return speak("Hai già comprato una vocale in questo turno.");
+                     if(vowelsBoughtThisTurn >= 1) return speak("Hai già comprato una vocale in questo giro. Gira la ruota o rispondi.");
                      speak(`Costo vocale: ${dynamicCost} euro. Inserisci vocale.`);
                 }
             }
-            
             lastFocusedElement=document.activeElement;inputMode=m; isReadingList=false;
             document.getElementById('input-area').classList.remove('hidden');
             const inp=document.getElementById('game-input');inp.value='';
@@ -815,8 +838,7 @@
                 document.getElementById('input-title').textContent="VOCALE GRATIS";
                 speak("Inserisci vocale gratis.");
             }else if(m!=='vowel') document.getElementById('input-title').textContent="CONSONANTE"; 
-            else document.getElementById('input-title').textContent=`VOCALE (${dynamicCost}€)`; // Titolo dinamico
-
+            else document.getElementById('input-title').textContent=`VOCALE (${dynamicCost}€)`; 
             setTimeout(()=>{inp.focus();if(m==='solve')inp.setSelectionRange(0,0);},100);
         }
         function closeInput(){document.getElementById('input-area').classList.add('hidden');inputMode=null;if(lastFocusedElement)lastFocusedElement.focus();}
@@ -831,15 +853,15 @@
             if(m==='letter'&&isV){speak("Serve consonante");isProcessingInput=false;return;}
             if((m==='vowel'||m==='vowel_free')&&!isV){speak("Serve vocale");isProcessingInput=false;return;}
 
-            closeInput();const n=(myIndex+1)%currentStanza.giocatori.length,myName=document.getElementById('inp-name').value;
+            const n=(myIndex+1)%currentStanza.giocatori.length,myName=document.getElementById('inp-name').value;
             const isLastPlayerOfLap = (myIndex === currentStanza.giocatori[currentStanza.giocatori.length - 1].indice);
             
             if(m==='solve'){
+                closeInput();
                 if(cleanStr(t)===cleanStr(currentPuzzleText)){
                     const me=currentStanza.giocatori.find(p=>p.id===myId);
                     let base=me.punteggio_round||0, bonus=base<1000?1000:(base<2000?700:400);
                     if(currentStanza.fase_speciale > 0) { base=0; bonus=1000; } 
-                    
                     await supabase.from('giocatori').update({punteggio_totale:(me.punteggio_totale||0)+base+bonus,punteggio_round:0}).eq('id',myId);
                     const sol=currentPuzzleText.toUpperCase();let allIdx=[],gIdx=0;for(let i=0;i<sol.length;i++){if(sol[i].match(/[A-ZÀ-Ù]/)){allIdx.push(gIdx);gIdx++;}}
                     await supabase.from('stanze').update({stato:'finito', ultima_azione:'vittoria', ultimo_messaggio:`${myName} VINCE!`, lettere_rivelate:allIdx, azione_timestamp:new Date().toISOString()}).eq('id',roomId);
@@ -855,16 +877,35 @@
                     }).eq('id',roomId);
                 }
             } else {
+                closeInput(); 
+
                 const me=currentStanza.giocatori.find(p=>p.id===myId);
+                
+                // SE E' UNA VOCALE, SCALO I SOLDI PRIMA DI CONTROLLARE SE E' GIA' STATA DETTA
                 if(m==='vowel') {
                     const dynamicCost = getDynamicVowelCost();
                     await supabase.from('giocatori').update({punteggio_round: (me.punteggio_round || 0) - dynamicCost}).eq('id', myId);
                     vowelsBoughtThisTurn++;
                 }
 
+                // CONTROLLO LETTERA GIA' CHIAMATA (PENALITA')
+                const oc=currentStanza.lettere_chiamate||[];
+                if(oc.some(k=>cleanStr(k)===cleanStr(c))) {
+                    let nextPhase = currentStanza.vocali_speciali_chiamate || 0;
+                    await supabase.from('stanze').update({
+                        id_giocatore_corrente:n, 
+                        vocali_speciali_chiamate: nextPhase,
+                        ultima_azione:'errore', 
+                        ultimo_messaggio:`${myName}: ${c} già detta!`, 
+                        montepremi_round:0, 
+                        azione_timestamp:new Date().toISOString()
+                    }).eq('id',roomId);
+                    isProcessingInput=false;
+                    return; 
+                }
+
                 const sol=currentPuzzleText.toUpperCase();let fd=[],gI=0;
                 for(let i=0;i<sol.length;i++){if(sol[i].match(/[A-ZÀ-Ù]/)){if(cleanStr(sol[i])===cleanStr(c))fd.push(gI);gI++;}}
-                const oc=currentStanza.lettere_chiamate||[];
                 
                 let currentPhase = currentStanza.vocali_speciali_chiamate || 0;
                 let nextPhase = currentPhase;
@@ -872,60 +913,45 @@
                 let nullRoundTrigger = false;
 
                 if(currentStanza.fase_speciale === 1) {
-                    if(currentPhase === 0 || currentPhase === 1) {
-                        if(isLastPlayerOfLap) nextPhase++; 
-                    }
-                    else if(currentPhase === 2) {
-                        if(isLastPlayerOfLap) autoVowelsTrigger = true;
-                    }
-                    else if(currentPhase >= 100) {
-                        nextPhase = currentPhase + 1; 
-                        if(nextPhase >= 112) nullRoundTrigger = true;
-                    }
+                    if(currentPhase === 0 || currentPhase === 1) { if(isLastPlayerOfLap) nextPhase++; }
+                    else if(currentPhase === 2) { if(isLastPlayerOfLap) autoVowelsTrigger = true; }
+                    else if(currentPhase >= 100) { nextPhase = currentPhase + 1; if(nextPhase >= 112) nullRoundTrigger = true; }
                 }
 
-                if(oc.some(k=>cleanStr(k)===cleanStr(c))){
-                      await supabase.from('stanze').update({
-                          id_giocatore_corrente:n, 
-                          vocali_speciali_chiamate: nextPhase, 
-                          ultima_azione:'chiama_lettera', 
-                          ultimo_messaggio:`${myName}: ${c} già detta`, 
-                          azione_timestamp:new Date().toISOString()
-                      }).eq('id',roomId);
-                } else {
-                    const nc=[...new Set([...oc,c])];
+                const nc=[...new Set([...oc,c])];
                     
-                    if(fd.length>0){
-                        if(m==='letter' && currentPhase < 100 && currentPhase !== 2) {
+                if(fd.length>0){
+                    if(m==='letter') {
+                         if(currentPhase < 100 && currentPhase !== 2) {
                              let val = currentStanza.montepremi_round;
                              if(currentStanza.fase_speciale === 1 && currentPhase === 0) val = Math.floor(val/2);
                              let gain = (val * fd.length);
                              await supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)+gain}).eq('id',myId);
-                        }
-                        const newRev=[...new Set([...(currentStanza.lettere_rivelate||[]),...fd])];
-                        
-                        await supabase.from('stanze').update({
-                            lettere_rivelate:newRev, 
-                            lettere_chiamate:nc, 
-                            id_giocatore_corrente: n,
-                            ultima_azione:'chiama_lettera', 
-                            ultimo_messaggio:`${myName}: Trovate ${fd.length} ${c}`, 
-                            montepremi_round:0, 
-                            vocali_speciali_chiamate: nextPhase, 
-                            azione_timestamp:new Date().toISOString()
-                        }).eq('id',roomId);
-                    } else {
-                        pendingMultiplier = 1;
-                        await supabase.from('stanze').update({
-                            lettere_chiamate:nc, 
-                            id_giocatore_corrente: n,
-                            ultima_azione:'chiama_lettera', 
-                            ultimo_messaggio:`${myName}: ${c} non c'è`, 
-                            montepremi_round:0, 
-                            vocali_speciali_chiamate: nextPhase, 
-                            azione_timestamp:new Date().toISOString()
-                        }).eq('id',roomId);
+                         }
+                         vowelsBoughtThisTurn = 0; 
                     }
+                    const newRev=[...new Set([...(currentStanza.lettere_rivelate||[]),...fd])];
+                    await supabase.from('stanze').update({
+                        lettere_rivelate:newRev, 
+                        lettere_chiamate:nc, 
+                        id_giocatore_corrente: currentStanza.id_giocatore_corrente, // Resta il giocatore
+                        ultima_azione:'chiama_lettera', 
+                        ultimo_messaggio:`${myName}: Trovate ${fd.length} ${c}`, 
+                        montepremi_round:0, 
+                        vocali_speciali_chiamate: nextPhase, 
+                        azione_timestamp:new Date().toISOString()
+                    }).eq('id',roomId);
+                } else {
+                    pendingMultiplier = 1;
+                    await supabase.from('stanze').update({
+                        lettere_chiamate:nc, 
+                        id_giocatore_corrente: n,
+                        ultima_azione:'chiama_lettera', 
+                        ultimo_messaggio:`${myName}: ${c} non c'è`, 
+                        montepremi_round:0, 
+                        vocali_speciali_chiamate: nextPhase, 
+                        azione_timestamp:new Date().toISOString()
+                    }).eq('id',roomId);
                 }
                 
                 if(autoVowelsTrigger) { setTimeout(() => giveAutomaticVowels(currentStanza), 500); }
@@ -939,9 +965,7 @@
                      }, 1000);
                 }
             }
-            
             pendingMultiplier = 1;
-
             isProcessingInput=false; fetchFullState();
         }
 
@@ -956,9 +980,7 @@
             if(s.stato === 'finito' && nextBuffer.length > 0 && nextBufferIdx < nextBuffer.length - 1) {
                 nextBufferIdx++;
                 nextFaseSpeciale = 1; 
-                
                 await supabase.from('giocatori').update({punteggio_round:0}).eq('stanza_id',roomId);
-                
                 await supabase.from('stanze').update({
                     frase_corrente_id: nextBuffer[nextBufferIdx], stato: 'gioco',
                     lettere_rivelate: [], lettere_chiamate: [], montepremi_round: 0,
@@ -968,8 +990,7 @@
                     ultima_azione: 'nuovo', ultimo_messaggio: `Frase ${nextBufferIdx+1} di 4`,
                     azione_timestamp: new Date().toISOString()
                 }).eq('id', roomId); 
-                fetchFullState(); 
-                return;
+                fetchFullState(); return;
             }
 
             nextRoundIdx++;
@@ -996,9 +1017,7 @@
                     const randomTema = uniqueTemi[Math.floor(Math.random() * uniqueTemi.length)];
                     const {data: frasiSet} = await supabase.from('frasi').select('id').eq('categoria', 'SITUAZIONI QUOTIDIANE').eq('tema', randomTema).limit(4);
                     if(frasiSet && frasiSet.length === 4) { 
-                        newBuffer = frasiSet.map(f => f.id); 
-                        nextFraseId = newBuffer[0]; 
-                        newFase = 1; 
+                        newBuffer = frasiSet.map(f => f.id); nextFraseId = newBuffer[0]; newFase = 1; 
                     }
                 }
             } 
@@ -1034,6 +1053,14 @@
             if (e.ctrlKey && k === 'i') { e.preventDefault(); openInspector(); return; }
             if (e.ctrlKey && k === 'r') { e.preventDefault(); readFullBoard(); return; }
             if (e.ctrlKey && k === 'c') { e.preventDefault(); toggleContrast(); return; }
+            
+            if (k === 'a' || (e.ctrlKey && k === 'a')) { e.preventDefault(); openActionHistory(); return; }
+            
+            // TASTI RAPIDI EMOTE
+            if (k === '1') { playAudio('snd-clap'); return; }
+            if (k === '2') { playAudio('snd-laugh'); return; }
+            if (k === '3') { playAudio('snd-boo'); return; }
+            if (k === '4') { playAudio('snd-ooh'); return; }
 
             if (ia) {
                 if (k === 'enter') submitInput();

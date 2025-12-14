@@ -60,7 +60,7 @@
     <div id="sr-announcer" class="sr-only" aria-live="assertive"></div>
     <div id="flash-overlay" aria-hidden="true"><div id="flash-title">ULTIMA AZIONE</div><p id="flash-message"></p></div>
     <div style="display:flex; justify-content:space-between; width:95%; max-width:900px; margin:0 auto;">
-         <button id="contrast-toggle-btn" onclick="toggleContrast()" style="margin-bottom:10px;">Cambia Contrasto (C)</button>
+         <button id="contrast-toggle-btn" onclick="toggleContrast()" style="margin-bottom:10px;">Cambia Contrasto</button>
          <button id="history-btn" onclick="openActionHistory()" style="margin-bottom:10px;">Storico (A)</button>
     </div>
 
@@ -131,7 +131,7 @@
             <button id="btn-vowel" class="action-btn btn-secondary" onclick="openInput('vowel')">VOCALE (V)</button>
             <button id="btn-solve" class="action-btn btn-danger" onclick="openInput('solve')">RISOLVI (S)</button>
             <button id="btn-pass" class="action-btn btn-pass" onclick="passTurn()">PASSA (P)</button>
-            <button id="btn-manual-cons" class="action-btn hidden" onclick="openInput('letter')" style="background: #00ff00; color: #000;">DI UNA CONSONANTE</button>
+            <button id="btn-manual-cons" class="action-btn hidden" onclick="openInput('letter')" style="background: #00ff00; color: #000;">DI UNA CONSONANTE (C)</button>
         </div>
         <div style="margin-top:10px; border-top:1px solid #555; padding-top:10px;">
             <p style="color:#aaa; font-size:0.9em;">REAZIONI RAPIDE (Tasti 1-4)</p>
@@ -447,7 +447,7 @@
                     ultima_azione: 'info',
                     azione_timestamp: new Date().toISOString()
                 }).eq('id', roomId);
-            }, 5000);
+            }, 3500); 
         }
 
         function updateUI(s){
@@ -488,6 +488,7 @@
                 document.getElementById('btn-next-round').textContent="PROSSIMO ROUND";
                 if(s.azione_timestamp!==lastTimestamp){
                     lastTimestamp=s.azione_timestamp;
+                    playAudio('snd-win'); 
                     speak("Fine Round. "+s.ultimo_messaggio);
                     setTimeout(()=>document.getElementById('btn-next-round').focus(),500);
                 }
@@ -576,6 +577,15 @@
                 }
                 if(spRules.textContent !== newRuleText) spRules.textContent = newRuleText;
                 spRules.style.color = newColor;
+
+                // *** LOGICA AUTO-INPUT PER ROUND SPECIALE ***
+                if(isMe && !inputMode && !isSpinning && !isProcessingInput) {
+                    if(phase === 2) {
+                         openInput('vowel_free');
+                    } else if (phase >= 100) {
+                         openInput('letter');
+                    }
+                }
 
             } else {
                  spInfo.classList.add('hidden'); canSpin=true; canSolve=true; canVowel=true; canManual=false; 
@@ -845,7 +855,13 @@
                 await new Promise(r => setTimeout(r, 1500));
                 
                 if(res === 'RADDOPPIA') {
-                    pendingMultiplier = 2; speak("Raddoppia attivo! Gira di nuovo!"); setTimeout(() => doSpin(true), 1000); return; 
+                    pendingMultiplier = 2; 
+                    speak("Raddoppia attivo! Gira di nuovo manualmente!"); 
+                    // Reset stato per permettere giro manuale
+                    isSpinning = false;
+                    setBtnState('btn-spin', false);
+                    setTimeout(() => document.getElementById('btn-spin').focus(), 500);
+                    return; 
                 } else if (res === 'DIMEZZA') {
                      const me = currentStanza.giocatori.find(p=>p.id===myId);
                      const newScore = Math.floor((me.punteggio_round||0) / 2);
@@ -1219,6 +1235,10 @@
             if (k === '4') { playAudio('snd-ooh'); return; }
 
             if (!inputMode) {
+                if (k === 'c' && currentStanza && currentStanza.fase_speciale === 1 && currentStanza.vocali_speciali_chiamate >= 100) {
+                     e.preventDefault(); openInput('letter'); return;
+                }
+                
                 if (k === 'g' || (e.ctrlKey && k === 'g')) { e.preventDefault(); doSpin(); return; }
                 if (k === 'v' || (e.ctrlKey && k === 'v')) { e.preventDefault(); openInput('vowel'); return; }
                 if (k === 's' || (e.ctrlKey && k === 's')) { e.preventDefault(); openInput('solve'); return; }
@@ -1227,7 +1247,6 @@
                 if (k === 'l') { e.preventDefault(); readRevealedLetters(); return; }
                 if (k === 'i') { e.preventDefault(); openInspector(); return; }
                 if (k === 'r') { e.preventDefault(); readFullBoard(); return; } 
-                if (k === 'c') { e.preventDefault(); toggleContrast(); return; } 
                 
                 if (k === 'arrowright') { e.preventDefault(); moveNav(1); }
                 if (k === 'arrowleft') { e.preventDefault(); moveNav(-1); }

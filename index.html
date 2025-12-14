@@ -247,6 +247,8 @@
                         codice:cd,
                         frase_corrente_id:rid,
                         is_public:isPublic,
+                        round_giocati: 0, 
+                        ultima_azione: 'creazione', 
                         azione_timestamp:new Date().toISOString()
                     }).select().maybeSingle();
                     st=data;
@@ -257,6 +259,9 @@
                 } 
                 
                 roomId=st.id;
+                
+                // SILENZIARE LO STORICO ALL'INGRESSO
+                if(st.azione_timestamp) lastTimestamp = st.azione_timestamp;
 
                 const { data: existingPlayer } = await supabase
                     .from('giocatori')
@@ -492,12 +497,24 @@
 
             document.getElementById('round-over-panel').classList.add('hidden');document.getElementById('game-panel').classList.remove('hidden');
             if(!s.frasi)return;
-            if(!currentFrase||currentFrase.id!==s.frasi.id){
-                currentFrase=s.frasi;navWordIdx=0;navCharIdx=0;fullSolutionText=currentFrase.soluzione;
+            
+            // --- CORREZIONE LOGICA TABELLONE (Per frecce in round speciali) ---
+            if(!currentFrase || currentFrase.id !== s.frasi.id || !currentPuzzleText){
+                currentFrase=s.frasi;
+                navWordIdx=0; navCharIdx=0; 
+                fullSolutionText=currentFrase.soluzione || "";
+                
                 if(currentFrase.categoria==='SITUAZIONI QUOTIDIANE' && currentFrase.tema) {
                     currentHintText = "ARGOMENTO: " + currentFrase.tema;
                     currentPuzzleText = currentFrase.soluzione;
-                } else if(fullSolutionText.includes(" - ")){const p=fullSolutionText.split(" - ");currentHintText=p[0].trim();currentPuzzleText=p[1].trim();}else{currentHintText="";currentPuzzleText=fullSolutionText;}
+                } else if(fullSolutionText.includes(" - ")){
+                    const p=fullSolutionText.split(" - ");
+                    currentHintText=p[0].trim();
+                    currentPuzzleText=p[1].trim();
+                } else {
+                    currentHintText="";
+                    currentPuzzleText=fullSolutionText;
+                }
                 
                 let intro = `Categoria: ${currentFrase.categoria}. ${currentHintText}.`;
                 if(s.fase_speciale > 0) intro += ` Round Situazioni Quotidiane.`;
@@ -523,17 +540,17 @@
             
             if(s.fase_speciale === 1) { 
                 spInfo.classList.remove('hidden');
+                let newRuleText = "";
+                let newColor = "#fff";
+
                 if(phase === 2) { 
-                    spRules.textContent = "GIRO 1: VOCALI (UNA A TESTA)"; 
-                    spRules.style.color = "#00ffff"; 
-                    canFreeVowel=true; 
-                    canPass=true; 
-                    canSpin=false; 
-                    canSolve=true; 
+                    newRuleText = "GIRO 1: VOCALI (UNA A TESTA)"; 
+                    newColor = "#00ffff"; 
+                    canFreeVowel=true; canPass=true; canSpin=false; canSolve=true; 
                     if(!isMe) canFreeVowel = false;
                 } 
                 else if(phase === 3) {
-                    spRules.textContent = "ATTENDERE... CALCOLO CONSONANTI"; spRules.style.color = "#fff";
+                    newRuleText = "ATTENDERE... CALCOLO CONSONANTI"; 
                     canSpin=false; canSolve=false; canPass=false; 
                 }
                 else if(phase >= 100) {
@@ -541,25 +558,24 @@
                     let rimasteTotali = 12 - chiamateFatte;
                     let numPlayers = s.giocatori.length;
                     
-                    let testoFase = `GIRO 2: CONSONANTE O RISOLVI (${rimasteTotali}/12)`;
+                    newRuleText = `GIRO 2: CONSONANTE O RISOLVI (${rimasteTotali}/12)`;
                     let alertMode = false;
-
                     if(rimasteTotali <= numPlayers && rimasteTotali > 0) {
-                        testoFase += " - ULTIMA PER TE!";
+                        newRuleText += " - ULTIMA PER TE!";
                         alertMode = true;
                         if(s.azione_timestamp !== lastTimestamp) {
                             showFlashMessage("ULTIMA LETTERA PER TE!", "info");
                             speak("Attenzione. È la tua ultima consonante.");
                         }
                     }
-
-                    if(rimasteTotali <= 0) testoFase = "TEMPO SCADUTO! SOLUZIONE?";
-
-                    spRules.textContent = testoFase;
-                    spRules.style.color = alertMode ? "#ff0000" : "#fff";
+                    if(rimasteTotali <= 0) newRuleText = "TEMPO SCADUTO! SOLUZIONE?";
+                    if(alertMode) newColor = "#ff0000";
 
                     canSpin=false; canSolve=true; canVowel=false; canManual=true; 
                 }
+                if(spRules.textContent !== newRuleText) spRules.textContent = newRuleText;
+                spRules.style.color = newColor;
+
             } else {
                  spInfo.classList.add('hidden'); canSpin=true; canSolve=true; canVowel=true; canManual=false; 
             }
@@ -583,7 +599,6 @@
                 lastTimestamp=s.azione_timestamp;
                 
                 // --- LOGICA AUDIO CENTRALIZZATA ---
-                // Qui gestiamo i suoni uguali per tutti i client
                 
                 if (s.ultima_azione === 'vittoria') {
                     playAudio('snd-win');
@@ -604,15 +619,14 @@
                     } else if (s.ultimo_messaggio.includes("Dimezzato") || s.ultimo_messaggio.includes("PERSO")) {
                          playAudio('snd-boo');
                     } else {
-                         playAudio('snd-drum'); // Conferma azione ruota
+                        // NESSUN SUONO QUI: Tolto il tamburo.
                     }
                 }
-                else if (s.ultima_azione === 'nuovo') {
-                    playAudio('snd-clap');
-                }
+                // NESSUN APPLAUSO QUI: Tolto per 'nuovo'
                 else if (s.ultima_azione === 'info') {
                     playAudio('snd-drum');
                 }
+                // --------------------------------
 
                 if(s.ultimo_messaggio) {
                      if(actionLog.length === 0 || actionLog[0].msg !== s.ultimo_messaggio) {
@@ -631,11 +645,17 @@
             document.getElementById('live-category').textContent=currentFrase.categoria;
             document.getElementById('round-hint').textContent=currentHintText;
             document.getElementById('wheel-status-text').textContent=s.montepremi_round>0?`IN PALIO: €${s.montepremi_round}`:"";
+            
+            // Forza render tabellone per sicurezza
             parseAndRenderBoard(currentPuzzleText,s.lettere_rivelate);
 
             const cpName=s.giocatori.find(p=>p.indice===s.id_giocatore_corrente)?.nome||"Giocatore";
-            document.getElementById('turn-indicator').textContent=isMe?"TOCCA A TE":`Turno di ${cpName}`;
+            const turnMsg = isMe?"TOCCA A TE":`Turno di ${cpName}`;
+            if(document.getElementById('turn-indicator').textContent !== turnMsg) {
+                document.getElementById('turn-indicator').textContent = turnMsg;
+            }
             document.getElementById('turn-indicator').style.color=isMe?"#0f0":"#fff";
+            
             const meObj=s.giocatori.find(p=>p.indice===myIndex);
             if(meObj){
                 document.getElementById('score-round').textContent=meObj.punteggio_round;
@@ -870,7 +890,7 @@
             if (typeof v !== 'number' && pendingMultiplier > 1) { pendingMultiplier = 1; speak("Casella speciale! Raddoppia annullato."); await new Promise(r=>setTimeout(r,1500)); }
             if (v === 'BANCAROTTA' || v === 'PASSA') {
                 const me = currentStanza.giocatori.find(p => p.id === myId);
-                // NOTA: rimosso suono locale bancarotta, ora lo fa updateUI per tutti
+                // AUDIO RIMOSSO QUI: Ci pensa updateUI
                 
                 const jollys = (me.jolly_scadenze && Array.isArray(me.jolly_scadenze)) ? me.jolly_scadenze : [];
                 if (jollys.length > 0) {
@@ -1220,7 +1240,10 @@
                 if (k === 'arrowup') { e.preventDefault(); moveWordNav(-1); }
                 if (k === 'arrowdown') { e.preventDefault(); moveWordNav(1); }
                 
-                if (k === 'enter' && !document.getElementById('round-over-panel').classList.contains('hidden')) { e.preventDefault(); startNewRound(); return; }
+                if (k === 'enter' && !document.getElementById('round-over-panel').classList.contains('hidden')) { 
+                    if(document.activeElement.tagName === 'BUTTON') return;
+                    e.preventDefault(); startNewRound(); return; 
+                }
                 
                 if (k === ' ') { e.preventDefault(); readSingleChar(); }
                 if (k === 'escape') { e.preventDefault(); if(document.getElementById('privacy-dialog').classList.contains('hidden') === false) document.getElementById('privacy-dialog').classList.add('hidden'); }

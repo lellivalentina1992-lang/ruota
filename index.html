@@ -482,8 +482,8 @@
                 document.getElementById('round-title').textContent="FINE ROUND";document.getElementById('round-winner-msg').textContent=s.ultimo_messaggio;document.getElementById('solution-msg').textContent=fullSolutionText;
                 document.getElementById('btn-next-round').textContent="PROSSIMO ROUND";
                 if(s.azione_timestamp!==lastTimestamp){
+                    // NOTA: il suono vittoria è gestito ora dalla logica globale
                     lastTimestamp=s.azione_timestamp;
-                    playAudio('snd-win'); // SUONO VITTORIA
                     speak("Fine Round. "+s.ultimo_messaggio);
                     setTimeout(()=>document.getElementById('btn-next-round').focus(),500);
                 }
@@ -558,7 +558,6 @@
                     spRules.textContent = testoFase;
                     spRules.style.color = alertMode ? "#ff0000" : "#fff";
 
-                    // QUI ABILITIAMO SEMPRE 'RISOLVI'
                     canSpin=false; canSolve=true; canVowel=false; canManual=true; 
                 }
             } else {
@@ -582,6 +581,39 @@
 
             if(s.azione_timestamp && s.azione_timestamp!==lastTimestamp){
                 lastTimestamp=s.azione_timestamp;
+                
+                // --- LOGICA AUDIO CENTRALIZZATA ---
+                // Qui gestiamo i suoni uguali per tutti i client
+                
+                if (s.ultima_azione === 'vittoria') {
+                    playAudio('snd-win');
+                }
+                else if (s.ultima_azione === 'timeout' || s.ultima_azione === 'abbandono' || (s.ultimo_messaggio && s.ultimo_messaggio.includes("Passo"))) {
+                    playAudio('snd-ooh');
+                }
+                else if (s.ultima_azione === 'chiama_lettera' && s.ultimo_messaggio.includes("Trovate")) {
+                     const count = (s.ultimo_messaggio.match(/\d+/)||['1'])[0];
+                     playMultiHit(count);
+                }
+                else if (s.ultima_azione === 'errore' || (s.ultima_azione === 'chiama_lettera' && !s.ultimo_messaggio.includes("Trovate"))) {
+                    playAudio('snd-miss');
+                }
+                else if (s.ultima_azione === 'gira_ruota') {
+                    if (s.ultimo_messaggio.includes("BANCAROTTA")) {
+                        playAudio('snd-bankrupt');
+                    } else if (s.ultimo_messaggio.includes("Dimezzato") || s.ultimo_messaggio.includes("PERSO")) {
+                         playAudio('snd-boo');
+                    } else {
+                         playAudio('snd-drum'); // Conferma azione ruota
+                    }
+                }
+                else if (s.ultima_azione === 'nuovo') {
+                    playAudio('snd-clap');
+                }
+                else if (s.ultima_azione === 'info') {
+                    playAudio('snd-drum');
+                }
+
                 if(s.ultimo_messaggio) {
                      if(actionLog.length === 0 || actionLog[0].msg !== s.ultimo_messaggio) {
                          const time = new Date().toLocaleTimeString('it-IT', {hour: '2-digit', minute:'2-digit', second:'2-digit'});
@@ -594,9 +626,6 @@
                 if(!s.ultimo_messaggio.includes("MISTERO")) {
                     speak(s.ultimo_messaggio);
                 }
-
-                if(s.ultima_azione==='chiama_lettera' && s.ultimo_messaggio.includes("Trovate")){ playMultiHit((s.ultimo_messaggio.match(/\d+/)||['1'])[0]); }
-                else if(s.ultima_azione==='errore') playAudio('snd-miss');
             }
 
             document.getElementById('live-category').textContent=currentFrase.categoria;
@@ -841,7 +870,7 @@
             if (typeof v !== 'number' && pendingMultiplier > 1) { pendingMultiplier = 1; speak("Casella speciale! Raddoppia annullato."); await new Promise(r=>setTimeout(r,1500)); }
             if (v === 'BANCAROTTA' || v === 'PASSA') {
                 const me = currentStanza.giocatori.find(p => p.id === myId);
-                if(v === 'BANCAROTTA') playAudio('snd-bankrupt'); 
+                // NOTA: rimosso suono locale bancarotta, ora lo fa updateUI per tutti
                 
                 const jollys = (me.jolly_scadenze && Array.isArray(me.jolly_scadenze)) ? me.jolly_scadenze : [];
                 if (jollys.length > 0) {

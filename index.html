@@ -487,7 +487,6 @@
                 document.getElementById('round-title').textContent="FINE ROUND";document.getElementById('round-winner-msg').textContent=s.ultimo_messaggio;document.getElementById('solution-msg').textContent=fullSolutionText;
                 document.getElementById('btn-next-round').textContent="PROSSIMO ROUND";
                 if(s.azione_timestamp!==lastTimestamp){
-                    // NOTA: il suono vittoria è gestito ora dalla logica globale
                     lastTimestamp=s.azione_timestamp;
                     speak("Fine Round. "+s.ultimo_messaggio);
                     setTimeout(()=>document.getElementById('btn-next-round').focus(),500);
@@ -498,7 +497,6 @@
             document.getElementById('round-over-panel').classList.add('hidden');document.getElementById('game-panel').classList.remove('hidden');
             if(!s.frasi)return;
             
-            // --- CORREZIONE LOGICA TABELLONE (Per frecce in round speciali) ---
             if(!currentFrase || currentFrase.id !== s.frasi.id || !currentPuzzleText){
                 currentFrase=s.frasi;
                 navWordIdx=0; navCharIdx=0; 
@@ -516,15 +514,18 @@
                     currentPuzzleText=fullSolutionText;
                 }
                 
-                let intro = `Categoria: ${currentFrase.categoria}. ${currentHintText}.`;
+                let intro = `Round ${s.round_giocati}. Categoria: ${currentFrase.categoria}. ${currentHintText}.`;
                 if(s.fase_speciale > 0) intro += ` Round Situazioni Quotidiane.`;
                 speak(intro);
+                
                 pendingMultiplier = 1; 
                 vowelsBoughtThisTurn = 0; 
                 wasMyTurn = false;
             }
 
-            document.getElementById('round-indicator').textContent=`R ${s.round_giocati}/10`;
+            const rInd = document.getElementById('round-indicator');
+            rInd.textContent=`R ${s.round_giocati}/10`;
+            rInd.setAttribute('aria-label', `Round ${s.round_giocati} di 10. Categoria ${currentFrase.categoria}. ${currentHintText}`);
 
             const phase = s.vocali_speciali_chiamate || 0;
             const spInfo = document.getElementById('special-round-info');
@@ -598,8 +599,6 @@
             if(s.azione_timestamp && s.azione_timestamp!==lastTimestamp){
                 lastTimestamp=s.azione_timestamp;
                 
-                // --- LOGICA AUDIO CENTRALIZZATA ---
-                
                 if (s.ultima_azione === 'vittoria') {
                     playAudio('snd-win');
                 }
@@ -618,15 +617,11 @@
                         playAudio('snd-bankrupt');
                     } else if (s.ultimo_messaggio.includes("Dimezzato") || s.ultimo_messaggio.includes("PERSO")) {
                          playAudio('snd-boo');
-                    } else {
-                        // NESSUN SUONO QUI: Tolto il tamburo.
                     }
                 }
-                // NESSUN APPLAUSO QUI: Tolto per 'nuovo'
                 else if (s.ultima_azione === 'info') {
                     playAudio('snd-drum');
                 }
-                // --------------------------------
 
                 if(s.ultimo_messaggio) {
                      if(actionLog.length === 0 || actionLog[0].msg !== s.ultimo_messaggio) {
@@ -646,7 +641,6 @@
             document.getElementById('round-hint').textContent=currentHintText;
             document.getElementById('wheel-status-text').textContent=s.montepremi_round>0?`IN PALIO: €${s.montepremi_round}`:"";
             
-            // Forza render tabellone per sicurezza
             parseAndRenderBoard(currentPuzzleText,s.lettere_rivelate);
 
             const cpName=s.giocatori.find(p=>p.indice===s.id_giocatore_corrente)?.nome||"Giocatore";

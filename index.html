@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>La Ruota - V52 Stable</title>
+    <title>La Ruota - V54 Sequence Letters</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@700&display=swap" rel="stylesheet">
     <style>
@@ -196,9 +196,7 @@
             <button id="btn-vowel" class="action-btn btn-vowel" onclick="openInput('vowel')">VOCALE</button>
             <button id="btn-solve" class="action-btn btn-solve" onclick="openInput('solve')">RISOLVI</button>
             <button id="btn-pass" class="action-btn btn-pass" onclick="passTurn()">PASSA</button>
-            
             <button id="btn-inspect-word" class="action-btn full-width" style="border-color:#555; background:#222;" onclick="openWordInspector()">ISPEZIONA PAROLA SELEZIONATA</button>
-            
             <button id="btn-letters" class="action-btn" onclick="readRevealedLetters()" style="border-color:#aaa; background:#111;">LETTERE USCITE</button>
             <button id="btn-chat" class="action-btn btn-chat" onclick="openChat()">CHAT</button>
             <button id="btn-scores" class="action-btn" style="background:#222;" onclick="readAllScores()">CLASSIFICA</button>
@@ -326,6 +324,7 @@
         function speak(t){
             if(!t) return;
             const e=document.getElementById('sr-announcer');
+            // Force redraw hack for immediate speech
             e.textContent = ''; e.style.display='none'; e.offsetHeight; e.style.display='block';
             e.textContent = t;
         }
@@ -575,7 +574,6 @@
                  setBtnState('btn-vowel', !(canVowel && hasMoney));
                  document.getElementById('btn-vowel').textContent = `VOCALE (€${currentCost})`;
             }
-            // SALVA-PARTITA LOGIC: Mostra bottone manuale se è il mio turno, non giro e ho soldi
             if(isMe && !isSpinning && !inputMode && s.montepremi_round > 0) { canManual = true; }
             
             document.getElementById('btn-manual-cons').classList.toggle('hidden', !canManual);
@@ -657,9 +655,7 @@
                  isSpinning=false;
                  if(typeof v==='number' && pendingMultiplier>1) { v=v*pendingMultiplier; prefixMsg+=`X${pendingMultiplier}! `; }
                  await supabase.from('stanze').update({montepremi_round:v,ultima_azione:'gira_ruota',ultimo_messaggio:`${prefixMsg}${myName} gira: ${v}`,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
-                 fetchFullState(); 
-                 // RITARDO SICUREZZA 1000ms
-                 setTimeout(()=>openInput('letter'), 1000);
+                 fetchFullState(); setTimeout(()=>openInput('letter'), 1000);
             }
         }
 
@@ -909,14 +905,38 @@
             document.getElementById('btn-inspect-word').focus();
         }
 
+        // --- LETTERE USCITE (SEQUENZA RITMATA) ---
         function readRevealedLetters() {
+            clearSpeechQueue(); // Ferma letture precedenti
+            
             if (!currentStanza || !currentStanza.lettere_rivelate) return speak("Nessuna lettera.");
-            const sol = currentPuzzleText.toUpperCase(); let revSet = new Set(), gIdx = 0;
-            for (let i = 0; i < sol.length; i++) { if (sol[i].match(/[A-ZÀ-Ù]/)) { if (currentStanza.lettere_rivelate.includes(gIdx)) { revSet.add(sol[i]); } gIdx++; } }
+            const sol = currentPuzzleText.toUpperCase(); 
+            let revSet = new Set();
+            let gIdx = 0;
+            
+            for (let i = 0; i < sol.length; i++) { 
+                if (sol[i].match(/[A-ZÀ-Ù]/)) { 
+                    if (currentStanza.lettere_rivelate.includes(gIdx)) revSet.add(sol[i]); 
+                    gIdx++; 
+                } 
+            }
+            
             const arr = Array.from(revSet).sort();
             if (arr.length === 0) return speak("Nessuna lettera presente scoperta.");
-            speak(`Lettere uscite: ${arr.join(", ")}`);
+            
+            // 1. Annuncio Iniziale
+            speak("Lettere uscite.");
+            
+            // 2. Loop Temporizzato
+            let delay = 1000;
+            arr.forEach(c => {
+                let text = `${c}, ${NATO[c]||''}`;
+                let t = setTimeout(() => speak(text), delay);
+                speechTimeouts.push(t);
+                delay += 1300; // 1.3 secondi tra una lettera e l'altra
+            });
         }
+
         function readAllScores() {
             if(!currentStanza || !currentStanza.giocatori) return;
             let msg = "Classifica: ";

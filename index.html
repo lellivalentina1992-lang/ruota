@@ -1356,8 +1356,7 @@
             document.getElementById('help-panel').classList.add('hidden');
         }
 
-
-function readRevealedLetters() {
+        function readRevealedLetters() {
             // 1. Pulisce la coda audio precedente
             clearSpeechQueue(); 
             if (spellingTimer) clearTimeout(spellingTimer);
@@ -1402,7 +1401,6 @@ function readRevealedLetters() {
             });
         }
 
-
         function readAllScores() {
             if(!currentStanza || !currentStanza.giocatori) return;
             let msg = "Classifica: ";
@@ -1425,6 +1423,7 @@ function readRevealedLetters() {
             
             if ((e.ctrlKey && e.shiftKey && k === 'r') || k === 'f5') return;
 
+            // --- GESTIONE QUANDO SEI IN UN CAMPO DI TESTO (INPUT) ---
             if(ia) {
                 if(k==='enter') {
                     if(inputMode) submitInput();
@@ -1440,11 +1439,14 @@ function readRevealedLetters() {
 
                 if(e.ctrlKey) {
                     if(k==='a') { 
-                        e.preventDefault(); 
-                        openActionHistory(); 
-                        return; 
+                        e.preventDefault(); openActionHistory(); return;
                     }
-                    if(['c','v','x','z'].includes(k)) return; 
+                    
+                    // Tasti standard editing (Copia, Incolla, Taglia, Annulla, Frecce)
+                    // Li lasciamo passare SENZA e.preventDefault()
+                    if(['c','v','x','z','arrowleft','arrowright','arrowup','arrowdown'].includes(k)) return; 
+                    
+                    // Tasti del gioco che VOGLIAMO funzionino anche mentre scrivi (Info)
                     if(k==='g') { e.preventDefault(); doSpin(); return; }
                     if(k==='v') { e.preventDefault(); closeInput(); openInput('vowel'); return; }
                     if(k==='r') { e.preventDefault(); closeInput(); openInput('solve'); return; }
@@ -1454,15 +1456,12 @@ function readRevealedLetters() {
                     if(k==='l') { e.preventDefault(); readRevealedLetters(); return; }
                     if(k==='s') { e.preventDefault(); readAllScores(); return; }
                     if(k==='t') { e.preventDefault(); readQuickInfo(); return; }
-                    
-                    if(k==='arrowright') { e.preventDefault(); moveNav(1); return; }
-                    if(k==='arrowleft') { e.preventDefault(); moveNav(-1); return; }
-                    if(k==='arrowup') { e.preventDefault(); moveWordNav(-1); return; }
-                    if(k==='arrowdown') { e.preventDefault(); moveWordNav(1); return; }
                 }
                 return;
             }
 
+            // --- GESTIONE QUANDO NON SEI IN UN CAMPO DI TESTO (NAVIGAZIONE GIOCO) ---
+            
             if(k==='escape') {
                 document.getElementById('help-panel').classList.add('hidden');
                 document.getElementById('action-history-panel').classList.add('hidden');

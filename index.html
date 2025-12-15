@@ -960,10 +960,19 @@
                 
                 let w = parsedBoard[n];
                 let letterCount = w.chars.filter(c => c.isLetter).length;
-                speak(`Parola ${n+1}, ${letterCount} lettere.`);
                 
-                // Leggi il primo carattere della parola
-                setTimeout(() => readSingleChar(), 300);
+                // Crea lo spelling con lettere effettive o asterisco
+                let spelling = "";
+                w.chars.forEach(c => {
+                    if(c.isLetter && !c.isRevealed) {
+                        spelling += " asterisco";
+                    } else {
+                        // Lettera rivelata o punteggiatura
+                        spelling += " " + c.char.toLowerCase();
+                    }
+                });
+                
+                speak(`Parola ${n+1}, ${letterCount} lettere.${spelling}`);
             }
         }
 

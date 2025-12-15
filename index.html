@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>La Ruota - V54 Sequence Letters</title>
+    <title>La Ruota - V55 Fixed Audio</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@700&display=swap" rel="stylesheet">
     <style>
@@ -317,17 +317,28 @@
         let nextRoundInterval=null, nextRoundSec=15;
         let lastChatId=0;
         let speechTimeouts = [];
+        let spellingTimer = null; // Timer per il debounce dello slider
 
-        function clearSpeechQueue() { speechTimeouts.forEach(t => clearTimeout(t)); speechTimeouts = []; }
+        function clearSpeechQueue() { 
+            speechTimeouts.forEach(t => clearTimeout(t)); 
+            speechTimeouts = []; 
+        }
+
         function playAudio(id){const a=document.getElementById(id);if(a){a.pause();a.currentTime=0;a.play().catch(e=>{});}}
         function playMultiHit(n){let count=n>10?10:n;let i=0;function l(){if(i<count){playAudio('snd-hit');i++;setTimeout(l,300);}}l();}
+        
         function speak(t){
             if(!t) return;
-            const e=document.getElementById('sr-announcer');
-            // Force redraw hack for immediate speech
-            e.textContent = ''; e.style.display='none'; e.offsetHeight; e.style.display='block';
-            e.textContent = t;
+            // Hack per forzare l'aggiornamento dello screen reader
+            const e = document.getElementById('sr-announcer');
+            e.textContent = ''; 
+            e.style.display = 'none';
+            setTimeout(() => {
+                e.style.display = 'block';
+                e.textContent = t;
+            }, 50);
         }
+
         function speakChat(t){const e=document.getElementById('sr-chat');e.textContent=t;}
         function showFlashMessage(msg,type){
             const ov=document.getElementById('flash-overlay'),txt=document.getElementById('flash-message');
@@ -799,27 +810,32 @@
             highlightNav(); 
         }
 
+        // --- NEW LOGIC FOR NAVIGATION ---
+
         function moveWordNav(d) {
+            clearSpeechQueue(); // Stop any rhythmic speech
+            if (spellingTimer) clearTimeout(spellingTimer); // Stop slider debounce
+
             if (!parsedBoard.length) return;
             let n = navWordIdx + d;
             if (n < 0) n = 0; else if (n >= parsedBoard.length) n = parsedBoard.length - 1;
             if(n !== navWordIdx) {
-                document.getElementById('mobile-word-slider').value = n;
+                // Update visual slider without triggering event
+                const slider = document.getElementById('mobile-word-slider');
+                slider.value = n;
+
                 navWordIdx = n; navCharIdx = 0; highlightNav();
                 
                 let w = parsedBoard[n];
                 let letterCount = w.chars.filter(c => c.isLetter).length;
-                let simpleText = `Parola ${n+1}, ${letterCount} lettere. `;
-                w.chars.forEach(c => {
-                    if(c.isLetter && !c.isRevealed) simpleText += "Asterisco. ";
-                    else if(c.isLetter && c.isRevealed) simpleText += c.char + ". "; 
-                    else simpleText += (NATO[c.char] || c.char) + ". "; 
-                });
-                speak(simpleText);
+                speak(`Parola ${n+1}, ${letterCount} lettere.`);
             }
         }
 
         function moveNav(d) {
+            clearSpeechQueue(); // Stop any rhythmic speech
+            if (spellingTimer) clearTimeout(spellingTimer); // Stop slider debounce
+
             if (!parsedBoard.length) return;
             let currentW = parsedBoard[navWordIdx];
             let newCharIdx = navCharIdx + d;
@@ -842,37 +858,35 @@
         }
 
         function handleSliderNav(val) {
-            clearSpeechQueue();
+            // 1. Immediate Cleanup
+            clearSpeechQueue(); 
+            if (spellingTimer) clearTimeout(spellingTimer);
+
             let n = parseInt(val);
             if(n >= 0 && n < parsedBoard.length) {
                 navWordIdx = n; navCharIdx = 0; highlightNav();
                 let w = parsedBoard[n];
                 let letterCount = w.chars.filter(c => c.isLetter).length;
                 
-                let simpleText = `Parola ${n+1}, ${letterCount} lettere. `;
-                w.chars.forEach(c => {
-                    if(c.isLetter && !c.isRevealed) simpleText += "Asterisco. ";
-                    else if(c.isLetter && c.isRevealed) simpleText += c.char + ". "; 
-                    else simpleText += (NATO[c.char] || c.char) + ". "; 
-                });
-                speak(simpleText);
+                // 2. Immediate Short Feedback
+                speak(`Parola ${n+1}, ${letterCount} lettere.`);
 
-                let delay = 3500;
-                let t0 = setTimeout(() => speak("Spelling."), delay);
-                speechTimeouts.push(t0);
-                delay += 1000; 
+                // 3. Debounced Long Feedback (Starts only if user stops moving)
+                spellingTimer = setTimeout(() => {
+                    let delay = 500;
+                    speak("Spelling:");
+                    w.chars.forEach(c => {
+                        let textToSay = "";
+                        if(c.isLetter && !c.isRevealed) textToSay = "Asterisco";
+                        else if(c.isLetter && c.isRevealed) textToSay = (NATO[c.char] || c.char); 
+                        else textToSay = (NATO[c.char] || c.char); 
 
-                w.chars.forEach(c => {
-                    let textToSay = "";
-                    if(c.isLetter && !c.isRevealed) textToSay = "Asterisco";
-                    else if(c.isLetter && c.isRevealed) textToSay = (NATO[c.char] || c.char); 
-                    else textToSay = (NATO[c.char] || c.char); 
-
-                    let t = setTimeout(() => speak(textToSay), delay);
-                    speechTimeouts.push(t);
-                    delay += 800; 
-                });
-                document.getElementById('btn-inspect-word').textContent = `ISPEZIONA PAROLA ${n+1}`;
+                        let t = setTimeout(() => speak(textToSay), delay);
+                        speechTimeouts.push(t);
+                        delay += 800; 
+                    });
+                    document.getElementById('btn-inspect-word').textContent = `ISPEZIONA PAROLA ${n+1}`;
+                }, 800); // 800ms wait time
             }
         }
         
@@ -905,9 +919,9 @@
             document.getElementById('btn-inspect-word').focus();
         }
 
-        // --- LETTERE USCITE (SEQUENZA RITMATA) ---
         function readRevealedLetters() {
-            clearSpeechQueue(); // Ferma letture precedenti
+            clearSpeechQueue(); 
+            if (spellingTimer) clearTimeout(spellingTimer);
             
             if (!currentStanza || !currentStanza.lettere_rivelate) return speak("Nessuna lettera.");
             const sol = currentPuzzleText.toUpperCase(); 
@@ -924,16 +938,14 @@
             const arr = Array.from(revSet).sort();
             if (arr.length === 0) return speak("Nessuna lettera presente scoperta.");
             
-            // 1. Annuncio Iniziale
             speak("Lettere uscite.");
             
-            // 2. Loop Temporizzato
             let delay = 1000;
             arr.forEach(c => {
                 let text = `${c}, ${NATO[c]||''}`;
                 let t = setTimeout(() => speak(text), delay);
                 speechTimeouts.push(t);
-                delay += 600; // 1.3 secondi tra una lettera e l'altra
+                delay += 800; 
             });
         }
 

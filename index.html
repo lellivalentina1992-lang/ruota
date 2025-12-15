@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>La Ruota - V55 Fixed Audio</title>
+    <title>La Ruota - V56 Stability</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@700&display=swap" rel="stylesheet">
     <style>
@@ -317,7 +317,7 @@
         let nextRoundInterval=null, nextRoundSec=15;
         let lastChatId=0;
         let speechTimeouts = [];
-        let spellingTimer = null; // Timer per il debounce dello slider
+        let spellingTimer = null; 
 
         function clearSpeechQueue() { 
             speechTimeouts.forEach(t => clearTimeout(t)); 
@@ -329,12 +329,10 @@
         
         function speak(t){
             if(!t) return;
-            // Hack per forzare l'aggiornamento dello screen reader
+            // FIXED: No display:none to prevent SR cut-offs
             const e = document.getElementById('sr-announcer');
             e.textContent = ''; 
-            e.style.display = 'none';
             setTimeout(() => {
-                e.style.display = 'block';
                 e.textContent = t;
             }, 50);
         }
@@ -810,17 +808,14 @@
             highlightNav(); 
         }
 
-        // --- NEW LOGIC FOR NAVIGATION ---
-
         function moveWordNav(d) {
-            clearSpeechQueue(); // Stop any rhythmic speech
-            if (spellingTimer) clearTimeout(spellingTimer); // Stop slider debounce
+            clearSpeechQueue(); 
+            if (spellingTimer) clearTimeout(spellingTimer); 
 
             if (!parsedBoard.length) return;
             let n = navWordIdx + d;
             if (n < 0) n = 0; else if (n >= parsedBoard.length) n = parsedBoard.length - 1;
             if(n !== navWordIdx) {
-                // Update visual slider without triggering event
                 const slider = document.getElementById('mobile-word-slider');
                 slider.value = n;
 
@@ -833,14 +828,25 @@
         }
 
         function moveNav(d) {
-            clearSpeechQueue(); // Stop any rhythmic speech
-            if (spellingTimer) clearTimeout(spellingTimer); // Stop slider debounce
+            clearSpeechQueue(); 
+            if (spellingTimer) clearTimeout(spellingTimer); 
 
             if (!parsedBoard.length) return;
             let currentW = parsedBoard[navWordIdx];
             let newCharIdx = navCharIdx + d;
-            if (newCharIdx < 0) newCharIdx = 0;
-            if (newCharIdx >= currentW.chars.length) newCharIdx = currentW.chars.length - 1;
+            
+            // FIXED: Boundary Feedback
+            if (newCharIdx < 0) {
+                newCharIdx = 0;
+                speak("Inizio parola");
+                return;
+            }
+            if (newCharIdx >= currentW.chars.length) {
+                newCharIdx = currentW.chars.length - 1;
+                speak("Fine parola");
+                return;
+            }
+
             navCharIdx = newCharIdx; 
             readSingleChar(); highlightNav();
         }
@@ -858,7 +864,6 @@
         }
 
         function handleSliderNav(val) {
-            // 1. Immediate Cleanup
             clearSpeechQueue(); 
             if (spellingTimer) clearTimeout(spellingTimer);
 
@@ -868,10 +873,8 @@
                 let w = parsedBoard[n];
                 let letterCount = w.chars.filter(c => c.isLetter).length;
                 
-                // 2. Immediate Short Feedback
                 speak(`Parola ${n+1}, ${letterCount} lettere.`);
 
-                // 3. Debounced Long Feedback (Starts only if user stops moving)
                 spellingTimer = setTimeout(() => {
                     let delay = 500;
                     speak("Spelling:");
@@ -886,7 +889,7 @@
                         delay += 800; 
                     });
                     document.getElementById('btn-inspect-word').textContent = `ISPEZIONA PAROLA ${n+1}`;
-                }, 800); // 800ms wait time
+                }, 800); 
             }
         }
         

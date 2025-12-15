@@ -366,7 +366,8 @@
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         
         const NATO={'A':'Ancona','B':'Bologna','C':'Como','D':'Domodossola','E':'Empoli','F':'Firenze','G':'Genova','H':'Hotel','I':'Imola','J':'Jolly','K':'Kappa','L':'Livorno','M':'Milano','N':'Napoli','O':'Otranto','P':'Palermo','Q':'Quadro','R':'Roma','S':'Savona','T':'Torino','U':'Udine','V':'Venezia','W':'Washington','X':'Xilofono','Y':'Yogurt','Z':'Zara','À':'A accentata','È':'E aperta','É':'E chiusa','Ì':'I accentata','Ò':'O accentata','Ù':'U accentata', "'": "Apostrofo", "?": "Punto di domanda", "!": "Punto esclamativo", ".": "Punto", ",": "Virgola"};
-        const WHEEL_VALUES=[100,200,300,400,500,600,700,800,900,1000,2000,'MISTERO','PASSA','BANCAROTTA'];
+        const WHEEL_VALUES=[100,200,300,400,500,600,700,800,900,1000,2000,'MISTERO','PASSA','BANCAROTTA','JOLLY'];
+        const MISTERO_VALUES=['RADDOPPIA', 'BANCAROTTA', 'PASSA_TURNO', 'PASSA_AVVERSARIO', '+1000', 'JOLLY'];
         const TURN_LIMIT_SEC=240; 
 
         let myId, myIndex, roomId, isHost=false;
@@ -760,8 +761,56 @@
             let v=WHEEL_VALUES[Math.floor(Math.random()*WHEEL_VALUES.length)];
             const phase = currentStanza.vocali_speciali_chiamate || 0;
             if(typeof v === 'number' && currentStanza.fase_speciale > 0 && phase === 0) v = Math.floor(v / 2);
-            if(v === 'MISTERO') { isSpinning = false; await handleSpinResult(500, "Mistero aperto: 500€! "); } 
+            
+            if(v === 'JOLLY') {
+                isSpinning = false;
+                handleJollyWin();
+            }
+            else if(v === 'MISTERO') { 
+                isSpinning = false;
+                speak("È uscito MISTERO!");
+                
+                // Chiedi all'utente se vuole aprire o prendere 500
+                setTimeout(() => {
+                    if(confirm("MISTERO! Vuoi aprirlo (OK) o prendere 500€ sicuri (Annulla)?")) {
+                        // Apre il mistero
+                        let possibleValues = [...MISTERO_VALUES];
+                        
+                        // Se ci sono solo 2 giocatori, rimuovi PASSA_AVVERSARIO (ridondante con PASSA_TURNO)
+                        const numPlayers = currentStanza.giocatori.length;
+                        if(numPlayers <= 2) {
+                            possibleValues = possibleValues.filter(v => v !== 'PASSA_AVVERSARIO');
+                        }
+                        
+                        let misteroValue = possibleValues[Math.floor(Math.random() * possibleValues.length)];
+                        handleMisteroResult(misteroValue);
+                    } else {
+                        // Prende 500€ sicuri
+                        handleSpinResult(500, "Mistero non aperto: 500€! ");
+                    }
+                }, 500);
+            } 
             else { handleSpinResult(v); }
+        }
+
+        async function handleJollyWin() {
+            const myName = document.getElementById('inp-name').value;
+            const me = currentStanza.giocatori.find(p => p.id === myId);
+            const currentRound = currentStanza.round_giocati;
+            const scadenza = currentRound + 5; // Vale 5 round
+            
+            let jollys = me.jolly_scadenze || [];
+            jollys.push(scadenza);
+            
+            await supabase.from('giocatori').update({jolly_scadenze: jollys}).eq('id', myId);
+            await supabase.from('stanze').update({
+                ultima_azione:'jolly',
+                ultimo_messaggio:`${myName} vince un JOLLY! (scade round ${scadenza})`,
+                azione_timestamp: new Date().toISOString()
+            }).eq('id', roomId);
+            
+            speak(`Hai vinto un JOLLY! Scade al round ${scadenza}.`);
+            fetchFullState();
         }
 
         async function handleSpinResult(v, prefixMsg="") {
@@ -784,6 +833,200 @@
                  if(typeof v==='number' && pendingMultiplier>1) { v=v*pendingMultiplier; prefixMsg+=`X${pendingMultiplier}! `; }
                  await supabase.from('stanze').update({montepremi_round:v,ultima_azione:'gira_ruota',ultimo_messaggio:`${prefixMsg}${myName} gira: ${v}`,azione_timestamp:new Date().toISOString()}).eq('id',roomId);
                  fetchFullState(); setTimeout(()=>openInput('letter'), 1000);
+            }
+        }
+
+        async function handleMisteroResult(misteroValue) {
+            const myName = document.getElementById('inp-name').value;
+            const me = currentStanza.giocatori.find(p => p.id === myId);
+            
+            if(misteroValue === 'RADDOPPIA') {
+                // Raddoppia: gira di nuovo e se esce numero lo raddoppi
+                speak("RADDOPPIA! Giri di nuovo e raddoppi il risultato!");
+                await supabase.from('stanze').update({
+                    ultima_azione:'mistero',
+                    ultimo_messaggio:`${myName} apre MISTERO: RADDOPPIA!`,
+                    azione_timestamp: new Date().toISOString()
+                }).eq('id', roomId);
+                
+                // Imposta il moltiplicatore e gira di nuovo
+                pendingMultiplier = 2;
+                setTimeout(() => doSpin(), 2000);
+                
+            } else if(misteroValue === 'BANCAROTTA') {
+                // Bancarotta: perdi il TOTALE
+                // Ma prima controlla se hai un jolly
+                const me = currentStanza.giocatori.find(p => p.id === myId);
+                const jollys = (me.jolly_scadenze) ? me.jolly_scadenze : [];
+                
+                if (jollys.length > 0) {
+                    if(confirm(`Hai un Jolly! Usarlo per salvarti dalla BANCAROTTA?`)) {
+                        let newJollys = [...jollys]; 
+                        newJollys.shift(); // Rimuovi il primo jolly
+                        await supabase.from('giocatori').update({jolly_scadenze:newJollys}).eq('id', myId);
+                        await supabase.from('stanze').update({
+                            ultima_azione:'mistero',
+                            ultimo_messaggio:`${myName} usa JOLLY per salvarsi dalla BANCAROTTA!`,
+                            azione_timestamp: new Date().toISOString()
+                        }).eq('id', roomId);
+                        speak("Jolly usato! Sei salvo!");
+                        fetchFullState();
+                        return;
+                    }
+                }
+                
+                // Nessun jolly o non usato
+                await supabase.from('giocatori').update({punteggio_totale: 0}).eq('id', myId);
+                await supabase.from('stanze').update({
+                    ultima_azione:'mistero',
+                    ultimo_messaggio:`${myName} apre MISTERO: BANCAROTTA!`,
+                    azione_timestamp: new Date().toISOString()
+                }).eq('id', roomId);
+                speak("BANCAROTTA! Perdi tutto il TOTALE!");
+                passTurn();
+                
+            } else if(misteroValue === 'PASSA_TURNO') {
+                // Passa il turno (a te se sola, all'altro se in 2)
+                // Ma prima controlla se hai un jolly
+                const me = currentStanza.giocatori.find(p => p.id === myId);
+                const jollys = (me.jolly_scadenze) ? me.jolly_scadenze : [];
+                
+                if (jollys.length > 0) {
+                    if(confirm(`Hai un Jolly! Usarlo per salvarti da PASSA IL TURNO?`)) {
+                        let newJollys = [...jollys]; 
+                        newJollys.shift();
+                        await supabase.from('giocatori').update({jolly_scadenze:newJollys}).eq('id', myId);
+                        await supabase.from('stanze').update({
+                            ultima_azione:'mistero',
+                            ultimo_messaggio:`${myName} usa JOLLY per salvarsi da PASSA IL TURNO!`,
+                            azione_timestamp: new Date().toISOString()
+                        }).eq('id', roomId);
+                        speak("Jolly usato! Continui a giocare!");
+                        fetchFullState();
+                        return;
+                    }
+                }
+                
+                const numPlayers = currentStanza.giocatori.length;
+                if(numPlayers === 1) {
+                    // Da sola, passa a te
+                    speak("PASSA IL TURNO... ma sei da sola, quindi tocca ancora a te!");
+                    await supabase.from('stanze').update({
+                        ultima_azione:'mistero',
+                        ultimo_messaggio:`${myName} apre MISTERO: PASSA IL TURNO (ma è sola)`,
+                        azione_timestamp: new Date().toISOString()
+                    }).eq('id', roomId);
+                    fetchFullState();
+                } else {
+                    // Passa al prossimo
+                    speak("PASSA IL TURNO!");
+                    await supabase.from('stanze').update({
+                        ultima_azione:'mistero',
+                        ultimo_messaggio:`${myName} apre MISTERO: PASSA IL TURNO`,
+                        azione_timestamp: new Date().toISOString()
+                    }).eq('id', roomId);
+                    passTurn();
+                }
+                
+            } else if(misteroValue === 'PASSA_AVVERSARIO') {
+                // Passa il turno all'avversario (scegli tu se più di 2)
+                // Ma prima controlla se hai un jolly
+                const me = currentStanza.giocatori.find(p => p.id === myId);
+                const jollys = (me.jolly_scadenze) ? me.jolly_scadenze : [];
+                
+                if (jollys.length > 0) {
+                    if(confirm(`Hai un Jolly! Usarlo per salvarti da PASSA ALL'AVVERSARIO?`)) {
+                        let newJollys = [...jollys]; 
+                        newJollys.shift();
+                        await supabase.from('giocatori').update({jolly_scadenze:newJollys}).eq('id', myId);
+                        await supabase.from('stanze').update({
+                            ultima_azione:'mistero',
+                            ultimo_messaggio:`${myName} usa JOLLY per salvarsi!`,
+                            azione_timestamp: new Date().toISOString()
+                        }).eq('id', roomId);
+                        speak("Jolly usato! Continui a giocare!");
+                        fetchFullState();
+                        return;
+                    }
+                }
+                
+                const numPlayers = currentStanza.giocatori.length;
+                
+                if(numPlayers === 1) {
+                    // Da sola, passa a te
+                    speak("PASSA IL TURNO ALL'AVVERSARIO... ma sei da sola!");
+                    await supabase.from('stanze').update({
+                        ultima_azione:'mistero',
+                        ultimo_messaggio:`${myName} apre MISTERO: PASSA AVVERSARIO (ma è sola)`,
+                        azione_timestamp: new Date().toISOString()
+                    }).eq('id', roomId);
+                    fetchFullState();
+                    
+                } else if(numPlayers === 2) {
+                    // In 2, passa automaticamente all'altro
+                    const otherPlayer = currentStanza.giocatori.find(p => p.id !== myId);
+                    speak(`PASSA IL TURNO ALL'AVVERSARIO! Tocca a ${otherPlayer.nome}`);
+                    await supabase.from('stanze').update({
+                        id_giocatore_corrente: otherPlayer.indice,
+                        ultima_azione:'mistero',
+                        ultimo_messaggio:`${myName} apre MISTERO: passa a ${otherPlayer.nome}`,
+                        azione_timestamp: new Date().toISOString()
+                    }).eq('id', roomId);
+                    fetchFullState();
+                    
+                } else {
+                    // Più di 2 giocatori: scegli tu
+                    speak("PASSA IL TURNO ALL'AVVERSARIO! Scegli a chi passare.");
+                    const otherPlayers = currentStanza.giocatori.filter(p => p.id !== myId);
+                    let choice = prompt("Scegli a chi passare il turno:\n" + 
+                        otherPlayers.map((p, i) => `${i+1}. ${p.nome}`).join('\n'));
+                    
+                    let selectedIndex = parseInt(choice) - 1;
+                    if(selectedIndex >= 0 && selectedIndex < otherPlayers.length) {
+                        const selectedPlayer = otherPlayers[selectedIndex];
+                        await supabase.from('stanze').update({
+                            id_giocatore_corrente: selectedPlayer.indice,
+                            ultima_azione:'mistero',
+                            ultimo_messaggio:`${myName} passa il turno a ${selectedPlayer.nome}`,
+                            azione_timestamp: new Date().toISOString()
+                        }).eq('id', roomId);
+                        speak(`Turno passato a ${selectedPlayer.nome}`);
+                    } else {
+                        // Scelta invalida, passa al prossimo automaticamente
+                        passTurn();
+                    }
+                    fetchFullState();
+                }
+                
+            } else if(misteroValue === '+1000') {
+                // Guadagna 1000€
+                const newScore = (me.punteggio_round || 0) + 1000;
+                await supabase.from('giocatori').update({punteggio_round: newScore}).eq('id', myId);
+                await supabase.from('stanze').update({
+                    montepremi_round: 1000,
+                    ultima_azione:'mistero',
+                    ultimo_messaggio:`${myName} apre MISTERO: +1000€!`,
+                    azione_timestamp: new Date().toISOString()
+                }).eq('id', roomId);
+                speak("Hai guadagnato 1000 euro!");
+                fetchFullState();
+                setTimeout(() => openInput('letter'), 1000);
+                
+            } else if(misteroValue === 'JOLLY') {
+                // Vince un JOLLY (vale 5 round)
+                const currentRound = currentStanza.round_giocati;
+                const scadenza = currentRound + 5;
+                let jollys = me.jolly_scadenze || [];
+                jollys.push(scadenza);
+                
+                await supabase.from('giocatori').update({jolly_scadenze: jollys}).eq('id', myId);
+                await supabase.from('stanze').update({
+                    ultima_azione:'mistero',
+                    ultimo_messaggio:`${myName} apre MISTERO: JOLLY! (scade round ${scadenza})`,
+                    azione_timestamp: new Date().toISOString()
+                }).eq('id', roomId);
+                speak(`Hai vinto un JOLLY! Scade al round ${scadenza}.`);
+                fetchFullState();
             }
         }
 

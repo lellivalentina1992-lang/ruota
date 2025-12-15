@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>La Ruota - V56 Stability</title>
+    <title>La Ruota - V57 Stability Strict</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@700&display=swap" rel="stylesheet">
     <style>
@@ -296,7 +296,7 @@
             <h3 style="color:var(--col-accent); margin-top:15px;">NAVIGAZIONE TABELLONE</h3>
             <ul style="line-height:1.8; color:#ddd;">
                 <li><strong>Freccia SU/GIÙ:</strong> Cambia parola</li>
-                <li><strong>Freccia SINISTRA/DESTRA:</strong> Naviga lettera per lettera (rilegge lettera)</li>
+                <li><strong>Freccia SINISTRA/DESTRA:</strong> Naviga lettera per lettera (rimani nella parola)</li>
                 <li><strong>SPAZIO:</strong> Riapri ultimo campo di input (dopo girata)</li>
                 <li style="color:#aaa; font-size:0.9em;">Frecce: aggiungi CTRL se sei in un campo di testo</li>
             </ul>
@@ -620,16 +620,6 @@
                 document.getElementById('pause-panel').classList.remove('hidden'); document.getElementById('game-panel').classList.add('hidden');
                 document.getElementById('round-over-panel').classList.add('hidden'); document.getElementById('btn-resume-host').classList.toggle('hidden', !isHost); return;
             } else { document.getElementById('pause-panel').classList.add('hidden'); }
-
-            if(isHost){
-                document.getElementById('host-controls-area').classList.remove('hidden'); document.getElementById('btn-pause').classList.remove('hidden');
-                document.getElementById('host-round-controls').classList.remove('hidden');
-                document.getElementById('btn-restart-game-end').classList.remove('hidden');
-            } else {
-                document.getElementById('host-controls-area').classList.add('hidden'); document.getElementById('btn-pause').classList.add('hidden');
-                document.getElementById('host-round-controls').classList.add('hidden');
-                document.getElementById('btn-restart-game-end').classList.add('hidden');
-            }
 
             if(s.stato==='terminata'){ 
                  document.getElementById('game-panel').classList.add('hidden');document.getElementById('end-panel').classList.remove('hidden');
@@ -1219,27 +1209,23 @@
             if (!parsedBoard.length) return;
             let n = navWordIdx + d;
             if (n < 0) n = 0; else if (n >= parsedBoard.length) n = parsedBoard.length - 1;
+            
             if(n !== navWordIdx) {
                 const slider = document.getElementById('mobile-word-slider');
                 slider.value = n;
 
                 navWordIdx = n; 
-                navCharIdx = 0; // Parte dal primo carattere (anche se apostrofo)
+                navCharIdx = -1; // Cursore fantasma prima della parola
                 
                 highlightNav();
                 
                 let w = parsedBoard[n];
-                let letterCount = w.chars.length; // Conta TUTTI i caratteri (lettere + punteggiatura)
+                let letterCount = w.chars.length;
                 
-                // Crea lo spelling con lettere effettive o asterisco
                 let spelling = "";
                 w.chars.forEach(c => {
-                    if(c.isLetter && !c.isRevealed) {
-                        spelling += " asterisco";
-                    } else {
-                        // Lettera rivelata o punteggiatura
-                        spelling += " " + c.char.toLowerCase();
-                    }
+                    if(c.isLetter && !c.isRevealed) spelling += " asterisco";
+                    else spelling += " " + c.char.toLowerCase();
                 });
                 
                 speak(`Parola ${n+1}, ${letterCount} lettere.${spelling}`);
@@ -1251,19 +1237,33 @@
             if (spellingTimer) clearTimeout(spellingTimer); 
 
             if (!parsedBoard.length) return;
+            
             let currentW = parsedBoard[navWordIdx];
             let newCharIdx = navCharIdx + d;
-            
-            // Gestione confini con feedback appropriato
-            if (newCharIdx < 0) {
-                speak("Inizio parola");
-                return;
-            }
-            if (newCharIdx >= currentW.chars.length) {
-                speak("Fine parola");
+
+            // --- NUOVA LOGICA RIGIDA ---
+
+            // Se stiamo cercando di andare a SINISTRA oltre il "fantasma" (-1)
+            if (newCharIdx < -1) {
+                speak("Inizio parola"); // Feedback sonoro ma NON cambia parola
                 return;
             }
 
+            // Se stiamo cercando di andare a DESTRA oltre l'ultima lettera
+            if (newCharIdx >= currentW.chars.length) {
+                speak("Fine parola"); // Feedback sonoro ma NON cambia parola
+                return;
+            }
+
+            // Gestione normale (incluso ritorno a -1)
+            if (newCharIdx === -1) {
+                navCharIdx = -1;
+                highlightNav();
+                speak("Inizio parola");
+                return;
+            }
+
+            // Movimento normale tra le lettere
             navCharIdx = newCharIdx; 
             highlightNav();
             readSingleChar();
@@ -1273,7 +1273,11 @@
             document.querySelectorAll('.cursor-char').forEach(e=>e.classList.remove('cursor-char'));
             document.querySelectorAll('.cursor-word').forEach(e=>e.classList.remove('cursor-word'));
             document.getElementById(`row-${navWordIdx}`)?.classList.add('cursor-word');
-            document.getElementById(`tile-${navWordIdx}-${navCharIdx}`)?.classList.add('cursor-char');
+            
+            // Evidenzia solo se indice valido (>=0)
+            if(navCharIdx >= 0) {
+                document.getElementById(`tile-${navWordIdx}-${navCharIdx}`)?.classList.add('cursor-char');
+            }
         }
 
         function readSingleChar(){ 
@@ -1371,15 +1375,12 @@
             const arr = Array.from(revSet).sort();
             if (arr.length === 0) return speak("Nessuna lettera presente scoperta.");
             
-            speak("Lettere uscite.");
-            
-            let delay = 1000;
+            let message = "Lettere uscite: ";
             arr.forEach(c => {
-                let text = `${c}, ${NATO[c]||''}`;
-                let t = setTimeout(() => speak(text), delay);
-                speechTimeouts.push(t);
-                delay += 800; 
+                message += `${c}, ${NATO[c]||''}. `;
             });
+            
+            speak(message);
         }
 
         function readAllScores() {
@@ -1418,30 +1419,22 @@
                 }
 
                 if(e.ctrlKey) {
-                    // Storico azioni con CTRL+A
                     if(k==='a') { 
                         e.preventDefault(); 
                         openActionHistory(); 
                         return; 
                     }
-                    
-                    // Permetti comandi base di editing (tranne A che ora apre storico)
                     if(['c','v','x','z'].includes(k)) return; 
-                    
-                    // Tutti i comandi di gioco con CTRL quando in input
                     if(k==='g') { e.preventDefault(); doSpin(); return; }
                     if(k==='v') { e.preventDefault(); closeInput(); openInput('vowel'); return; }
                     if(k==='r') { e.preventDefault(); closeInput(); openInput('solve'); return; }
                     if(k==='p') { e.preventDefault(); passTurn(); return; }
                     if(k==='k') { e.preventDefault(); openChat(); return; }
                     if(k==='h') { e.preventDefault(); const hp = document.getElementById('help-panel'); if(hp.classList.contains('hidden')) openHelp(); else closeHelp(); return; }
-                    
-                    // Info commands
                     if(k==='l') { e.preventDefault(); readRevealedLetters(); return; }
                     if(k==='s') { e.preventDefault(); readAllScores(); return; }
                     if(k==='t') { e.preventDefault(); readQuickInfo(); return; }
                     
-                    // Navigazione tabellone
                     if(k==='arrowright') { e.preventDefault(); moveNav(1); return; }
                     if(k==='arrowleft') { e.preventDefault(); moveNav(-1); return; }
                     if(k==='arrowup') { e.preventDefault(); moveWordNav(-1); return; }
@@ -1450,7 +1443,6 @@
                 return;
             }
 
-            // Gestione ESC e H anche quando non si è in input
             if(k==='escape') {
                 document.getElementById('help-panel').classList.add('hidden');
                 document.getElementById('action-history-panel').classList.add('hidden');

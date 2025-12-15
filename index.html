@@ -181,8 +181,8 @@
         <div id="jolly-indicator" style="color:#ff00ff; font-weight:bold; margin-top:5px; font-size:0.9em;"></div>
 
         <div class="category-box">
-            <h2 id="live-category">...</h2>
-            <h3 id="round-hint"></h3>
+            <h2 id="live-category" aria-live="polite" aria-atomic="true">...</h2>
+            <h3 id="round-hint" aria-live="polite" aria-atomic="true"></h3>
         </div>
         
         <div class="scanner-wrapper" aria-hidden="true">
@@ -654,7 +654,10 @@
                 if(s.fase_speciale === 1) ruleText = "ROUND SPECIALE!";
                 else ruleText = `ROUND ${s.round_giocati} (Vocale €${vCost})`;
                 
+                // Aggiorna categoria e hint PRIMA di parlare
+                document.getElementById('live-category').textContent = currentFrase.categoria;
                 document.getElementById('round-hint').textContent = currentHintText;
+                
                 speak(ruleText + ". " + currentFrase.categoria + ". " + currentHintText);
                 pendingMultiplier = 1;
             }
@@ -776,7 +779,7 @@
                         // Apre il mistero
                         let possibleValues = [...MISTERO_VALUES];
                         
-                        // Se ci sono solo 2 giocatori, rimuovi PASSA_AVVERSARIO (ridondante con PASSA_TURNO)
+                        // Se ci sono 1 o 2 giocatori, rimuovi PASSA_AVVERSARIO (ridondante/inutile)
                         const numPlayers = currentStanza.giocatori.length;
                         if(numPlayers <= 2) {
                             possibleValues = possibleValues.filter(v => v !== 'PASSA_AVVERSARIO');

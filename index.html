@@ -999,7 +999,7 @@
             if(k==='g') { e.preventDefault(); doSpin(); return; }
             if(k==='v') { e.preventDefault(); openInput('vowel'); return; }
             if(k==='p') { e.preventDefault(); passTurn(); return; }
-            if(k==='1') playAudio('snd-clap'); if(k==='2') playAudio('snd-laugh');
+            if(k==='1') { playAudio('snd-clap'); } if(k==='2') { playAudio('snd-laugh'); }
             
             if(k==='arrowright') { e.preventDefault(); moveNav(1); }
             if(k==='arrowleft') { e.preventDefault(); moveNav(-1); }

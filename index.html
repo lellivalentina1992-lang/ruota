@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>La Ruota - V49 Hybrid</title>
+    <title>La Ruota - V50 Turbo</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@700&display=swap" rel="stylesheet">
     <style>
@@ -23,6 +23,7 @@
         .container { max-width: 900px; margin: 0 auto; padding: 10px; display: flex; flex-direction: column; align-items: center; }
         .hidden { display: none !important; }
 
+        /* INFO BAR */
         .info-bar { 
             width: 100%; display: flex; justify-content: space-between; align-items: center; 
             background: linear-gradient(90deg, #222, #333, #222); 
@@ -32,6 +33,7 @@
         .stats-display { text-align: right; font-size: 1.1em; line-height: 1.2; color: #ddd; }
         .money-box { margin-top: 5px; display: flex; gap: 15px; justify-content: center; font-size: 1.3em; color: var(--col-accent); text-shadow: 0 0 5px rgba(255, 215, 0, 0.5); }
 
+        /* AREA GIOCO */
         #game-panel { width: 100%; max-width: 800px; margin-top: 10px; }
         .category-box { margin: 15px 0; }
         #live-category { color: var(--col-neon); font-size: 1.8em; margin: 0; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 0 10px var(--col-neon); }
@@ -53,6 +55,7 @@
         .scanner-label { position: absolute; color: #555; font-size: 0.9em; pointer-events: none; text-transform: uppercase; letter-spacing: 1px; }
         input[type=range].stealth-slider { position: absolute; width: 100%; height: 100%; opacity: 0; cursor: pointer; margin: 0; z-index: 10; }
 
+        /* TABELLONE */
         #board-container { 
             display: flex; flex-direction: column; align-items: center; gap: 8px; 
             padding: 20px; margin: 10px 0; min-height: 120px; 
@@ -71,6 +74,7 @@
         .tile.cursor-char { border: 4px solid var(--col-accent); transform: scale(1.1); z-index: 20; }
         @keyframes popIn { from { transform: scale(0); } to { transform: scale(1); } }
 
+        /* PULSANTI */
         .controls-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; width: 95%; margin: 0 auto; }
         .full-width { grid-column: span 2; }
         
@@ -90,10 +94,12 @@
         .btn-pass { background: #444; color: #aaa; }
         .btn-chat { background: #222; border: 1px solid #444; color: #ccc; }
         
+        /* AUDIO PANEL */
         .audio-panel { margin-top: 30px; padding-top: 15px; border-top: 1px solid #333; }
         .audio-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
         .audio-btn { font-size: 1.5em; background: transparent; border: none; cursor: pointer; padding: 10px; }
 
+        /* MODALI */
         #input-area, #word-inspector-overlay, #privacy-dialog, #chat-overlay, #player-check-overlay, #round-over-panel, #end-panel, #pause-panel { 
             position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 3000; 
             display: flex; flex-direction: column; justify-content: center; align-items: center; overflow-y: auto;
@@ -315,11 +321,20 @@
         let nextRoundInterval=null, nextRoundSec=15;
         let lastChatId=0;
         let speechTimeouts = [];
+        let cursorDebounce = null;
 
         function clearSpeechQueue() { speechTimeouts.forEach(t => clearTimeout(t)); speechTimeouts = []; }
         function playAudio(id){const a=document.getElementById(id);if(a){a.pause();a.currentTime=0;a.play().catch(e=>{});}}
         function playMultiHit(n){let count=n>10?10:n;let i=0;function l(){if(i<count){playAudio('snd-hit');i++;setTimeout(l,300);}}l();}
-        function speak(t){const e=document.getElementById('sr-announcer');e.textContent='';setTimeout(()=>{e.textContent=t;},50);}
+        function speak(t){
+            if(!t) return;
+            const e=document.getElementById('sr-announcer');
+            // Turbo speech: no clearing delay
+            e.textContent = '';
+            // Force redraw trick if text is repeated
+            e.style.display='none'; e.offsetHeight; e.style.display='block';
+            e.textContent = t;
+        }
         function speakChat(t){const e=document.getElementById('sr-chat');e.textContent=t;}
         function showFlashMessage(msg,type){
             const ov=document.getElementById('flash-overlay'),txt=document.getElementById('flash-message');
@@ -338,9 +353,14 @@
         function askPrivacy(){
             const nm=document.getElementById('inp-name').value.trim();
             if(!nm) return speak("Inserisci nome.");
+            
             const dialog = document.getElementById('privacy-dialog');
             dialog.classList.remove('hidden');
-            setTimeout(() => { const firstBtn = dialog.querySelector('button'); if(firstBtn) firstBtn.focus(); speak("Scegli il tipo di stanza."); }, 100);
+            setTimeout(() => {
+                const firstBtn = dialog.querySelector('button');
+                if(firstBtn) firstBtn.focus();
+                speak("Scegli il tipo di stanza.");
+            }, 100);
         }
 
         async function createRoomFinal(isPublic){
@@ -793,10 +813,11 @@
             let n = navWordIdx + d;
             if (n < 0) n = 0; else if (n >= parsedBoard.length) n = parsedBoard.length - 1;
             if(n !== navWordIdx) {
-                document.getElementById('mobile-word-slider').value = n;
-                navWordIdx = n; navCharIdx = 0; highlightNav();
-                
                 // PC BEHAVIOR: ONLY SUMMARY (NO RHYTHM)
+                navWordIdx = n; navCharIdx = 0; 
+                document.getElementById('mobile-word-slider').value = n;
+                highlightNav();
+                
                 let w = parsedBoard[n];
                 let letterCount = w.chars.filter(c => c.isLetter).length;
                 let simpleText = `Parola ${n+1}, ${letterCount} lettere. `;

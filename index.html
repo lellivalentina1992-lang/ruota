@@ -933,7 +933,7 @@
                 let text = `${c}, ${NATO[c]||''}`;
                 let t = setTimeout(() => speak(text), delay);
                 speechTimeouts.push(t);
-                delay += 1300; // 1.3 secondi tra una lettera e l'altra
+                delay += 600; // 1.3 secondi tra una lettera e l'altra
             });
         }
 

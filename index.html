@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>La Ruota - V45 Complete</title>
+    <title>La Ruota - V46 Focus Fix</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@700&display=swap" rel="stylesheet">
     <style>
@@ -40,7 +40,7 @@
         #live-category { color: var(--col-neon); font-size: 1.8em; margin: 0; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 0 10px var(--col-neon); }
         #round-hint { color: #fff; font-size: 1.2em; font-weight: normal; margin: 5px 0; opacity: 0.8; }
 
-        /* SCANNER BAR (Il Navigatore mimetizzato) */
+        /* SCANNER BAR */
         .scanner-wrapper {
             position: relative; width: 95%; height: 60px; margin: 10px auto;
             background: #111; border: 2px solid #333; border-radius: 8px;
@@ -347,7 +347,22 @@
         function setBtnState(id,d){const b=document.getElementById(id);if(!b)return;if(d){b.disabled=true; b.style.opacity=0.5; b.setAttribute('aria-disabled','true');}else{b.disabled=false; b.style.opacity=1; b.setAttribute('aria-disabled','false');}}
         function isBtnDisabled(id){return document.getElementById(id).getAttribute('aria-disabled')==='true';}
 
-        function askPrivacy(){const nm=document.getElementById('inp-name').value.trim();if(!nm)return speak("Inserisci nome.");document.getElementById('privacy-dialog').classList.remove('hidden');}
+        // Setup with Focus Fix
+        function askPrivacy(){
+            const nm=document.getElementById('inp-name').value.trim();
+            if(!nm) return speak("Inserisci nome.");
+            
+            const dialog = document.getElementById('privacy-dialog');
+            dialog.classList.remove('hidden');
+            
+            // FOCUS FIX: Sposta il focus sul primo bottone dentro il dialogo
+            setTimeout(() => {
+                const firstBtn = dialog.querySelector('button');
+                if(firstBtn) firstBtn.focus();
+                speak("Scegli il tipo di stanza.");
+            }, 100);
+        }
+
         async function createRoomFinal(isPublic){
             document.getElementById('privacy-dialog').classList.add('hidden');
             let cd=document.getElementById('inp-code').value.trim().toUpperCase();
@@ -406,6 +421,7 @@
 
         async function fetchFullState(){if(isFetching)return;isFetching=true;const{data:s}=await supabase.from('stanze').select('*,frasi(*),giocatori(*)').eq('id',roomId).maybeSingle();isFetching=false;if(s)updateUI(s);}
 
+        // Logic
         async function togglePause() {
             if(!isHost) return;
             const newState = !currentStanza.in_pausa;
@@ -757,7 +773,6 @@
                     const d=document.createElement('div'); d.className='tile'+(isL&&!isR?' empty':'')+(isL?'':' punct');
                     if(isL&&isR)d.classList.add('revealed');
                     
-                    // Solo Visuale
                     if(isL && !isR) d.textContent = '';
                     else d.textContent = ch;
                     

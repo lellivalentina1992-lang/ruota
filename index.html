@@ -1356,11 +1356,16 @@
             document.getElementById('help-panel').classList.add('hidden');
         }
 
-        function readRevealedLetters() {
+
+function readRevealedLetters() {
+            // 1. Pulisce la coda audio precedente
             clearSpeechQueue(); 
             if (spellingTimer) clearTimeout(spellingTimer);
             
+            // 2. Controlli di sicurezza
             if (!currentStanza || !currentStanza.lettere_rivelate) return speak("Nessuna lettera.");
+            
+            // 3. Calcolo delle lettere uscite
             const sol = currentPuzzleText.toUpperCase(); 
             let revSet = new Set();
             let gIdx = 0;
@@ -1375,13 +1380,28 @@
             const arr = Array.from(revSet).sort();
             if (arr.length === 0) return speak("Nessuna lettera presente scoperta.");
             
-            let message = "Lettere uscite: ";
-            arr.forEach(c => {
-                message += `${c}, ${NATO[c]||''}. `;
-            });
+            // 4. Annuncio iniziale
+            speak("Lettere uscite:"); 
             
-            speak(message);
+            // 5. Impostazione dei tempi (MEZZO SECONDO)
+            let delay = 500; // Pausa iniziale
+            const step = 500; // 500ms = mezzo secondo di pausa tra le lettere
+            
+            arr.forEach(c => {
+                const textToSay = `${c}, ${NATO[c]||''}.`;
+                
+                let t = setTimeout(() => {
+                    const e = document.getElementById('sr-announcer');
+                    e.textContent = ''; 
+                    setTimeout(() => { e.textContent = textToSay; }, 50);
+                }, delay);
+                
+                speechTimeouts.push(t);
+                
+                delay += step; // Aggiunge mezzo secondo per la prossima lettera
+            });
         }
+
 
         function readAllScores() {
             if(!currentStanza || !currentStanza.giocatori) return;

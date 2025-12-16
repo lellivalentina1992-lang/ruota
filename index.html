@@ -145,7 +145,6 @@
     <button onclick="openActionHistory(true)" style="background:transparent; border:1px solid #555; color:#888; padding:5px 10px; border-radius:5px; font-size:0.8em;">Storico (A)</button>
   </div>
 
-  <!-- Audio base -->
   <audio id="snd-spin" src="ruota.wav"></audio>
   <audio id="snd-hit" src="lettera presente.wav"></audio>
   <audio id="snd-miss" src="lettera assente.wav"></audio>
@@ -153,7 +152,6 @@
   <audio id="snd-bankrupt" src="bancarotta.mp3"></audio>
   <audio id="snd-win" src="vittoria.mp3"></audio>
 
-  <!-- Extra audio + pannello -->
   <audio id="snd-clap" src="applausi.mp3"></audio>
   <audio id="snd-laugh" src="risata.mp3"></audio>
   <audio id="snd-boo" src="buuu.mp3"></audio>
@@ -173,11 +171,11 @@
     <input id="inp-name" type="text" placeholder="NOME GIOCATORE"><br>
     <input id="inp-code" type="text" placeholder="CODICE STANZA (OPZ)"><br>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; width:100%;">
-      <button onclick="askPrivacy()" class="action-btn btn-spin">CREA NUOVA</button>
-      <button onclick="joinGame(false)" class="action-btn btn-vowel">ENTRA</button>
+      <button id="btn-create-room" class="action-btn btn-spin">CREA NUOVA</button>
+      <button id="btn-join-room" class="action-btn btn-vowel">ENTRA</button>
     </div>
     <div id="public-rooms-container" style="width:100%; margin-top:30px;">
-      <button onclick="fetchPublicRooms()" class="action-btn" style="padding:10px;">AGGIORNA LISTA STANZE</button>
+      <button id="btn-refresh-rooms" class="action-btn" style="padding:10px;">AGGIORNA LISTA STANZE</button>
       <div id="rooms-list" style="width:100%; padding:10px; color:#aaa;"></div>
     </div>
   </div>
@@ -207,7 +205,6 @@
       <div id="jolly-indicator" class="hidden" style="color:#ff00ff; font-weight:bold; margin-top:5px; font-size:1.1em; text-shadow:0 0 5px #ff00ff;"></div>
       <div id="double-indicator" class="hidden" style="color:orange; font-weight:bold; margin-top:5px; font-size:1.1em; text-shadow:0 0 5px red; border:1px solid red; padding:2px;">RADDOPPIA ATTIVO! GIRA ANCORA!</div>
     
-    <!-- NAV RAPIDA (solo Vista Testo) -->
     <div class="acc-nav" role="navigation" aria-label="Salti rapidi">
       <button class="action-btn" onclick="jumpToSection('hdr-actions')">VAI AI COMANDI</button>
       <button class="action-btn" onclick="jumpToSection('hdr-board')">VAI AL TABELLONE</button>
@@ -238,12 +235,10 @@
 
     <h2 class="section-header" id="board-section" tabindex="-1">Tabellone</h2>
 
-    <!-- Board Visuale -->
     <div class="board-wrapper">
       <div id="board-container" role="grid" aria-label="Tabellone di gioco" aria-live="polite"></div>
     </div>
 
-    <!-- Board Accessibile (testo) -->
     <div id="accessible-board-container" aria-label="Tabellone testuale">
       <div id="acc-board-summary"></div>
       <div id="acc-word-list"></div>
@@ -393,7 +388,15 @@
   <script>
     const SUPABASE_URL = 'https://azcwkpdjbysnivknnino.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Y3drcGRqYnlzbml2a25uaW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MzAwNDksImV4cCI6MjA3OTIwNjA0OX0.R8wkMJEmsP8cTVUUOcWtD4Rrg_ZhuOE-PYBJ56eGqMU';
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    
+    // Initialize Supabase client
+    // FIX: Rinominato per evitare conflitto con window.supabase
+    let _supabase;
+    if (typeof window.supabase !== 'undefined') {
+      _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    } else {
+      console.error('Supabase library not loaded');
+    }
 
     const NATO = {
       'A':'Ancona','B':'Bologna','C':'Como','D':'Domodossola','E':'Empoli','F':'Firenze','G':'Genova','H':'Hotel','I':'Imola',
@@ -432,6 +435,20 @@
     let specialConsPerPlayer = 0; // Quante consonanti per giocatore
     let specialLastTurnTime = null; // Timestamp ultimo turno (per pulsante arrenditi)
 
+    // Setup event listeners when DOM is ready
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('btn-create-room')?.addEventListener('click', () => askPrivacy());
+      document.getElementById('btn-join-room')?.addEventListener('click', () => joinGame(false));
+      document.getElementById('btn-refresh-rooms')?.addEventListener('click', () => fetchPublicRooms());
+
+      // FIX: INVIO nel campo input
+      document.getElementById('game-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            submitInput();
+        }
+      });
+    });
 
     function clearSpeechQueue(){ speechTimeouts.forEach(t=>clearTimeout(t)); speechTimeouts=[]; }
     function speak(t){
@@ -451,6 +468,17 @@
       const a=document.getElementById(id);
       if(a){ a.pause(); a.currentTime=0; a.play().catch(()=>{}); }
     }
+    
+    // FIX: Funzione per riprodurre suoni multipli
+    function playMultipleHits(count) {
+        let i = 0;
+        const interval = setInterval(() => {
+            playAudio('snd-hit');
+            i++;
+            if (i >= count) clearInterval(interval);
+        }, 300); // 300ms delay tra i suoni
+    }
+
     function toggleMute(){
       isMuted=!isMuted;
       document.getElementById('btn-mute').textContent = isMuted ? '🔇' : '🔊';
@@ -681,7 +709,7 @@
     async function togglePause() {
       if(!isHost) return;
       const newState = !currentStanza.in_pausa;
-      await supabase
+      await _supabase
         .from('stanze')
         .update({
           in_pausa: newState,
@@ -695,7 +723,7 @@
     async function preResumeCheck() {
       if(!isHost) return;
       
-      const { data: pl } = await supabase
+      const { data: pl } = await _supabase
         .from('giocatori')
         .select('*')
         .eq('stanza_id', roomId)
@@ -715,7 +743,7 @@
         delBtn.style = "padding:8px 15px;font-size:.9em;background:red;border:none;min-height:auto;";
         delBtn.onclick = async () => {
           if(confirm("Eliminare " + p.nome + "?")) {
-            await supabase.from('giocatori').delete().eq('id', p.id);
+            await _supabase.from('giocatori').delete().eq('id', p.id);
             row.remove();
           }
         };
@@ -958,7 +986,7 @@
     }
     async function fetchPublicRooms(){
       const l=document.getElementById('rooms-list'); l.innerHTML="Cerco...";
-      const {data:s}=await supabase.from('stanze').select('codice,stato').eq('is_public',true).neq('stato','terminata').limit(10);
+      const {data:s}=await _supabase.from('stanze').select('codice,stato').eq('is_public',true).neq('stato','terminata').limit(10);
       if(!s||!s.length){ l.innerHTML="Nessuna stanza."; return; }
       l.innerHTML="";
       s.forEach(r=>{
@@ -977,9 +1005,9 @@
       try{
         let st;
         if(cr){
-          const {data:fr}=await supabase.from('frasi').select('id').neq('categoria','SITUAZIONI QUOTIDIANE').limit(100);
+          const {data:fr}=await _supabase.from('frasi').select('id').neq('categoria','SITUAZIONI QUOTIDIANE').limit(100);
           const rid=fr[Math.floor(Math.random()*fr.length)].id;
-          const {data}=await supabase.from('stanze').insert({
+          const {data}=await _supabase.from('stanze').insert({
             codice:cd, 
             frase_corrente_id:rid, 
             is_public:isPublic, 
@@ -994,18 +1022,18 @@
           }).select().single();
           st=data;
         } else {
-          const {data}=await supabase.from('stanze').select('*').eq('codice',cd).single();
+          const {data}=await _supabase.from('stanze').select('*').eq('codice',cd).single();
           if(!data) return speak("Stanza inesistente");
           st=data;
         }
         roomId=st.id;
 
-        const {data:exist}=await supabase.from('giocatori').select('*').eq('stanza_id',roomId).eq('nome',nm).maybeSingle();
+        const {data:exist}=await _supabase.from('giocatori').select('*').eq('stanza_id',roomId).eq('nome',nm).maybeSingle();
         if(exist){ myId=exist.id; myIndex=exist.indice; isHost=exist.is_host; }
         else{
-          const {data:mx}=await supabase.from('giocatori').select('indice').eq('stanza_id',roomId).order('indice',{ascending:false}).limit(1).maybeSingle();
+          const {data:mx}=await _supabase.from('giocatori').select('indice').eq('stanza_id',roomId).order('indice',{ascending:false}).limit(1).maybeSingle();
           myIndex=(mx)?mx.indice+1:0; isHost=(myIndex===0);
-          const {data:pl}=await supabase.from('giocatori').insert({stanza_id:roomId,nome:nm,indice:myIndex,is_host:isHost}).select().single();
+          const {data:pl}=await _supabase.from('giocatori').insert({stanza_id:roomId,nome:nm,indice:myIndex,is_host:isHost}).select().single();
           myId=pl.id;
         }
 
@@ -1015,8 +1043,8 @@
         document.getElementById('host-controls-area').classList.toggle('hidden', !isHost);
         document.getElementById('btn-resume-host').classList.toggle('hidden', !isHost);
 
-        supabase.channel('game').on('postgres_changes',{event:'UPDATE',schema:'public',table:'stanze',filter:`id=eq.${roomId}`},fetchFullState).subscribe();
-        supabase.channel('chat').on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_messaggi',filter:`stanza_id=eq.${roomId}`},payload=>{
+        _supabase.channel('game').on('postgres_changes',{event:'UPDATE',schema:'public',table:'stanze',filter:`id=eq.${roomId}`},fetchFullState).subscribe();
+        _supabase.channel('chat').on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_messaggi',filter:`stanza_id=eq.${roomId}`},payload=>{
           if(payload.new.giocatore_nome !== nm) speakChat(`${payload.new.giocatore_nome} scrive, ${payload.new.messaggio}`);
           fetchChat();
         }).subscribe();
@@ -1031,7 +1059,7 @@
 
     async function fetchFullState(){
       if(isFetching) return; isFetching=true;
-      const {data:s}=await supabase.from('stanze').select('*,frasi(*),giocatori(*)').eq('id',roomId).maybeSingle();
+      const {data:s}=await _supabase.from('stanze').select('*,frasi(*),giocatori(*)').eq('id',roomId).maybeSingle();
       isFetching=false;
       if(s) updateUI(s);
     }
@@ -1049,7 +1077,7 @@
     function hasActiveJolly(me, stanza){
       return !!(me && typeof me.scadenza_jolly === 'number' && me.scadenza_jolly >= stanza.round_giocati);
     }
-    async function consumeJolly(){ await supabase.from('giocatori').update({scadenza_jolly:0}).eq('id', myId); }
+    async function consumeJolly(){ await _supabase.from('giocatori').update({scadenza_jolly:0}).eq('id', myId); }
 
     async function tryUseJollyToAvoid(kindLabel){
       const s=currentStanza;
@@ -1060,7 +1088,7 @@
       if(!ok) return false;
 
       await consumeJolly();
-      await supabase.from('stanze').update({
+      await _supabase.from('stanze').update({
         montepremi_round:0,
         fase_speciale:0,
         ultima_azione:'jolly',
@@ -1209,7 +1237,14 @@
         addActionToHistory(s.ultimo_messaggio || s.ultima_azione || "Azione");
         if(s.ultima_azione==='errore') playAudio('snd-miss');
         else if(s.ultima_azione==='gira_ruota' && (s.ultimo_messaggio||"").includes("BANCAROTTA")) playAudio('snd-bankrupt');
-        else if(s.ultima_azione==='chiama_lettera') playAudio('snd-hit');
+        
+        // FIX: Suono multiplo per lettere trovate
+        else if(s.ultima_azione==='chiama_lettera') {
+            const match = (s.ultimo_messaggio || "").match(/Trovate (\d+)/);
+            const count = match ? parseInt(match[1]) : 1;
+            playMultipleHits(count);
+        }
+
         showFlashMessage(s.ultimo_messaggio, 'info');
         speak(s.ultimo_messaggio);
       }
@@ -1282,8 +1317,8 @@
         if(saved) return;
 
         // bancarotta: azzera round e totale
-        await supabase.from('giocatori').update({punteggio_round:0, punteggio_totale:0}).eq('id', myId);
-        await supabase.from('stanze').update({fase_speciale:0}).eq('id', roomId);
+        await _supabase.from('giocatori').update({punteggio_round:0, punteggio_totale:0}).eq('id', myId);
+        await _supabase.from('stanze').update({fase_speciale:0}).eq('id', roomId);
         passTurn();
         return;
       }
@@ -1294,7 +1329,7 @@
         const saved=await tryUseJollyToAvoid(label);
         if(saved) return;
 
-        await supabase.from('stanze').update({fase_speciale:0}).eq('id', roomId);
+        await _supabase.from('stanze').update({fase_speciale:0}).eq('id', roomId);
         passTurn();
         return;
       }
@@ -1315,7 +1350,7 @@
         }
       } else if(val==='+1000'){
         // +1000 solo mistero (qui è già possibile solo se estratto dal mistero)
-        await supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)+1000}).eq('id', myId);
+        await _supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)+1000}).eq('id', myId);
         finalPrize=0;
         msg=`${myName} becca +1000€! Gira ancora!`;
         nextFaseSpeciale=0;
@@ -1326,14 +1361,14 @@
       } else if(val==='JOLLY'){
         const startR=currentStanza.round_giocati;
         const endR=startR + 4;
-        await supabase.from('giocatori').update({scadenza_jolly:endR}).eq('id', myId);
+        await _supabase.from('giocatori').update({scadenza_jolly:endR}).eq('id', myId);
         finalPrize=0;
         msg=`${myName} pesca il JOLLY! Valido fino al round ${endR}`;
         nextFaseSpeciale=0;
       }
 
       isSpinning=false;
-      await supabase.from('stanze').update({
+      await _supabase.from('stanze').update({
         montepremi_round:finalPrize,
         fase_speciale:nextFaseSpeciale,
         ultima_azione:'gira_ruota',
@@ -1350,7 +1385,7 @@
       let currIdx=s.giocatori.findIndex(p=>p.indice===s.id_giocatore_corrente);
       let nextInd=s.giocatori[(currIdx+1)%s.giocatori.length].indice;
 
-      supabase.from('stanze').update({
+      _supabase.from('stanze').update({
         id_giocatore_corrente:nextInd,
         montepremi_round:0,
         fase_speciale:0,
@@ -1388,11 +1423,11 @@
       if(mode==='solve'){
         if(cleanStr(txt)===cleanStr(currentPuzzleText)){
           const me=s.giocatori.find(p=>p.id===myId);
-          await supabase.from('giocatori').update({
+          await _supabase.from('giocatori').update({
             punteggio_totale:(me.punteggio_totale||0)+(me.punteggio_round||0)+1000,
             punteggio_round:0
           }).eq('id', myId);
-          await supabase.from('stanze').update({
+          await _supabase.from('stanze').update({
             stato:'finito',
             ultima_azione:'vittoria',
             ultimo_messaggio:`${myName} HA VINTO!`,
@@ -1411,7 +1446,7 @@
           vowelsBoughtThisTurn++;
           const cost=getVowelCost();
           const me=s.giocatori.find(p=>p.id===myId);
-          await supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)-cost}).eq('id', myId);
+          await _supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)-cost}).eq('id', myId);
         }
 
         if(mode==='letter') vowelsBoughtThisTurn=0;
@@ -1430,9 +1465,9 @@
           if(mode==='letter'){
             const me=s.giocatori.find(p=>p.id===myId);
             const gain = (s.fase_speciale===3) ? (s.montepremi_round||0) : ((s.montepremi_round||0) * foundIndices.length);
-            await supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)+gain}).eq('id', myId);
+            await _supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)+gain}).eq('id', myId);
           }
-          await supabase.from('stanze').update({
+          await _supabase.from('stanze').update({
             lettere_rivelate:newRev,
             montepremi_round:0,
             fase_speciale:0,
@@ -1441,7 +1476,7 @@
             azione_timestamp:new Date().toISOString()
           }).eq('id', roomId);
         } else {
-          await supabase.from('stanze').update({
+          await _supabase.from('stanze').update({
             ultima_azione:'errore',
             ultimo_messaggio:`${myName}: ${char} assente`,
             azione_timestamp:new Date().toISOString()
@@ -1463,7 +1498,7 @@
 
     // Chat più lunga
     async function fetchChat(){
-      const {data:msgs}=await supabase.from('chat_messaggi').select('*').eq('stanza_id', roomId).order('created_at',{ascending:true}).limit(50);
+      const {data:msgs}=await _supabase.from('chat_messaggi').select('*').eq('stanza_id', roomId).order('created_at',{ascending:true}).limit(50);
       if(!msgs) return;
       const c=document.getElementById('chat-messages'); c.innerHTML="";
       msgs.forEach(m=>{
@@ -1478,7 +1513,7 @@
     async function sendChatMessage(){
       const t=document.getElementById('chat-input').value.trim();
       if(!t) return;
-      await supabase.from('chat_messaggi').insert({stanza_id:roomId, giocatore_nome:document.getElementById('inp-name').value, messaggio:t});
+      await _supabase.from('chat_messaggi').insert({stanza_id:roomId, giocatore_nome:document.getElementById('inp-name').value, messaggio:t});
       document.getElementById('chat-input').value="";
       fetchChat();
     }
@@ -1486,11 +1521,11 @@
     async function startNewRound(){
       if(!isHost) return;
       let n=currentStanza.round_giocati + 1;
-      if(n>10){ await supabase.from('stanze').update({stato:'terminata'}).eq('id', roomId); return; }
-      const {data:fr}=await supabase.from('frasi').select('id').neq('categoria','SITUAZIONI QUOTIDIANE');
+      if(n>10){ await _supabase.from('stanze').update({stato:'terminata'}).eq('id', roomId); return; }
+      const {data:fr}=await _supabase.from('frasi').select('id').neq('categoria','SITUAZIONI QUOTIDIANE');
       const rid=fr[Math.floor(Math.random()*fr.length)].id;
-      await supabase.from('giocatori').update({punteggio_round:0}).eq('stanza_id', roomId);
-      await supabase.from('stanze').update({
+      await _supabase.from('giocatori').update({punteggio_round:0}).eq('stanza_id', roomId);
+      await _supabase.from('stanze').update({
         frase_corrente_id:rid,
         stato:'gioco',
         round_giocati:n,
@@ -1504,16 +1539,16 @@
     }
 
     async function leaveGame(){
-      if(roomId && myId && !isHost) await supabase.from('giocatori').delete().eq('id', myId);
+      if(roomId && myId && !isHost) await _supabase.from('giocatori').delete().eq('id', myId);
       else if(roomId && isHost) await closeRoom();
       location.reload();
     }
-    async function closeRoom(){ await supabase.from('stanze').delete().eq('id', roomId); location.reload(); }
+    async function closeRoom(){ await _supabase.from('stanze').delete().eq('id', roomId); location.reload(); }
     
     async function surrenderPhrase(){
       if(!isHost) return;
       if(confirm("Arrenditi e rivela la soluzione?")){
-        await supabase.from('stanze').update({
+        await _supabase.from('stanze').update({
           stato:'finito',
           ultima_azione:'arresa',
           ultimo_messaggio:'HOST SI È ARRESO - Soluzione rivelata',
@@ -1524,8 +1559,8 @@
     
     async function resetGame(){
       if(confirm("Reset partita?")){
-        await supabase.from('giocatori').update({punteggio_totale:0, punteggio_round:0}).eq('stanza_id', roomId);
-        await supabase.from('stanze').update({round_giocati:0}).eq('id', roomId);
+        await _supabase.from('giocatori').update({punteggio_totale:0, punteggio_round:0}).eq('stanza_id', roomId);
+        await _supabase.from('stanze').update({round_giocati:0}).eq('id', roomId);
         startNewRound();
       }
     }

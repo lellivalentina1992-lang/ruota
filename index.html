@@ -62,6 +62,8 @@
     @keyframes popIn{from{transform:scale(0);}to{transform:scale(1);}}
 
     #accessible-board-container{display:none;width:98%;margin:0 auto;text-align:left;}
+    #acc-board-summary{background:#111;color:#aaa;padding:10px;margin-bottom:10px;border:1px solid #333;border-radius:8px;font-size:1em;}
+    #acc-word-list{display:flex;flex-direction:column;gap:5px;}
     .acc-word-btn{display:flex;justify-content:space-between;width:100%;background:#222;border:1px solid #555;color:#fff;padding:15px;margin-bottom:8px;border-radius:8px;font-size:1.3em;font-family:monospace;letter-spacing:1px;cursor:pointer;}
     body.accessible-mode #board-container{display:none;}
     body.accessible-mode #accessible-board-container{display:block;}
@@ -103,10 +105,17 @@
     #audio-panel .label{color:#777;font-size:.85em;margin-right:6px;}
 
     /* Modali */
-    #input-area, #privacy-dialog, #chat-overlay, #player-check-overlay, #round-over-panel, #end-panel, #pause-panel, #help-panel, #action-history-panel, #mystery-choice-overlay {
+    #input-area, #privacy-dialog, #chat-overlay, #player-check-overlay, #round-over-panel, #end-panel, #pause-panel, #help-panel, #action-history-panel, #mystery-choice-overlay, #word-inspector-overlay {
       position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.95);z-index:3000;
       display:flex;flex-direction:column;justify-content:center;align-items:center;overflow-y:auto;
     }
+    #inspector-letters-container{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:20px 0;}
+    .inspector-tile{width:50px;height:70px;display:flex;align-items:center;justify-content:center;font-size:2em;font-weight:bold;background:#fff;color:#000;border-radius:8px;box-shadow:0 4px 8px rgba(0,0,0,.5);}
+    .inspector-tile.empty{background:#333;color:#777;}
+    .inspector-char-btn{display:flex;flex-direction:column;align-items:center;gap:5px;padding:15px;background:#222;border:2px solid #555;border-radius:8px;cursor:pointer;transition:all .2s;}
+    .inspector-char-btn:hover,.inspector-char-btn:focus{background:#333;border-color:var(--col-neon);transform:scale(1.05);}
+    .inspector-char-btn span{font-size:0.9em;color:#888;}
+    .inspector-char-btn strong{font-size:2em;color:var(--col-accent);}
     .modal-content{background:#222;border:2px solid var(--col-neon);padding:20px;width:90%;max-width:500px;border-radius:15px;text-align:center;box-shadow:0 0 30px rgba(0,255,255,.2);}
     input[type=text]{font-size:2em;padding:10px;text-align:center;width:90%;background:#000;color:#fff;border:2px solid #555;border-radius:8px;margin-bottom:20px;font-family:var(--font-main);text-transform:uppercase;}
 
@@ -149,6 +158,7 @@
   <audio id="snd-laugh" src="risata.mp3"></audio>
   <audio id="snd-boo" src="buuu.mp3"></audio>
   <audio id="snd-ooh" src="peccato.mp3"></audio>
+  <audio id="snd-drum" src="drum.mp3"></audio>
 
   <div id="audio-panel">
     <span class="label">AUDIO:</span>
@@ -236,7 +246,10 @@
     </div>
 
     <!-- Board Accessibile (testo) -->
-    <div id="accessible-board-container" aria-label="Tabellone testuale"></div>
+    <div id="accessible-board-container" aria-label="Tabellone testuale">
+      <div id="acc-board-summary"></div>
+      <div id="acc-word-list"></div>
+    </div>
 
     
 
@@ -254,10 +267,11 @@
 
     <div id="host-controls-area" class="hidden" style="width:90%; margin-top:20px; border-top:1px solid #333; padding-top:10px;">
       <p style="color:#555; font-size:0.8em;">HOST</p>
-      <div style="display:flex; gap:10px; justify-content:center;">
+      <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
         <button onclick="resetGame()" class="action-btn" style="font-size:0.8em; padding:10px; border-color:blue;">RESET</button>
         <button onclick="closeRoom()" class="action-btn" style="font-size:0.8em; padding:10px; border-color:red;">CHIUDI</button>
         <button onclick="togglePause()" class="action-btn" style="font-size:0.8em; padding:10px; border-color:orange;">PAUSA</button>
+        <button id="btn-surrender" onclick="surrenderPhrase()" class="action-btn hidden" style="font-size:0.8em; padding:10px; border-color:purple;">ARRÈNDITI</button>
       </div>
     </div>
   </div>
@@ -324,6 +338,14 @@
         <button id="btn-mystery-500" class="action-btn btn-vowel" onclick="chooseMystery(false)">PRENDI 500€ IN PALIO</button>
       </div>
       <button onclick="chooseMystery(false)" style="margin-top:10px; background:none; border:none; color:#aaa;">ANNULLA (ESC)</button>
+    </div>
+  </div>
+
+  <div id="word-inspector-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="inspector-title">
+    <div class="modal-content">
+      <h2 id="inspector-title" style="color:var(--col-neon);">ISPEZIONA PAROLA</h2>
+      <div id="inspector-letters-container" style="margin:20px 0;"></div>
+      <button onclick="closeWordInspector()" class="action-btn full-width">CHIUDI (ESC)</button>
     </div>
   </div>
 
@@ -713,6 +735,11 @@
       await togglePause();
     }
 
+    function closePlayerCheckOverlay(){
+      document.getElementById('player-check-overlay').classList.add('hidden');
+      speak("Rimaniamo in pausa.");
+    }
+
     function readAllScores(){
       if(!currentStanza) return;
       let txt="Classifica: ";
@@ -955,8 +982,17 @@
           const {data:fr}=await supabase.from('frasi').select('id').neq('categoria','SITUAZIONI QUOTIDIANE').limit(100);
           const rid=fr[Math.floor(Math.random()*fr.length)].id;
           const {data}=await supabase.from('stanze').insert({
-            codice:cd, frase_corrente_id:rid, is_public:isPublic, round_giocati:1, fase_speciale:0,
-            ultima_azione:'creazione', azione_timestamp:new Date().toISOString()
+            codice:cd, 
+            frase_corrente_id:rid, 
+            is_public:isPublic, 
+            round_giocati:1, 
+            fase_speciale:0,
+            stato:'gioco',
+            in_pausa:false,
+            montepremi_round:0,
+            lettere_rivelate:[],
+            ultima_azione:'creazione', 
+            azione_timestamp:new Date().toISOString()
           }).select().single();
           st=data;
         } else {
@@ -1009,22 +1045,6 @@
       if(len<=50) return 500;
       if(len<=80) return 1000;
       return 2000;
-    }
-
-    async function preResumeCheck(){
-      const {data:pl}=await supabase.from('giocatori').select('nome').eq('stanza_id',roomId);
-      const list=document.getElementById('player-check-list');
-      list.innerHTML="<strong>Giocatori:</strong><br>"+pl.map(p=>p.nome).join('<br>');
-      document.getElementById('player-check-overlay').classList.remove('hidden');
-    }
-    async function confirmResumeGame(){
-      document.getElementById('player-check-overlay').classList.add('hidden');
-      await togglePause();
-    }
-
-    function closePlayerCheckOverlay(){
-      document.getElementById('player-check-overlay').classList.add('hidden');
-      speak("Rimaniamo in pausa.");
     }
 
     // JOLLY: 5 round incluso => scadenza = round + 4
@@ -1163,15 +1183,17 @@
       document.getElementById('btn-manual-cons').classList.add('hidden'); // Round speciali rimossi
       
       // Pulsante ARRENDITI (solo host, fase 3, dopo che scade ultimo timer)
-      const showSurrender = isHost && 
-                           s.fase_speciale === 1 && 
-                           (s.special_phase === 3) &&
-                           s.azione_timestamp &&
-                           (new Date().getTime() - new Date(s.azione_timestamp).getTime()) > TURN_LIMIT_SEC * 1000;
-      document.getElementById('btn-surrender').classList.toggle('hidden', !showSurrender);
+      const btnSurrender = document.getElementById('btn-surrender');
+      if(btnSurrender) {
+        const showSurrender = isHost && 
+                             s.fase_speciale === 3 &&
+                             s.azione_timestamp &&
+                             (new Date().getTime() - new Date(s.azione_timestamp).getTime()) > TURN_LIMIT_SEC * 1000;
+        btnSurrender.classList.toggle('hidden', !showSurrender);
+      }
       if(canManual && !inputMode) openInput('letter');
 
-      renderBoard(currentPuzzleText, s.lettere_rivelate);
+      parseAndRenderBoard(currentPuzzleText, s.lettere_rivelate);
       if(isAccessibleMode) updateAccessibleBoard();
 
       if(me){
@@ -1342,6 +1364,7 @@
 
     function openInput(mode){
       inputMode=mode;
+      lastInputMode=mode;  // Fix: Save last input mode for space shortcut
       document.getElementById('input-area').classList.remove('hidden');
       const inp=document.getElementById('game-input'); inp.value='';
       if(mode==='solve') speak("Scrivi la soluzione completa.");
@@ -1488,16 +1511,25 @@
       location.reload();
     }
     async function closeRoom(){ await supabase.from('stanze').delete().eq('id', roomId); location.reload(); }
+    
+    async function surrenderPhrase(){
+      if(!isHost) return;
+      if(confirm("Arrenditi e rivela la soluzione?")){
+        await supabase.from('stanze').update({
+          stato:'finito',
+          ultima_azione:'arresa',
+          ultimo_messaggio:'HOST SI È ARRESO - Soluzione rivelata',
+          azione_timestamp:new Date().toISOString()
+        }).eq('id', roomId);
+      }
+    }
+    
     async function resetGame(){
       if(confirm("Reset partita?")){
         await supabase.from('giocatori').update({punteggio_totale:0, punteggio_round:0}).eq('stanza_id', roomId);
         await supabase.from('stanze').update({round_giocati:0}).eq('id', roomId);
         startNewRound();
       }
-    }
-    async function togglePause(){
-      const ns=!currentStanza.in_pausa;
-      await supabase.from('stanze').update({in_pausa:ns, azione_timestamp:new Date().toISOString()}).eq('id', roomId);
     }
   </script>
 </body>

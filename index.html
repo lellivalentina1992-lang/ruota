@@ -49,12 +49,6 @@
     .btn-pass{background:#444;color:#aaa;}
     .btn-chat{background:#222;border:1px solid #444;color:#ccc;}
 
-    
-    .scanner-wrapper{position:relative;width:95%;height:60px;margin:10px auto;background:#111;border:2px solid #333;border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:inset 0 0 20px #000;}
-    .scanner-wrapper::before{content:'';position:absolute;top:0;left:0;width:100%;height:2px;background:var(--col-green);box-shadow:0 0 10px var(--col-green);animation:scan 2s infinite alternate;opacity:.5;}
-    @keyframes scan{from{top:0;}to{top:100%;}}
-    .scanner-label{position:absolute;color:#555;font-size:.9em;pointer-events:none;text-transform:uppercase;letter-spacing:1px;}
-    input[type=range].stealth-slider{position:absolute;width:100%;height:100%;opacity:0;cursor:pointer;margin:0;z-index:10;}
 
     .board-wrapper{order:2;width:100%;}
     #board-container{display:flex;flex-direction:column;align-items:center;gap:8px;padding:15px;margin:0;min-height:100px;background:rgba(0,50,0,.3);border:2px solid #004400;border-radius:15px;}
@@ -235,14 +229,15 @@
 
     <div id="wheel-status-text" tabindex="-1" style="font-size:1.2em;font-weight:bold;color:var(--col-green);margin:5px;"></div>
 
-    <h3 id="hdr-board" class="section-header" tabindex="-1">TABELLONE</h3>
+    <h2 class="section-header" id="board-section" tabindex="-1">Tabellone</h2>
+
+    <!-- Board Visuale -->
     <div class="board-wrapper">
-      <div id="board-container" aria-label="Tabellone grafico" aria-hidden="false"></div>
-      <div id="accessible-board-container" aria-label="Lista Parole">
-        <p id="acc-board-summary" style="color:var(--col-accent); margin-bottom:15px; text-align:center;"></p>
-        <div id="acc-word-list"></div>
-      </div>
+      <div id="board-container" aria-label="Tabellone di gioco"></div>
     </div>
+
+    <!-- Board Accessibile (testo) -->
+    <div id="accessible-board-container" aria-label="Tabellone testuale"></div>
 
     
 
@@ -541,9 +536,6 @@
       else if(n >= parsedBoard.length) n = parsedBoard.length - 1;
       
       if(n !== navWordIdx) {
-        const slider = document.getElementById('mobile-word-slider');
-        slider.value = n;
-        
         navWordIdx = n;
         navCharIdx = -1;
         
@@ -609,37 +601,7 @@
       speak(c.isLetter && !c.isRevealed ? "Asterisco" : (NATO[c.char] || c.char));
     }
 
-    function handleSliderNav(val) {
-      clearSpeechQueue();
-      if(spellingTimer) clearTimeout(spellingTimer);
-      
-      let n = parseInt(val);
-      if(n >= 0 && n < parsedBoard.length) {
-        navWordIdx = n;
-        navCharIdx = 0;
-        
-        highlightNav();
-        let w = parsedBoard[n];
-        let letterCount = w.chars.length;
-        
-        speak(`Parola ${n + 1}, ${letterCount} lettere.`);
-        
-        spellingTimer = setTimeout(() => {
-          let delay = 500;
-          speak("Spelling:");
-          w.chars.forEach(c => {
-            let textToSay = "";
-            if(c.isLetter && !c.isRevealed) textToSay = "Asterisco";
-            else if(c.isLetter && c.isRevealed) textToSay = (NATO[c.char] || c.char);
-            else textToSay = (NATO[c.char] || c.char);
-            
-            let t = setTimeout(() => speak(textToSay), delay);
-            speechTimeouts.push(t);
-            delay += 800;
-          });
-        }, 800);
-      }
-    }
+
 
     function openWordInspector() {
       if(!parsedBoard.length) return speak("Nessuna parola.");

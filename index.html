@@ -145,11 +145,10 @@
   <audio id="snd-win" src="vittoria.mp3"></audio>
 
   <!-- Extra audio + pannello -->
-  <audio id="snd-drum" src="drum.mp3"></audio>
-  <audio id="snd-clap" src="clap.mp3"></audio>
-  <audio id="snd-laugh" src="laugh.mp3"></audio>
-  <audio id="snd-boo" src="boo.mp3"></audio>
-  <audio id="snd-ooh" src="ooh.mp3"></audio>
+  <audio id="snd-clap" src="applausi.mp3"></audio>
+  <audio id="snd-laugh" src="risata.mp3"></audio>
+  <audio id="snd-boo" src="buuu.mp3"></audio>
+  <audio id="snd-ooh" src="peccato.mp3"></audio>
 
   <div id="audio-panel">
     <span class="label">AUDIO:</span>
@@ -233,7 +232,7 @@
 
     <!-- Board Visuale -->
     <div class="board-wrapper">
-      <div id="board-container" aria-label="Tabellone di gioco"></div>
+      <div id="board-container" role="grid" aria-label="Tabellone di gioco" aria-live="polite"></div>
     </div>
 
     <!-- Board Accessibile (testo) -->
@@ -747,6 +746,9 @@
 
     // Tasti rapidi: anche con CTRL
     window.addEventListener('keydown', e=>{
+      // Permetti SEMPRE il refresh del browser
+      if((e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'r') || e.key.toLowerCase() === 'f5') return;
+      
       if(inputMode) return;
       const k=e.key.toLowerCase();
       if(document.activeElement && document.activeElement.tagName==='INPUT') return;
@@ -764,9 +766,26 @@
         if(k==='escape'){ e.preventDefault(); chooseMystery(false); return; }
         if(k==='enter'){ e.preventDefault(); if(document.activeElement) document.activeElement.click(); return; }
         // Evita che altri tasti attivino azioni durante il modal
+        // MA permetti Ctrl+Shift+R per refresh e F5
+        if((e.ctrlKey && e.shiftKey && k === 'r') || k === 'f5') return;
         if(e.ctrlKey || /^[a-z]$/.test(k)) { e.preventDefault(); return; }
       }
 
+      // Gestione frecce per navigazione tabellone
+      if(k==='arrowup'){ e.preventDefault(); moveWordNav(-1); return; }
+      if(k==='arrowdown'){ e.preventDefault(); moveWordNav(1); return; }
+      if(k==='arrowleft'){ e.preventDefault(); moveNav(-1); return; }
+      if(k==='arrowright'){ e.preventDefault(); moveNav(1); return; }
+      if(k===' '){ e.preventDefault(); reopenLastInput(); return; }
+      if(k==='i'){ e.preventDefault(); openWordInspector(); return; }
+      if(k==='t'){ e.preventDefault(); readQuickInfo(); return; }
+      
+      // Effetti sonori
+      if(k==='1'){ playAudio('snd-clap'); return; }
+      if(k==='2'){ playAudio('snd-laugh'); return; }
+      if(k==='3'){ playAudio('snd-boo'); return; }
+      if(k==='4'){ playAudio('snd-ooh'); return; }
+      
       const hot=['h','g','v','p','r','k','s','l','a','escape'];
       if(hot.includes(k) && e.ctrlKey) e.preventDefault();
 

@@ -720,6 +720,81 @@
       speak(txt);
     }
 
+    // ===============================
+    // BOARD RENDERING
+    // ===============================
+    function parseAndRenderBoard(text, rev) {
+      rev = Array.isArray(rev) ? rev : [];
+      
+      const c = document.getElementById('board-container');
+      c.innerHTML = '';
+      parsedBoard = [];
+      let gI = 0;
+      
+      // Conta lettere totali e rivelate
+      let totalLetters = 0;
+      let revealedLetters = 0;
+      
+      text.toUpperCase().split(' ').forEach(wS => {
+        let wO = { str: wS, chars: [] };
+        const r = document.createElement('div');
+        r.className = 'board-row';
+        r.id = `row-${parsedBoard.length}`;
+        r.setAttribute('role', 'row');
+        r.setAttribute('aria-label', `Parola ${parsedBoard.length + 1}`);
+        
+        for(let j = 0; j < wS.length; j++) {
+          const ch = wS[j];
+          const isL = ch.match(/[A-ZÀ-Ù]/);
+          const isR = !isL || rev.includes(gI);
+          
+          wO.chars.push({ char: ch, isRevealed: isR, isLetter: !!isL });
+          
+          const d = document.createElement('div');
+          d.className = 'tile' + (isL && !isR ? ' empty' : '') + (isL ? '' : ' punct');
+          if(isL && isR) d.classList.add('revealed');
+          
+          // Testo visibile
+          if(isL && !isR) d.textContent = '';
+          else d.textContent = ch;
+          
+          // Aria-label per screen reader
+          if(isL && !isR) {
+            d.setAttribute('aria-label', 'Lettera nascosta');
+          } else if(isL && isR) {
+            const natoWord = NATO[ch] || ch;
+            d.setAttribute('aria-label', `${ch}, ${natoWord}`);
+          } else {
+            d.setAttribute('aria-label', NATO[ch] || ch);
+          }
+          
+          d.id = `tile-${parsedBoard.length}-${j}`;
+          d.setAttribute('tabindex', '-1');
+          r.appendChild(d);
+          
+          if(isL) {
+            gI++;
+            totalLetters++;
+            if(isR) revealedLetters++;
+          }
+        }
+        
+        c.appendChild(r);
+        parsedBoard.push(wO);
+      });
+      
+      // Annuncio vocale per screen reader
+      const numWords = parsedBoard.length;
+      const summary = `Tabellone: ${numWords} parole, ${totalLetters} lettere totali, ${revealedLetters} scoperte.`;
+      c.setAttribute('aria-label', summary);
+      
+      highlightNav();
+      
+      // Aggiorna board accessibile se attivo
+      if(isAccessibleMode) updateAccessibleBoard();
+    }
+
+
     window.addEventListener('keydown', (e)=>{
       const panel=document.getElementById('action-history-panel');
       const open = panel && !panel.classList.contains('hidden');
@@ -1037,6 +1112,7 @@
         document.getElementById('live-category').textContent=currentFrase.categoria;
         document.getElementById('round-hint').textContent=currentHintText;
         vowelsBoughtThisTurn=0;
+        parseAndRenderBoard(currentPuzzleText, s.lettere_rivelate);
         speak(`Nuovo Round. Categoria: ${currentFrase.categoria}. ${currentHintText}`);
       }
 

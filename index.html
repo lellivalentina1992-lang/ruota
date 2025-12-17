@@ -108,7 +108,7 @@
     #audio-panel .mutebtn{border-color:#777;background:#222;color:#ddd;}
     #audio-panel .label{color:#777;font-size:.85em;margin-right:6px;}
 
-    #input-area, #privacy-dialog, #chat-overlay, #player-check-overlay, #round-over-panel, #end-panel, #pause-panel, #help-panel, #action-history-panel, #mystery-choice-overlay, #word-inspector-overlay {
+    #input-area, #privacy-dialog, #chat-overlay, #player-check-overlay, #round-over-panel, #end-panel, #pause-panel, #help-panel, #players-panel, #action-history-panel, #mystery-choice-overlay, #word-inspector-overlay {
       position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
       width: 100vw !important; height: 100vh !important; background: rgba(0,0,0,0.96) !important; z-index: 9999 !important;
       display: flex; flex-direction: column; justify-content: center; align-items: center; overflow-y: hidden; backdrop-filter: blur(5px);
@@ -220,7 +220,7 @@
 
     <h2 class="section-header" id="board-section" tabindex="-1">Tabellone</h2>
     <div class="board-wrapper">
-      <div id="board-container" role="grid" aria-label="Tabellone di gioco" aria-live="polite"></div>
+      <div id="board-container" role="grid" aria-label="Tabellone di gioco"></div>
     </div>
     <div id="accessible-board-container" aria-label="Tabellone testuale">
       <div id="acc-board-summary"></div>
@@ -287,16 +287,28 @@
     <div class="modal-content" style="max-width:700px; text-align:left;">
       <h2 style="color:var(--col-neon);">TASTI RAPIDI</h2>
       <ul style="line-height:1.8; color:#ddd;">
-        <li><strong>G</strong>: Gira la ruota</li>
-        <li><strong>V</strong>: Compra vocale</li>
-        <li><strong>R</strong>: Risolvi</li>
-        <li><strong>P</strong>: Passa</li>
-        <li><strong>K</strong>: Chat</li>
-        <li><strong>S</strong>: Classifica</li>
-        <li><strong>B</strong>: Aggiungi Bot (Solo Host)</li>
+        <li><strong>G</strong> o <strong>Ctrl+G</strong>: Gira la ruota</li>
+        <li><strong>V</strong> o <strong>Ctrl+V</strong>: Compra vocale</li>
+        <li><strong>R</strong> o <strong>Ctrl+R</strong>: Risolvi</li>
+        <li><strong>P</strong> o <strong>Ctrl+P</strong>: Passa</li>
+        <li><strong>T</strong> o <strong>Ctrl+T</strong>: Di chi è il turno</li>
+        <li><strong>K</strong> o <strong>Ctrl+K</strong>: Chat</li>
+        <li><strong>S</strong> o <strong>Ctrl+S</strong>: Giocatori e Classifica</li>
+        <li><strong>L</strong> o <strong>Ctrl+L</strong>: Lettere uscite</li>
+        <li><strong>A</strong> o <strong>Ctrl+A</strong>: Storico azioni</li>
+        <li><strong>B</strong> o <strong>Ctrl+B</strong>: Aggiungi Bot (Solo Host)</li>
+        <li><strong>H</strong> o <strong>Ctrl+H</strong>: Aiuto</li>
         <li><strong>ESC</strong>: Chiudi finestre</li>
       </ul>
       <button onclick="closeHelp()" class="action-btn full-width">CHIUDI (ESC)</button>
+    </div>
+  </div>
+
+  <div id="players-panel" class="hidden" role="dialog">
+    <div class="modal-content" style="max-width:700px; text-align:left;">
+      <h2 style="color:var(--col-neon);">GIOCATORI E CLASSIFICA</h2>
+      <div id="players-list" style="margin:20px 0;"></div>
+      <button onclick="closePlayers()" class="action-btn full-width">CHIUDI (ESC)</button>
     </div>
   </div>
 
@@ -725,6 +737,73 @@
       speak("Rimaniamo in pausa.");
     }
 
+    function announceTurn(){
+      if(!currentStanza) return;
+      const currentPlayer = currentStanza.giocatori.find(p=>p.indice===currentStanza.id_giocatore_corrente);
+      const isMe = (currentStanza.id_giocatore_corrente === myIndex);
+      const msg = isMe ? "È il tuo turno!" : `Turno di ${currentPlayer?.nome || 'sconosciuto'}`;
+      speak(msg);
+    }
+
+    function openPlayersPanel(){
+      if(!currentStanza) return;
+      document.getElementById('players-panel').classList.remove('hidden');
+      
+      const list = document.getElementById('players-list');
+      list.innerHTML = '<h3 style="color:var(--col-accent); margin-bottom:15px;">CLASSIFICA</h3>';
+      
+      // Classifica ordinata per punteggio
+      const sorted = [...currentStanza.giocatori].sort((a,b) => (b.punteggio_totale||0) - (a.punteggio_totale||0));
+      sorted.forEach((p, i) => {
+        const div = document.createElement('div');
+        div.style = 'background:#111; border:1px solid #333; padding:12px; margin:8px 0; border-radius:8px; display:flex; justify-content:space-between; align-items:center;';
+        
+        const info = document.createElement('span');
+        info.style = 'color:#ddd; font-size:1.1em;';
+        info.innerHTML = `<strong style="color:var(--col-accent);">${i+1}.</strong> ${p.nome} - <strong>${p.punteggio_totale||0}€</strong> (Giro: ${p.punteggio_round||0}€)`;
+        div.appendChild(info);
+        
+        // PULSANTE ELIMINA (solo per host e non per se stesso)
+        if(isHost && p.id !== myId){
+          const btnDel = document.createElement('button');
+          btnDel.textContent = '❌ ELIMINA';
+          btnDel.className = 'action-btn';
+          btnDel.style = 'padding:8px 12px; font-size:0.9em; background:#8b0000; border-color:#ff0000; min-height:auto;';
+          btnDel.onclick = () => removePlayer(p.id, p.nome);
+          div.appendChild(btnDel);
+        }
+        
+        list.appendChild(div);
+      });
+      
+      speak("Pannello giocatori aperto");
+    }
+
+    function closePlayers(){
+      document.getElementById('players-panel').classList.add('hidden');
+    }
+
+    async function removePlayer(playerId, playerName){
+      if(!isHost) return;
+      if(!confirm(`Eliminare ${playerName}?`)) return;
+      
+      // Elimina il giocatore
+      await _supabase.from('giocatori').delete().eq('id', playerId);
+      
+      // Resetta gli indici per evitare problemi di turno
+      const {data: remainingPlayers} = await _supabase.from('giocatori').select('*').eq('stanza_id', roomId).order('indice');
+      if(remainingPlayers && remainingPlayers.length > 0){
+        for(let i=0; i<remainingPlayers.length; i++){
+          await _supabase.from('giocatori').update({indice: i}).eq('id', remainingPlayers[i].id);
+        }
+        // Resetta anche il turno al primo giocatore
+        await _supabase.from('stanze').update({id_giocatore_corrente: 0}).eq('id', roomId);
+      }
+      
+      speak(`${playerName} eliminato. Turni resettati.`);
+      closePlayers();
+    }
+
     function readAllScores(){
       if(!currentStanza) return;
       let txt="Classifica: ";
@@ -813,7 +892,7 @@
       const k=e.key.toLowerCase();
       if(k === 'escape'){
          e.preventDefault();
-         ['player-check-overlay','chat-overlay','help-panel','action-history-panel','input-area','word-inspector-overlay','mystery-choice-overlay'].forEach(id => {
+         ['player-check-overlay','chat-overlay','help-panel','players-panel','action-history-panel','input-area','word-inspector-overlay','mystery-choice-overlay'].forEach(id => {
             const el = document.getElementById(id);
             if(el) el.classList.add('hidden');
          });
@@ -849,16 +928,18 @@
       if(k==='3'){ playAudio('snd-boo'); return; }
       if(k==='4'){ playAudio('snd-ooh'); return; }
       
-      if(k==='h'){ e.preventDefault(); const p=document.getElementById('help-panel'); if(p.classList.contains('hidden')) openHelp(); else closeHelp(); }
-      if(k==='g'){ e.preventDefault(); doSpin(); }
-      if(k==='v'){ e.preventDefault(); openInput('vowel'); }
-      if(k==='p'){ e.preventDefault(); passTurn(); }
-      if(k==='r'){ e.preventDefault(); openInput('solve'); }
-      if(k==='k'){ e.preventDefault(); openChat(); }
-      if(k==='s'){ e.preventDefault(); readAllScores(); }
-      if(k==='l'){ e.preventDefault(); readRevealedLetters(); }
-      if(k==='a'){ e.preventDefault(); openActionHistory(true); }
-      if(k==='b'){ e.preventDefault(); addBot(); } 
+      // TASTI RAPIDI (con supporto Ctrl)
+      if(k==='h' || (e.ctrlKey && k==='h')){ e.preventDefault(); const p=document.getElementById('help-panel'); if(p.classList.contains('hidden')) openHelp(); else closeHelp(); }
+      if(k==='g' || (e.ctrlKey && k==='g')){ e.preventDefault(); doSpin(); }
+      if(k==='v' || (e.ctrlKey && k==='v')){ e.preventDefault(); openInput('vowel'); }
+      if(k==='p' || (e.ctrlKey && k==='p')){ e.preventDefault(); passTurn(); }
+      if(k==='r' || (e.ctrlKey && k==='r')){ e.preventDefault(); openInput('solve'); }
+      if(k==='t' || (e.ctrlKey && k==='t')){ e.preventDefault(); announceTurn(); }
+      if(k==='k' || (e.ctrlKey && k==='k')){ e.preventDefault(); openChat(); }
+      if(k==='s' || (e.ctrlKey && k==='s')){ e.preventDefault(); openPlayersPanel(); }
+      if(k==='l' || (e.ctrlKey && k==='l')){ e.preventDefault(); readRevealedLetters(); }
+      if(k==='a' || (e.ctrlKey && k==='a')){ e.preventDefault(); openActionHistory(true); }
+      if(k==='b' || (e.ctrlKey && k==='b')){ e.preventDefault(); addBot(); } 
     });
 
     function toggleAccessibleMode(){

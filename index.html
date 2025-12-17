@@ -746,18 +746,18 @@
     }
 
     function openPlayersPanel(){
-      console.log("openPlayersPanel chiamata! currentStanza:", currentStanza);
       const panel = document.getElementById('players-panel');
-      console.log("Panel trovato:", panel);
-      
       panel.classList.remove('hidden');
-      console.log("Hidden rimosso, classList:", panel.classList);
       
       const list = document.getElementById('players-list');
       
       if(!currentStanza || !currentStanza.giocatori || currentStanza.giocatori.length === 0){
         list.innerHTML = '<p style="color:#888; text-align:center; padding:20px;">Nessuna partita attiva o nessun giocatore presente.</p>';
         speak("Nessuna partita attiva");
+        setTimeout(() => {
+          const closeBtn = panel.querySelector('button');
+          if(closeBtn) closeBtn.focus();
+        }, 100);
         return;
       }
       
@@ -788,6 +788,12 @@
       });
       
       speak("Pannello giocatori aperto");
+      
+      // FOCUS automatico sul primo pulsante (elimina o chiudi)
+      setTimeout(() => {
+        const firstBtn = list.querySelector('button') || panel.querySelector('button');
+        if(firstBtn) firstBtn.focus();
+      }, 100);
     }
 
     function closePlayers(){
@@ -1111,18 +1117,23 @@
 
     // --- LOGICA BOT UMANO (AVVERSARIO REALE) ---
     async function addBot(){
-      if(!isHost || !currentStanza) return;
+      if(!isHost || !roomId) return;
       
-      // CONTROLLO LIMITE GIOCATORI
-      if(currentStanza.giocatori.length >= MAX_PLAYERS) {
+      // RICARICA lo stato aggiornato dal database
+      const {data: freshStanza} = await _supabase.from('stanze').select('*, giocatori(*)').eq('id', roomId).single();
+      if(!freshStanza) return;
+      
+      // CONTROLLO LIMITE GIOCATORI (sul dato fresco!)
+      if(freshStanza.giocatori.length >= MAX_PLAYERS) {
         speak("Stanza piena! Massimo " + MAX_PLAYERS + " giocatori.");
         return;
       }
       
       const botNames = ["🤖 Giulia", "🤖 Matteo"];
-      const usedNames = currentStanza.giocatori.map(p => p.nome);
+      const usedNames = freshStanza.giocatori.map(p => p.nome);
       const name = botNames.find(n => !usedNames.includes(n)) || "🤖 Bot" + Math.floor(Math.random()*100);
-      const lastInd = currentStanza.giocatori[currentStanza.giocatori.length-1].indice;
+      const lastInd = freshStanza.giocatori[freshStanza.giocatori.length-1].indice;
+      
       await _supabase.from('giocatori').insert({stanza_id:roomId, nome:name, indice:lastInd+1, is_host:false});
       speak("Bot aggiunto: " + name);
     }

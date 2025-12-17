@@ -192,6 +192,7 @@
       <h3 id="round-hint" aria-live="polite"></h3>
       <div id="jolly-indicator" class="hidden" style="color:#ff00ff; font-weight:bold; margin-top:5px; font-size:1.1em; text-shadow:0 0 5px #ff00ff;"></div>
       <div id="double-indicator" class="hidden" style="color:orange; font-weight:bold; margin-top:5px; font-size:1.1em; text-shadow:0 0 5px red; border:1px solid red; padding:2px;">RADDOPPIA ATTIVO! GIRA ANCORA!</div>
+      <div id="special-round-indicator" class="hidden" style="color:cyan; font-weight:bold; margin-top:5px; font-size:1.1em; text-shadow:0 0 5px cyan; border:1px solid cyan; padding:5px; border-radius:5px;"></div>
     
     <div class="acc-nav" role="navigation" aria-label="Salti rapidi">
       <button class="action-btn" onclick="jumpToSection('hdr-actions')">VAI AI COMANDI</button>
@@ -416,6 +417,14 @@
     let specialPhase = 0; 
     let lastAutoPassTime = 0;
     let isBotThinking = false;
+    
+    // VARIABILI ROUND SPECIALI (4, 7, 10)
+    let isSpecialRound = false;
+    let specialPhraseIndex = 0; // 0-3 (quale delle 4 frasi)
+    let specialPhraseIds = []; // Array con gli ID delle 4 frasi
+    let specialConsonantsUsed = 0; // Quante consonanti chiamate (max 12)
+    let specialVowelsPhase = true; // true = fase vocali, false = fase consonanti
+    let specialVowelsGiven = 0; // Quante vocali date/chiamate
     
     // PROTEZIONE: Impedisce l'accesso diretto dalla console
     // Override console.log per nascondere dati sensibili
@@ -1570,15 +1579,53 @@
         jInd.textContent=`JOLLY ATTIVO (FINO A ROUND ${me.scadenza_jolly})`;
         jInd.classList.remove('hidden');
       } else jInd.classList.add('hidden');
+      
+      // INDICATORE ROUND SPECIALE
+      const specialInd=document.getElementById('special-round-indicator');
+      if(isSpecialRound){
+        if(specialVowelsPhase){
+          specialInd.textContent=`ROUND SPECIALE - FASE VOCALI (${specialVowelsGiven}/3) - Frase ${specialPhraseIndex + 1}/4`;
+        } else {
+          specialInd.textContent=`ROUND SPECIALE - CONSONANTI (${specialConsonantsUsed}/12) - Frase ${specialPhraseIndex + 1}/4`;
+        }
+        specialInd.classList.remove('hidden');
+      } else {
+        specialInd.classList.add('hidden');
+      }
 
       let canSpin=isMe && !isSpinning && !inputMode && s.montepremi_round===0;
       if(isRaddoppiaActive && isMe) canSpin=true;
-      let canSolve=isMe && !isSpinning && !inputMode;
-      let canPass=isMe && !isSpinning;
-      let canVowel=isMe && !isSpinning && !inputMode;
-      if(myRoundMoney < vCost) canVowel=false;
-      if(vowelsBoughtThisTurn>=1) canVowel=false;
-      if(isRaddoppiaActive) canVowel=false;
+      
+      // ROUND SPECIALI: Override logica pulsanti
+      if(isSpecialRound){
+        if(specialVowelsPhase){
+          // FASE VOCALI: Solo chiamata vocale attiva
+          canSpin = false;
+          canVowel = isMe && !isSpinning && !inputMode;
+          canSolve = false; // Non si può risolvere durante fase vocali
+          canPass = false;
+        } else {
+          // FASE CONSONANTI: Gira + chiama consonante
+          canSpin = isMe && !isSpinning && !inputMode && s.montepremi_round===0 && specialConsonantsUsed < 12;
+          canVowel = false; // Non si comprano vocali nei round speciali
+          canSolve = isMe && !isSpinning && !inputMode;
+          canPass = false; // Nei round speciali non si passa, solo arrendersi
+          
+          // Dopo 12 consonanti: TUTTI possono risolvere
+          if(specialConsonantsUsed >= 12 || s.fase_speciale === 102){
+            canSpin = false;
+            canSolve = !isSpinning && !inputMode; // TUTTI possono risolvere
+          }
+        }
+      } else {
+        // ROUND NORMALE (già gestito sopra)
+        let canSolve=isMe && !isSpinning && !inputMode;
+        let canPass=isMe && !isSpinning;
+        let canVowel=isMe && !isSpinning && !inputMode;
+        if(myRoundMoney < vCost) canVowel=false;
+        if(vowelsBoughtThisTurn>=1) canVowel=false;
+        if(isRaddoppiaActive) canVowel=false;
+      }
 
       setBtnState('btn-spin', !canSpin);
       setBtnState('btn-solve', !canSolve);
@@ -1591,7 +1638,13 @@
       document.getElementById('btn-manual-cons').classList.add('hidden'); 
       const btnSurrender = document.getElementById('btn-surrender');
       if(btnSurrender) {
-        const showSurrender = isHost && s.fase_speciale === 3 && s.azione_timestamp && (new Date().getTime() - new Date(s.azione_timestamp).getTime()) > TURN_LIMIT_SEC * 1000;
+        // Mostra ARRENDITI se:
+        // 1. Fase speciale 3 (mystery flat) dopo timeout, OPPURE
+        // 2. Round speciale dopo 12 consonanti (fase_speciale === 102)
+        const showSurrender = isHost && (
+          (s.fase_speciale === 3 && s.azione_timestamp && (new Date().getTime() - new Date(s.azione_timestamp).getTime()) > TURN_LIMIT_SEC * 1000) ||
+          (s.fase_speciale === 102) // 12 consonanti usate nei round speciali
+        );
         btnSurrender.classList.toggle('hidden', !showSurrender);
       }
       if(canManual && !inputMode) openInput('letter');
@@ -1662,6 +1715,20 @@
       }
 
       if(val==='BANCAROTTA'){
+        // ROUND SPECIALI: Rigiro obbligatorio dopo BANCAROTTA
+        if(isSpecialRound && !specialVowelsPhase){
+          await _supabase.from('giocatori').update({punteggio_round:0}).eq('id', myId);
+          await _supabase.from('stanze').update({
+            ultimo_messaggio:`${myName} becca BANCAROTTA! Punteggio azzerato. RIGIRA OBBLIGATORIO!`,
+            azione_timestamp:new Date().toISOString()
+          }).eq('id', roomId);
+          isSpinning=false;
+          speak("BANCAROTTA! Devi rigirare!");
+          // Non passa turno, il giocatore DEVE rigirare
+          return;
+        }
+        
+        // Round normale
         isSpinning=false;
         const saved=await tryUseJollyToAvoid("BANCAROTTA");
         if(saved) return;
@@ -1748,12 +1815,38 @@
       closeInput();
       const myName=document.getElementById('inp-name').value;
       const s=currentStanza;
+      
+      // GESTIONE ROUND SPECIALI - FASE VOCALI
+      if(isSpecialRound && specialVowelsPhase && mode==='vowel'){
+        const char=txt.charAt(0);
+        const isVowel="AEIOU".includes(char);
+        if(!isVowel){ alert("Devi inserire una VOCALE"); isProcessingInput=false; return; }
+        
+        await handleSpecialVowel(char, myName, s);
+        isProcessingInput=false;
+        return;
+      }
 
       if(mode==='solve'){
         if(cleanStr(txt)===cleanStr(currentPuzzleText)){
           const me=s.giocatori.find(p=>p.id===myId);
-          await _supabase.from('giocatori').update({punteggio_totale:(me.punteggio_totale||0)+(me.punteggio_round||0)+1000,punteggio_round:0}).eq('id', myId);
-          await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${myName} HA RISOLTO!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+          
+          // ROUND SPECIALI: +1000 per ogni frase risolta
+          if(isSpecialRound){
+            await _supabase.from('giocatori').update({punteggio_totale:(me.punteggio_totale||0)+(me.punteggio_round||0)+1000,punteggio_round:0}).eq('id', myId);
+            
+            // Passa alla frase successiva (se ce ne sono)
+            if(specialPhraseIndex < 3){
+              await nextSpecialPhrase(myName);
+            } else {
+              // Fine round speciale (tutte e 4 frasi completate)
+              await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${myName} HA COMPLETATO IL ROUND SPECIALE!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+            }
+          } else {
+            // Round normale
+            await _supabase.from('giocatori').update({punteggio_totale:(me.punteggio_totale||0)+(me.punteggio_round||0)+1000,punteggio_round:0}).eq('id', myId);
+            await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${myName} HA RISOLTO!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+          }
         } else {
           passTurn();
         }
@@ -1770,6 +1863,15 @@
           await _supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)-cost}).eq('id', myId);
         }
         if(mode==='letter') vowelsBoughtThisTurn=0;
+        
+        // ROUND SPECIALI - FASE CONSONANTI: Controlla limite 12
+        if(isSpecialRound && !specialVowelsPhase && mode==='letter'){
+          if(specialConsonantsUsed >= 12){
+            alert("Limite 12 consonanti raggiunto! Tutti possono risolvere o l'host si arrende.");
+            isProcessingInput=false;
+            return;
+          }
+        }
 
         let foundIndices=[]; let gIdx=0;
         const sol=currentPuzzleText.toUpperCase();
@@ -1785,8 +1887,37 @@
             const me=s.giocatori.find(p=>p.id===myId);
             const gain = (s.fase_speciale===3) ? (s.montepremi_round||0) : ((s.montepremi_round||0) * foundIndices.length);
             await _supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)+gain}).eq('id', myId);
+            
+            // ROUND SPECIALI: Incrementa contatore consonanti
+            if(isSpecialRound && !specialVowelsPhase){
+              specialConsonantsUsed++;
+              
+              // Se raggiunta la 12ª, tutti possono risolvere
+              if(specialConsonantsUsed >= 12){
+                await _supabase.from('stanze').update({
+                  lettere_rivelate:newRev,
+                  montepremi_round:0,
+                  fase_speciale:102, // Marker: 12 consonanti usate, tutti possono risolvere
+                  ultima_azione:'consonante_12',
+                  ultimo_messaggio:`${myName}: ${char} - 12 CONSONANTI USATE! Tutti possono risolvere o l'host si arrende`,
+                  azione_timestamp:new Date().toISOString()
+                }).eq('id', roomId);
+              } else {
+                await _supabase.from('stanze').update({
+                  lettere_rivelate:newRev,
+                  montepremi_round:0,
+                  ultima_azione:'chiama_lettera',
+                  ultimo_messaggio:`${myName}: Trovate ${foundIndices.length} ${char} (${specialConsonantsUsed}/12 consonanti)`,
+                  azione_timestamp:new Date().toISOString()
+                }).eq('id', roomId);
+              }
+            } else {
+              // Round normale
+              await _supabase.from('stanze').update({lettere_rivelate:newRev,montepremi_round:0,fase_speciale:0,ultima_azione:'chiama_lettera',ultimo_messaggio:`${myName}: Trovate ${foundIndices.length} ${char}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+            }
+          } else {
+            await _supabase.from('stanze').update({lettere_rivelate:newRev,ultima_azione:'chiama_lettera',ultimo_messaggio:`${myName}: Trovate ${foundIndices.length} ${char}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
           }
-          await _supabase.from('stanze').update({lettere_rivelate:newRev,montepremi_round:0,fase_speciale:0,ultima_azione:'chiama_lettera',ultimo_messaggio:`${myName}: Trovate ${foundIndices.length} ${char}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
         } else {
           await _supabase.from('stanze').update({ultima_azione:'errore',ultimo_messaggio:`${myName}: ${char} assente`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
           passTurn();
@@ -1836,10 +1967,156 @@
       if(!isHost) return;
       let n=currentStanza.round_giocati + 1;
       if(n>10){ await _supabase.from('stanze').update({stato:'terminata'}).eq('id', roomId); return; }
-      const {data:fr}=await _supabase.from('frasi').select('id').neq('categoria','SITUAZIONI QUOTIDIANE');
-      const rid=fr[Math.floor(Math.random()*fr.length)].id;
-      await _supabase.from('giocatori').update({punteggio_round:0}).eq('stanza_id', roomId);
-      await _supabase.from('stanze').update({frase_corrente_id:rid,stato:'gioco',round_giocati:n,lettere_rivelate:[],montepremi_round:0,fase_speciale:0,ultima_azione:'nuovo',ultimo_messaggio:`Inizio Round ${n}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+      
+      // ROUND SPECIALI: 4, 7, 10
+      const isSpecial = (n === 4 || n === 7 || n === 10);
+      
+      if(isSpecial){
+        // Carica 4 frasi "SITUAZIONI QUOTIDIANE"
+        const {data:fr}=await _supabase.from('frasi').select('id').eq('categoria','SITUAZIONI QUOTIDIANE').limit(4);
+        if(!fr || fr.length < 4){
+          speak("Errore: non ci sono abbastanza frasi speciali");
+          return;
+        }
+        
+        // Salva gli ID delle 4 frasi
+        specialPhraseIds = fr.map(f => f.id);
+        isSpecialRound = true;
+        specialPhraseIndex = 0;
+        specialConsonantsUsed = 0;
+        specialVowelsPhase = true;
+        specialVowelsGiven = 0;
+        
+        // Inizia con la prima frase
+        const firstPhraseId = specialPhraseIds[0];
+        await _supabase.from('giocatori').update({punteggio_round:0}).eq('stanza_id', roomId);
+        await _supabase.from('stanze').update({
+          frase_corrente_id: firstPhraseId,
+          stato:'gioco',
+          round_giocati:n,
+          lettere_rivelate:[],
+          montepremi_round:0,
+          fase_speciale:100, // Marker per round speciale
+          ultima_azione:'round_speciale_start',
+          ultimo_messaggio:`ROUND SPECIALE ${n}! Fase vocali: ${getSpecialVowelInstructions()}`,
+          azione_timestamp:new Date().toISOString()
+        }).eq('id', roomId);
+        
+      } else {
+        // Round normale
+        isSpecialRound = false;
+        const {data:fr}=await _supabase.from('frasi').select('id').neq('categoria','SITUAZIONI QUOTIDIANE');
+        const rid=fr[Math.floor(Math.random()*fr.length)].id;
+        await _supabase.from('giocatori').update({punteggio_round:0}).eq('stanza_id', roomId);
+        await _supabase.from('stanze').update({frase_corrente_id:rid,stato:'gioco',round_giocati:n,lettere_rivelate:[],montepremi_round:0,fase_speciale:0,ultima_azione:'nuovo',ultimo_messaggio:`Inizio Round ${n}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+      }
+    }
+    
+    function getSpecialVowelInstructions(){
+      const numPlayers = currentStanza.giocatori.length;
+      if(numPlayers === 1) return "Sistema regala 2 vocali";
+      if(numPlayers === 2) return "Ognuno dice 1 vocale, sistema regala 1";
+      if(numPlayers === 3) return "Ognuno dice 1 vocale";
+      return "Fase vocali";
+    }
+    
+    async function handleSpecialVowel(char, playerName, stanza){
+      const numPlayers = stanza.giocatori.length;
+      
+      // Rivela la vocale sul tabellone
+      let foundIndices=[]; let gIdx=0;
+      const sol=currentPuzzleText.toUpperCase();
+      for(let i=0;i<sol.length;i++){
+        if(sol[i].match(/[A-ZÀ-Ù]/)){
+          if(cleanStr(sol[i])===cleanStr(char)) foundIndices.push(gIdx);
+          gIdx++;
+        }
+      }
+      
+      if(foundIndices.length > 0){
+        const newRev=[...new Set([...(stanza.lettere_rivelate||[]), ...foundIndices])];
+        await _supabase.from('stanze').update({lettere_rivelate:newRev,ultimo_messaggio:`${playerName} chiama vocale: ${char}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+      }
+      
+      specialVowelsGiven++;
+      
+      // Controlla se dobbiamo regalare vocali
+      let systemVowels = 0;
+      if(numPlayers === 1) systemVowels = 2;
+      else if(numPlayers === 2 && specialVowelsGiven === 2) systemVowels = 1;
+      
+      if(systemVowels > 0){
+        await giveSystemVowels(systemVowels, stanza);
+      }
+      
+      // Se abbiamo 3 vocali totali, passa alla fase consonanti
+      const totalVowels = specialVowelsGiven + systemVowels;
+      if(totalVowels >= 3 || (numPlayers === 3 && specialVowelsGiven === 3)){
+        specialVowelsPhase = false;
+        await _supabase.from('stanze').update({
+          fase_speciale:101, // Marker fase consonanti
+          ultimo_messaggio:`Vocali complete! Fase consonanti: 12 consonanti totali da chiamare`,
+          azione_timestamp:new Date().toISOString()
+        }).eq('id', roomId);
+      } else {
+        passTurn();
+      }
+    }
+    
+    async function giveSystemVowels(count, stanza){
+      const vowelsOrder = ['A','E','I','O','U']; // Ordine di frequenza
+      const alreadyGiven = [];
+      
+      // Trova quali vocali sono già state rivelate
+      let gIdx=0;
+      const sol=currentPuzzleText.toUpperCase();
+      for(let i=0;i<sol.length;i++){
+        if(sol[i].match(/[A-ZÀ-Ù]/)){
+          if(stanza.lettere_rivelate.includes(gIdx) && 'AEIOU'.includes(sol[i])){
+            alreadyGiven.push(sol[i]);
+          }
+          gIdx++;
+        }
+      }
+      
+      // Regala le vocali più frequenti non ancora date
+      for(let v of vowelsOrder){
+        if(count === 0) break;
+        if(!alreadyGiven.includes(v)){
+          // Rivela questa vocale
+          let foundIndices=[]; gIdx=0;
+          for(let i=0;i<sol.length;i++){
+            if(sol[i].match(/[A-ZÀ-Ù]/)){
+              if(sol[i]===v) foundIndices.push(gIdx);
+              gIdx++;
+            }
+          }
+          if(foundIndices.length > 0){
+            const newRev=[...new Set([...(stanza.lettere_rivelate||[]), ...foundIndices])];
+            await _supabase.from('stanze').update({lettere_rivelate:newRev,ultimo_messaggio:`Sistema regala vocale: ${v}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+            stanza.lettere_rivelate = newRev;
+            count--;
+            alreadyGiven.push(v);
+          }
+        }
+      }
+    }
+    
+    async function nextSpecialPhrase(solverName){
+      specialPhraseIndex++;
+      specialConsonantsUsed = 0;
+      specialVowelsPhase = true;
+      specialVowelsGiven = 0;
+      
+      const nextPhraseId = specialPhraseIds[specialPhraseIndex];
+      await _supabase.from('stanze').update({
+        frase_corrente_id: nextPhraseId,
+        lettere_rivelate:[],
+        montepremi_round:0,
+        fase_speciale:100, // Torna alla fase vocali
+        ultimo_messaggio:`${solverName} risolve! Frase ${specialPhraseIndex + 1}/4 - ${getSpecialVowelInstructions()}`,
+        azione_timestamp:new Date().toISOString()
+      }).eq('id', roomId);
     }
 
     async function leaveGame(){
@@ -1851,6 +2128,24 @@
     
     async function surrenderPhrase(){
       if(!isHost) return;
+      
+      // ROUND SPECIALI: Passa alla frase successiva invece di finire il round
+      if(isSpecialRound && specialPhraseIndex < 3){
+        if(confirm("Arrenditi e passa alla frase successiva?")){
+          await nextSpecialPhrase("HOST");
+        }
+        return;
+      }
+      
+      // ROUND SPECIALI: Ultima frase (4/4) - finisce il round
+      if(isSpecialRound && specialPhraseIndex === 3){
+        if(confirm("Arrenditi? Finirà il round speciale.")){
+          await _supabase.from('stanze').update({stato:'finito',ultima_azione:'arresa',ultimo_messaggio:'HOST SI È ARRESO - ROUND SPECIALE CONCLUSO',azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+        }
+        return;
+      }
+      
+      // Round normale
       if(confirm("Arrenditi?")){
         await _supabase.from('stanze').update({stato:'finito',ultima_azione:'arresa',ultimo_messaggio:'HOST SI È ARRESO',azione_timestamp:new Date().toISOString()}).eq('id', roomId);
       }

@@ -415,9 +415,19 @@
     let lastAutoPassTime = 0;
     let isBotThinking = false; 
 
-    // FREQUENZA LETTERE (Per AI dei Bot)
-    const FREQ_CONS = ['R','T','N','S','L','C','D','P','M','G','B','F','V','H','Q','Z'];
-    const FREQ_VOW = ['A','E','I','O','U'];
+    // FREQUENZA LETTERE (Per AI dei Bot) - Gruppi con frequenza simile
+    // Il bot sceglie random all'interno di ogni gruppo per sembrare più umano
+    const FREQ_CONS_GROUPS = [
+      ['R','T','N'],        // GRUPPO 1: Altissima frequenza
+      ['S','L','C'],        // GRUPPO 2: Alta frequenza  
+      ['D','P','M'],        // GRUPPO 3: Media frequenza
+      ['G','B','F','V']     // GRUPPO 4: Bassa frequenza
+    ];
+    const FREQ_VOW_GROUPS = [
+      ['A','E'],            // Vocali più comuni
+      ['I','O'],            // Vocali medie
+      ['U']                 // Vocale meno comune
+    ];
 
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('btn-create-room')?.addEventListener('click', () => askPrivacy());
@@ -470,6 +480,27 @@
       speak(isMuted ? "Audio disattivato" : "Audio attivato");
     }
     function cleanStr(s){ return (s && typeof s === 'string') ? s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"") : ""; }
+    
+    // Helper per scegliere lettere in modo umano (randomizza all'interno dei gruppi)
+    function getNextConsonantHuman(alreadyRevealed){
+      for(let group of FREQ_CONS_GROUPS){
+        const shuffled = [...group].sort(() => Math.random() - 0.5);
+        for(let c of shuffled){
+          if(!alreadyRevealed.includes(c)) return c;
+        }
+      }
+      return null;
+    }
+    
+    function getNextVowelHuman(alreadyRevealed){
+      for(let group of FREQ_VOW_GROUPS){
+        const shuffled = [...group].sort(() => Math.random() - 0.5);
+        for(let v of shuffled){
+          if(!alreadyRevealed.includes(v)) return v;
+        }
+      }
+      return null;
+    }
     
     function setBtnState(id,d){ const b=document.getElementById(id); if(!b) return; if(d){ b.disabled=true; b.setAttribute('aria-disabled','true'); } else { b.disabled=false; b.setAttribute('aria-disabled','false'); } }
     function isBtnDisabled(id){ const b=document.getElementById(id); return b && b.getAttribute('aria-disabled')==='true'; }
@@ -988,12 +1019,12 @@
     // --- LOGICA BOT UMANO (AVVERSARIO REALE) ---
     async function addBot(){
       if(!isHost || !currentStanza) return;
-      const botNames = ["🤖 Mario", "🤖 Luigi", "🤖 Anna", "🤖 Giulia", "🤖 Robot"];
+      const botNames = ["🤖 Giulia", "🤖 Matteo"];
       const usedNames = currentStanza.giocatori.map(p => p.nome);
       const name = botNames.find(n => !usedNames.includes(n)) || "🤖 Bot" + Math.floor(Math.random()*100);
       const lastInd = currentStanza.giocatori[currentStanza.giocatori.length-1].indice;
       await _supabase.from('giocatori').insert({stanza_id:roomId, nome:name, indice:lastInd+1, is_host:false});
-      speak("Bot aggiunto, la sfida ha inizio");
+      speak("Bot aggiunto: " + name);
     }
 
     async function playBotTurn(botPlayer){
@@ -1001,51 +1032,98 @@
        isBotThinking = true;
        console.log("Bot playing:", botPlayer.nome);
 
-       await new Promise(r => setTimeout(r, 2500)); // Riflessione umana
+       // TEMPI DI RIFLESSIONE VARIABILI (più umano: 2-4 secondi)
+       const thinkTime = 2000 + Math.random() * 2000;
+       await new Promise(r => setTimeout(r, thinkTime));
 
        const s = currentStanza;
        const totalLetters = currentPuzzleText.replace(/[^A-ZÀ-Ù]/g, '').length;
        const revealedIndices = s.lettere_rivelate || [];
        const ratio = revealedIndices.length / totalLetters;
 
-       // 1. IL BOT PROVA A RISOLVERE? (Solo se il tabellone è quasi pieno > 80%)
-       if(ratio > 0.8 && Math.random() > 0.2) {
-          if(Math.random() < 0.05) { // Errore umano nel digitare la soluzione
-             await _supabase.from('stanze').update({ultima_azione: 'errore', ultimo_messaggio: `${botPlayer.nome} tenta la soluzione ma sbaglia!`, azione_timestamp: new Date().toISOString()}).eq('id', roomId);
+       // 1. IL BOT PROVA A RISOLVERE? (Comportamento umano: quando è quasi sicuro, 90-95% scoperto)
+       if(ratio >= 0.90 && Math.random() > 0.3) {
+          // Piccola probabilità di errore (10%) - anche gli umani sbagliano quando digitano veloce!
+          if(Math.random() < 0.10) {
+             await _supabase.from('stanze').update({ultima_azione: 'errore', ultimo_messaggio: `${botPlayer.nome} tenta ma sbaglia la soluzione!`, azione_timestamp: new Date().toISOString()}).eq('id', roomId);
              passTurnBot();
              isBotThinking = false;
              return;
           }
+          // RISOLVE!
           await _supabase.from('giocatori').update({punteggio_totale:(botPlayer.punteggio_totale||0)+(botPlayer.punteggio_round||0)+1000, punteggio_round:0}).eq('id', botPlayer.id);
           await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${botPlayer.nome} HA RISOLTO LA FRASE!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
           isBotThinking = false;
           return;
        }
 
-       // 2. LOGICA DI GIOCO (SENZA CONOSCERE LA SOLUZIONE)
+       // ERRORE UMANO OCCASIONALE (3%): richiama una lettera già uscita (distrazione)
+       if(Math.random() < 0.03) {
+          const alreadyRevealed = [];
+          let gIdx = 0;
+          for(let i=0; i<currentPuzzleText.length; i++){
+             if(currentPuzzleText[i].match(/[A-ZÀ-Ù]/)){
+                if(s.lettere_rivelate.includes(gIdx)) alreadyRevealed.push(currentPuzzleText[i].toUpperCase());
+                gIdx++;
+             }
+          }
+          if(alreadyRevealed.length > 3) {
+             const errorChar = alreadyRevealed[Math.floor(Math.random()*alreadyRevealed.length)];
+             await _supabase.from('stanze').update({ultima_azione: 'errore', ultimo_messaggio: `${botPlayer.nome} ripete la "${errorChar}" già uscita!`, azione_timestamp: new Date().toISOString()}).eq('id', roomId);
+             passTurnBot();
+             isBotThinking = false;
+             return;
+          }
+       }
+
+       // 2. LOGICA DI GIOCO
        let chosenChar = null;
        let isVowel = false;
        const costVowel = getVowelCost();
+       const botMoney = botPlayer.punteggio_round || 0;
 
-       // Strategia: Compra vocale se ha soldi e il tabellone è poco chiaro
-       if((botPlayer.punteggio_round || 0) >= costVowel && ratio < 0.7 && Math.random() < 0.4) {
-           for(let v of FREQ_VOW) {
-               if(!isLetterAlreadyRevealedOnBoard(v, s)) {
-                   chosenChar = v;
-                   isVowel = true;
-                   break;
-               }
+       // Strategia vocali: compra se ha i soldi E il tabellone è poco chiaro (<65%)
+       // Non serve "margine di sicurezza" - se ha i soldi e serve, la compra!
+       if(botMoney >= costVowel && ratio < 0.65 && Math.random() < 0.35) {
+           // Usa i gruppi randomizzati per le vocali
+           const alreadyRevealedVowels = [];
+           let gIdx = 0;
+           for(let i=0; i<currentPuzzleText.length; i++){
+              if(currentPuzzleText[i].match(/[A-ZÀ-Ù]/)){
+                 const c = currentPuzzleText[i].toUpperCase();
+                 if('AEIOU'.includes(c) && s.lettere_rivelate.includes(gIdx)) alreadyRevealedVowels.push(c);
+                 gIdx++;
+              }
            }
+           chosenChar = getNextVowelHuman(alreadyRevealedVowels);
+           if(chosenChar) isVowel = true;
        }
 
        if(s.montepremi_round === 0 && !isVowel) {
            // GIRA LA RUOTA
            let val = WHEEL_VALUES[Math.floor(Math.random()*WHEEL_VALUES.length)];
-           if(val === 'MISTERO') val = 500; 
+           
+           // COMPORTAMENTO MISTERO UMANO CORRETTO:
+           // Pochi soldi = prende i sicuri (ne ha bisogno!)
+           // Tanti soldi = rischia (può permetterselo!)
+           if(val === 'MISTERO') {
+              let takeSafe = 0.5; // Default 50/50
+              if(botMoney < 500) {
+                 takeSafe = 0.80; // Pochi soldi → 80% prende i 500 sicuri
+              } else if(botMoney > 1500) {
+                 takeSafe = 0.30; // Tanti soldi → 70% apre il mistero (rischia!)
+              }
+              
+              if(Math.random() < takeSafe) {
+                 val = 500; // Prende i 500 sicuri
+              } else {
+                 // Apre il mistero! (per ora simulato come 500, ma andrebbe gestito il vero mistero)
+                 val = 500; // Semplificato
+              }
+           }
 
            if(['BANCAROTTA','PASSA','PASSA_TURNO','PASSA_AVVERSARIO'].includes(val)) {
                await _supabase.from('giocatori').update({punteggio_round:0}).eq('id', botPlayer.id);
-               // BLOCCO DI SICUREZZA: Aggiorna e ritorna subito per non far fare al bot altre mosse
                await _supabase.from('stanze').update({ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} gira: ${val}. Cambio turno!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
                passTurnBot();
                isBotThinking = false;
@@ -1053,24 +1131,34 @@
            }
 
            let prize = (typeof val === 'number') ? val : 0;
-           await _supabase.from('stanze').update({montepremi_round:prize,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} gira: ${val}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+           
+           // PAUSA TATTICA: dopo un ottimo colpo (>1000), pausa extra per "gioire"
+           if(prize >= 1000) {
+               await new Promise(r => setTimeout(r, 800));
+           }
+           
+           await _supabase.from('stanze').update({montepremi_round:prize,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} gira: ${val}€`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
            isBotThinking = false; 
            return; 
        } else {
            // CHIAMA LETTERA (Consonante o Vocale comprata)
            if(!chosenChar) {
-               // Cerca la consonante più logica che non ha ancora chiamato
-               for(let c of FREQ_CONS) {
-                   if(!isLetterAlreadyRevealedOnBoard(c, s)) {
-                       chosenChar = c;
-                       break;
-                   }
+               // Usa i gruppi randomizzati per le consonanti
+               const alreadyRevealedCons = [];
+               let gIdx = 0;
+               for(let i=0; i<currentPuzzleText.length; i++){
+                  if(currentPuzzleText[i].match(/[A-ZÀ-Ù]/)){
+                     const c = currentPuzzleText[i].toUpperCase();
+                     if(!'AEIOU'.includes(c) && s.lettere_rivelate.includes(gIdx)) alreadyRevealedCons.push(c);
+                     gIdx++;
+                  }
                }
+               chosenChar = getNextConsonantHuman(alreadyRevealedCons);
            }
 
-           if(!chosenChar) chosenChar = "X"; // Fallback raro
+           if(!chosenChar) chosenChar = "Z"; // Fallback rarissimo
 
-           // Verifica reale senza barare
+           // Verifica reale senza barare (il bot non sa la soluzione in anticipo)
            let foundIndices = []; let gIdx = 0;
            const sol = currentPuzzleText.toUpperCase();
            const cleanChar = cleanStr(chosenChar);
@@ -1098,6 +1186,8 @@
                passTurnBot();
            }
        }
+       isBotThinking = false;
+    }
        isBotThinking = false;
     }
 

@@ -5,6 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>La Ruota</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  // --- INIZIO PROTEZIONE AIRBAG ---
+  window.onerror = function(msg, url, line) {
+    if (msg.toLowerCase().includes('null') || msg.toLowerCase().includes('undefined')) {
+      const box = document.createElement('div');
+      box.style = "position:fixed; top:20%; left:50%; transform:translate(-50%, -50%); background:#330000; border:2px solid red; color:white; padding:20px; z-index:99999; font-family:sans-serif; text-align:center; box-shadow:0 0 50px red;";
+      box.innerHTML = `
+        <h2 style='margin-top:0'>ERRORE DI GIOCO</h2>
+        <p>Si è verificato un problema tecnico (dati mancanti).</p>
+        <p style='font-size:0.8em; color:#aaa'>${msg}</p>
+        <button onclick="window.location.reload()" style="padding:10px 20px; font-weight:bold; cursor:pointer;">RICARICA PAGINA</button>
+      `;
+      document.body.appendChild(box);
+      return true; // Blocca l'errore standard
+    }
+  };
+  // --- FINE PROTEZIONE AIRBAG ---
+</script>
+
   <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@700&display=swap" rel="stylesheet">
   <style>
     :root{
@@ -12,7 +31,7 @@
       --col-text:#fff; --col-accent:#ffd700; --col-neon:#00ffff; --col-green:#00ff00;
       --font-main:'Roboto Condensed',sans-serif;
     }
-    body{background:var(--bg-body);color:var(--col-text);font-family:var(--font-main);margin:0;padding:0;text-align:center;overflow-x:hidden;padding-bottom:80px;}
+    body{background:var(--bg-body);color:var(--col-text);font-family:var(--font-main);margin:0;padding:0;text-align:center;overflow-x:hidden;padding-bottom:150px;} /* Aumentato padding bottom per audio panel */
     body.high-contrast{--bg-body:#000;--bg-panel:#000;--col-text:#fff;--col-accent:#ff0;--col-neon:#0f0;}
     .sr-only{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);}
     *:focus{outline:none;box-shadow:0 0 0 4px var(--col-neon);border-radius:4px;z-index:1000;}
@@ -98,7 +117,8 @@
     /* Audio panel */
     #audio-panel{
       display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;
-      background:#111;border:1px solid #333;border-radius:12px;padding:10px;margin:10px auto;width:95%;max-width:900px;
+      background:#222;border-top:2px solid #333;padding:15px;width:100%;
+      position: relative; margin-top: 40px;
     }
     #audio-panel button{min-height:auto;padding:10px 12px;border-radius:10px;font-size:1.1em;}
     #audio-panel .mutebtn{border-color:#777;background:#222;color:#ddd;}
@@ -156,15 +176,6 @@
   <audio id="snd-laugh" src="risata.mp3"></audio>
   <audio id="snd-boo" src="buuu.mp3"></audio>
   <audio id="snd-ooh" src="peccato.mp3"></audio>
-
-  <div id="audio-panel">
-    <span class="label">AUDIO:</span>
-    <button class="action-btn" onclick="playAudio('snd-clap')" aria-label="Applauso">👏</button>
-    <button class="action-btn" onclick="playAudio('snd-laugh')" aria-label="Risata">😂</button>
-    <button class="action-btn" onclick="playAudio('snd-boo')" aria-label="Buuu">👎</button>
-    <button class="action-btn" onclick="playAudio('snd-ooh')" aria-label="Ohhh">😮</button>
-    <button id="btn-mute" class="action-btn mutebtn" onclick="toggleMute()">🔊</button>
-  </div>
 
   <div id="setup-panel" class="container">
     <h1 style="color:var(--col-accent); font-size:3em; margin-bottom:10px; text-shadow:0 0 20px rgba(255,215,0,0.3);">LA RUOTA</h1>
@@ -267,6 +278,15 @@
         <button id="btn-surrender" onclick="surrenderPhrase()" class="action-btn hidden" style="font-size:0.8em; padding:10px; border-color:purple;">ARRÈNDITI</button>
       </div>
     </div>
+  </div>
+
+  <div id="audio-panel">
+    <span class="label">AUDIO:</span>
+    <button class="action-btn" onclick="playAudio('snd-clap')" aria-label="Applauso">👏</button>
+    <button class="action-btn" onclick="playAudio('snd-laugh')" aria-label="Risata">😂</button>
+    <button class="action-btn" onclick="playAudio('snd-boo')" aria-label="Buuu">👎</button>
+    <button class="action-btn" onclick="playAudio('snd-ooh')" aria-label="Ohhh">😮</button>
+    <button id="btn-mute" class="action-btn mutebtn" onclick="toggleMute()">🔊</button>
   </div>
 
   <div id="input-area" class="hidden">
@@ -1098,9 +1118,33 @@
       return true;
     }
 
-    function updateUI(s){
+function updateUI(s){
+
+      if (!s || !s.giocatori) {
+        console.warn("Dati stanza corrotti. Mostro pulsante reset.");
+        
+        const indicator = document.getElementById('turn-indicator');
+        if(indicator) {
+           // Pulisce la scritta vecchia
+           indicator.innerHTML = "";
+           
+           // Crea il pulsante RESETTA
+           const btn = document.createElement("button");
+           btn.textContent = "RESETTA ↻";
+           // Lo facciamo rosso e ben visibile
+           btn.style = "background:red; color:white; border:2px solid white; font-weight:bold; cursor:pointer; padding:5px; border-radius:5px;";
+           
+           // Ecco la magia: quando clicchi, fa quello che facevi tu da console!
+           btn.onclick = function() { window.location.reload(); };
+           
+           indicator.appendChild(btn);
+        }
+        return; 
+      }
+
       currentStanza=s;
       s.giocatori.sort((a,b)=>a.indice-b.indice);
+
 
       document.getElementById('pause-panel').classList.toggle('hidden', !s.in_pausa);
       document.getElementById('game-panel').classList.toggle('hidden', s.in_pausa);

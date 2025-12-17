@@ -249,15 +249,15 @@
         <button id="btn-surrender" onclick="surrenderPhrase()" class="action-btn hidden" style="font-size:0.8em; padding:10px; border-color:purple;">ARRÈNDITI</button>
       </div>
     </div>
-  </div>
 
-  <div id="audio-panel">
-    <span class="label">AUDIO:</span>
-    <button class="action-btn" onclick="playAudio('snd-clap')" aria-label="Applauso">👏</button>
-    <button class="action-btn" onclick="playAudio('snd-laugh')" aria-label="Risata">😂</button>
-    <button class="action-btn" onclick="playAudio('snd-boo')" aria-label="Buuu">👎</button>
-    <button class="action-btn" onclick="playAudio('snd-ooh')" aria-label="Ohhh">😮</button>
-    <button id="btn-mute" class="action-btn mutebtn" onclick="toggleMute()">🔊</button>
+    <div id="audio-panel">
+      <span class="label">AUDIO:</span>
+      <button class="action-btn" onclick="playAudio('snd-clap')" aria-label="Applauso">👏</button>
+      <button class="action-btn" onclick="playAudio('snd-laugh')" aria-label="Risata">😂</button>
+      <button class="action-btn" onclick="playAudio('snd-boo')" aria-label="Buuu">👎</button>
+      <button class="action-btn" onclick="playAudio('snd-ooh')" aria-label="Ohhh">😮</button>
+      <button id="btn-mute" class="action-btn mutebtn" onclick="toggleMute()">🔊</button>
+    </div>
   </div>
 
   <div id="input-area" class="hidden">
@@ -1186,8 +1186,6 @@
                passTurnBot();
            }
        }
-       isBotThinking = false;
-    }
        isBotThinking = false;
     }
 

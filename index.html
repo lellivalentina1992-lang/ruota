@@ -232,23 +232,12 @@
       <button id="btn-solve" class="action-btn btn-solve" onclick="openInput('solve')">RISOLVI FRASE</button>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px; margin-top:10px;">
         <button id="btn-chat" class="action-btn btn-chat" onclick="openChat()" style="font-size:0.8em; padding:10px;">CHAT (K)</button>
-        <button id="btn-scores" class="action-btn" onclick="readAllScores()" style="font-size:0.8em; padding:10px; background:#222;">CLASSIFICA (S)</button>
+        <button id="btn-management" class="action-btn" onclick="openPlayersPanel()" style="font-size:0.8em; padding:10px; background:#222;">CLASSIFICA (S)</button>
       </div>
       <button id="btn-manual-cons" class="action-btn full-width hidden" style="background:var(--col-green); color:#000; margin-top:10px;" onclick="openInput('letter')">DI UNA CONSONANTE</button>
     </div>
 
     <button onclick="leaveGame()" style="background:transparent; border:none; color:#555; margin-top:30px; cursor:pointer;">ESCI</button>
-
-    <div id="host-controls-area" class="hidden" style="width:90%; margin-top:20px; border-top:1px solid #333; padding-top:10px;">
-      <p style="color:#555; font-size:0.8em;">HOST</p>
-      <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
-        <button onclick="addBot()" class="action-btn" style="font-size:0.8em; padding:10px; border-color:cyan; color:cyan;">AGGIUNGI BOT (B)</button>
-        <button onclick="resetGame()" class="action-btn" style="font-size:0.8em; padding:10px; border-color:blue;">RESET</button>
-        <button onclick="closeRoom()" class="action-btn" style="font-size:0.8em; padding:10px; border-color:red;">CHIUDI</button>
-        <button onclick="togglePause()" class="action-btn" style="font-size:0.8em; padding:10px; border-color:orange;">PAUSA</button>
-        <button id="btn-surrender" onclick="surrenderPhrase()" class="action-btn hidden" style="font-size:0.8em; padding:10px; border-color:purple;">ARRÈNDITI</button>
-      </div>
-    </div>
 
     <div id="audio-panel">
       <span class="label">AUDIO:</span>
@@ -293,10 +282,10 @@
         <li><strong>P</strong> o <strong>Ctrl+P</strong>: Passa</li>
         <li><strong>T</strong> o <strong>Ctrl+T</strong>: Di chi è il turno</li>
         <li><strong>K</strong> o <strong>Ctrl+K</strong>: Chat</li>
-        <li><strong>S</strong> o <strong>Ctrl+S</strong>: Giocatori e Classifica</li>
+        <li><strong>S</strong> o <strong>Ctrl+S</strong>: Controlli e Classifica</li>
         <li><strong>L</strong> o <strong>Ctrl+L</strong>: Lettere uscite</li>
         <li><strong>A</strong> o <strong>Ctrl+A</strong>: Storico azioni</li>
-        <li><strong>B</strong> o <strong>Ctrl+B</strong>: Aggiungi Bot (Solo Host)</li>
+        <li><strong>B</strong> o <strong>Ctrl+B</strong>: Aggiungi Bot veloce (Solo Host)</li>
         <li><strong>H</strong> o <strong>Ctrl+H</strong>: Aiuto</li>
         <li><strong>ESC</strong>: Chiudi finestre</li>
       </ul>
@@ -426,7 +415,32 @@
     
     let specialPhase = 0; 
     let lastAutoPassTime = 0;
-    let isBotThinking = false; 
+    let isBotThinking = false;
+    
+    // PROTEZIONE: Impedisce l'accesso diretto dalla console
+    // Override console.log per nascondere dati sensibili
+    (function(){
+      const originalLog = console.log;
+      console.log = function(...args){
+        const filtered = args.map(arg => {
+          if(typeof arg === 'string' && arg.length > 10 && arg === currentPuzzleText) {
+            return '[SOLUZIONE NASCOSTA]';
+          }
+          return arg;
+        });
+        originalLog.apply(console, filtered);
+      };
+      
+      // Impedisce l'accesso diretto alle variabili dal debugger
+      Object.defineProperty(window, 'currentPuzzleText', {
+        get: function(){ return '***'; },
+        set: function(v){ currentPuzzleText = v; }
+      });
+      Object.defineProperty(window, 'fullSolutionText', {
+        get: function(){ return '***'; },
+        set: function(v){ fullSolutionText = v; }
+      });
+    })(); 
 
     // FREQUENZA LETTERE (Per AI dei Bot) - Gruppi con frequenza simile
     // Il bot sceglie random all'interno di ogni gruppo per sembrare più umano
@@ -459,6 +473,17 @@
             sendChatMessage();
         }
       });
+      
+      // GESTIONE LINK CONDIVISI: Leggi l'hash URL
+      const hash = window.location.hash;
+      if(hash && hash.startsWith('#stanza=')){
+        const roomCode = hash.replace('#stanza=', '').toUpperCase();
+        if(roomCode){
+          // Pre-compila il codice stanza
+          document.getElementById('inp-code').value = roomCode;
+          speak(`Link rilevato: stanza ${roomCode}. Inserisci il tuo nome e premi Entra.`);
+        }
+      }
     });
 
     function clearSpeechQueue(){ speechTimeouts.forEach(t=>clearTimeout(t)); speechTimeouts=[]; }
@@ -762,7 +787,7 @@
           const sorted = [...freshStanza.giocatori].sort((a,b) => (b.punteggio_totale||0) - (a.punteggio_totale||0));
           sorted.forEach((p, i) => {
             const div = document.createElement('div');
-            div.style = 'background:#111; border:1px solid #333; padding:12px; margin:8px 0; border-radius:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;';
+            div.style = 'background:#111; border:1px solid #333; padding:15px; margin:15px 0; border-radius:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;';
             
             const info = document.createElement('span');
             info.style = 'color:#ddd; font-size:1.1em; flex:1; min-width:200px;';
@@ -797,6 +822,59 @@
           });
           
           speak("Pannello giocatori aperto");
+          
+          // CONTROLLI HOST (se sei host)
+          if(isHost){
+            const hostControls = document.createElement('div');
+            hostControls.style = 'margin-top:25px; padding-top:20px; border-top:2px solid #444;';
+            hostControls.innerHTML = '<h3 style="color:#888; margin-bottom:15px; text-transform:uppercase;">CONTROLLI HOST</h3>';
+            
+            const controlsGrid = document.createElement('div');
+            controlsGrid.style = 'display:grid; grid-template-columns:1fr 1fr; gap:10px;';
+            
+            // Pulsante CONDIVIDI LINK
+            const btnShare = document.createElement('button');
+            btnShare.textContent = 'CONDIVIDI LINK';
+            btnShare.className = 'action-btn';
+            btnShare.style = 'padding:12px; font-size:1em; background:#1a5490; border-color:#4a90e2; min-height:auto;';
+            btnShare.onclick = shareRoom;
+            controlsGrid.appendChild(btnShare);
+            
+            // Pulsante AGGIUNGI BOT
+            const btnBot = document.createElement('button');
+            btnBot.textContent = 'AGGIUNGI BOT (B)';
+            btnBot.className = 'action-btn';
+            btnBot.style = 'padding:12px; font-size:1em; background:#1a1a5a; border-color:cyan; color:cyan; min-height:auto;';
+            btnBot.onclick = () => { addBot(); closePlayers(); };
+            controlsGrid.appendChild(btnBot);
+            
+            // Pulsante PAUSA
+            const btnPause = document.createElement('button');
+            btnPause.textContent = 'PAUSA';
+            btnPause.className = 'action-btn';
+            btnPause.style = 'padding:12px; font-size:1em; background:#5a3a1a; border-color:orange; min-height:auto;';
+            btnPause.onclick = () => { togglePause(); closePlayers(); };
+            controlsGrid.appendChild(btnPause);
+            
+            // Pulsante RESET
+            const btnReset = document.createElement('button');
+            btnReset.textContent = 'RESET PARTITA';
+            btnReset.className = 'action-btn';
+            btnReset.style = 'padding:12px; font-size:1em; background:#1a1a5a; border-color:blue; min-height:auto;';
+            btnReset.onclick = () => { resetGame(); closePlayers(); };
+            controlsGrid.appendChild(btnReset);
+            
+            // Pulsante CHIUDI STANZA
+            const btnClose = document.createElement('button');
+            btnClose.textContent = 'CHIUDI STANZA';
+            btnClose.className = 'action-btn';
+            btnClose.style = 'padding:12px; font-size:1em; background:#5a1a1a; border-color:red; min-height:auto;';
+            btnClose.onclick = closeRoom;
+            controlsGrid.appendChild(btnClose);
+            
+            hostControls.appendChild(controlsGrid);
+            list.appendChild(hostControls);
+          }
           
           // FOCUS automatico sul primo pulsante (elimina o chiudi)
           setTimeout(() => {
@@ -858,11 +936,44 @@
       speak(`${newHostName} è ora l'host della stanza.`);
       closePlayers();
       
-      // Nascondi i controlli host
-      document.getElementById('host-controls-area').classList.add('hidden');
-      
       // FORZA il refresh immediato dello stato
       await fetchFullState();
+    }
+
+    async function shareRoom(){
+      if(!currentStanza) return;
+      
+      const roomCode = currentStanza.codice;
+      const shareUrl = `${window.location.origin}${window.location.pathname}#stanza=${roomCode}`;
+      
+      // Controlla se ha l'API di condivisione nativa (smartphone)
+      if(navigator.share){
+        // SMARTPHONE: usa solo condivisione nativa
+        try {
+          await navigator.share({
+            title: 'La Ruota - Unisciti alla partita!',
+            text: `Entra nella stanza "${roomCode}"`,
+            url: shareUrl
+          });
+          speak("Link condiviso");
+        } catch(e){
+          // Utente ha annullato, va bene
+          if(e.name !== 'AbortError') {
+            speak("Condivisione annullata");
+          }
+        }
+      } else {
+        // PC: copia negli appunti
+        try {
+          await navigator.clipboard.writeText(shareUrl);
+          speak("Link copiato negli appunti!");
+          alert(`Link della stanza copiato!\n\n${shareUrl}\n\nCondividilo con altri giocatori.`);
+        } catch(e){
+          // Fallback: mostra il link in un prompt
+          speak("Copia questo link");
+          prompt("Copia questo link per condividere la stanza:", shareUrl);
+        }
+      }
     }
 
     function readAllScores(){
@@ -1115,7 +1226,6 @@
         document.getElementById('setup-panel').classList.add('hidden');
         document.getElementById('game-panel').classList.remove('hidden');
         document.getElementById('btn-host-next').classList.toggle('hidden', !isHost);
-        document.getElementById('host-controls-area').classList.toggle('hidden', !isHost);
         document.getElementById('btn-resume-host').classList.toggle('hidden', !isHost);
 
         _supabase.channel('game').on('postgres_changes',{event:'UPDATE',schema:'public',table:'stanze',filter:`id=eq.${roomId}`},fetchFullState).subscribe();
@@ -1509,6 +1619,12 @@
         }
         showFlashMessage(s.ultimo_messaggio, 'info');
         speak(s.ultimo_messaggio);
+      }
+      
+      // Aggiorna testo pulsante CLASSIFICA in base a isHost
+      const btnManagement = document.getElementById('btn-management');
+      if(btnManagement) {
+        btnManagement.textContent = isHost ? 'CONTROLLI E CLASSIFICA (S)' : 'CLASSIFICA (S)';
       }
     }
 

@@ -425,6 +425,7 @@
     let specialConsonantsUsed = 0; // Quante consonanti chiamate (max 12)
     let specialVowelsPhase = true; // true = fase vocali, false = fase consonanti
     let specialVowelsGiven = 0; // Quante vocali date/chiamate
+    let lettersCalledThisRound = []; // Tutte le lettere chiamate nel round (per i bot)
     
     // PROTEZIONE: Impedisce l'accesso diretto dalla console
     // Override console.log per nascondere dati sensibili
@@ -622,12 +623,35 @@
         openMysteryModal();
       });
     }
-    function readRevealedLetters(){
+    const NATO_ALPHABET = {
+      'A':'Ancona', 'B':'Bologna', 'C':'Como', 'D':'Domodossola', 'E':'Empoli',
+      'F':'Firenze', 'G':'Genova', 'H':'Hotel', 'I':'Imola', 'J':'Jersey',
+      'K':'Kappa', 'L':'Livorno', 'M':'Milano', 'N':'Napoli', 'O':'Otranto',
+      'P':'Padova', 'Q':'Quarto', 'R':'Roma', 'S':'Savona', 'T':'Torino',
+      'U':'Udine', 'V':'Venezia', 'W':'Washington', 'X':'Xilofono', 'Y':'York', 'Z':'Zara'
+    };
+
+    async function readRevealedLetters(){
       if(!currentStanza) return;
       let letters=new Set();
       parsedBoard.forEach(w=>w.chars.forEach(c=>{ if(c.isLetter && c.isRevealed) letters.add(c.char); }));
-      const list=Array.from(letters).sort().join(', ');
-      speak(list ? `Lettere uscite: ${list}` : "Nessuna lettera uscita.");
+      const list=Array.from(letters).sort();
+      
+      if(!list.length) {
+        speak("Nessuna lettera uscita.");
+        return;
+      }
+      
+      // SPELLING con pause 500ms tra lettere
+      clearSpeechQueue();
+      speak("Lettere uscite:");
+      
+      for(let i=0; i<list.length; i++){
+        await new Promise(r => setTimeout(r, 500));
+        const letter = list[i];
+        const word = NATO_ALPHABET[letter] || letter;
+        speak(`${letter} ${word}`);
+      }
     }
     
     function moveWordNav(d) {
@@ -682,7 +706,13 @@
       if(!parsedBoard[navWordIdx]) return;
       const c = parsedBoard[navWordIdx].chars[navCharIdx];
       if(!c) return;
-      speak(c.isLetter && !c.isRevealed ? "Asterisco" : (NATO[c.char] || c.char));
+      
+      // Conta quante lettere totali nella parola
+      const totalLetters = parsedBoard[navWordIdx].chars.length;
+      const position = navCharIdx + 1; // +1 perché parte da 0
+      
+      const charText = c.isLetter && !c.isRevealed ? "Asterisco" : (NATO[c.char] || c.char);
+      speak(`${charText}, ${position} di ${totalLetters}`);
     }
 
     function openWordInspector() {
@@ -775,8 +805,25 @@
       if(!currentStanza) return;
       const currentPlayer = currentStanza.giocatori.find(p=>p.indice===currentStanza.id_giocatore_corrente);
       const isMe = (currentStanza.id_giocatore_corrente === myIndex);
-      const msg = isMe ? "È il tuo turno!" : `Turno di ${currentPlayer?.nome || 'sconosciuto'}`;
-      speak(msg);
+      const turnMsg = isMe ? "È il tuo turno!" : `Turno di ${currentPlayer?.nome || 'sconosciuto'}`;
+      
+      // Calcola statistiche tabellone
+      let totalWords = parsedBoard.length;
+      let totalLetters = 0;
+      let revealedLetters = 0;
+      
+      parsedBoard.forEach(w => {
+        w.chars.forEach(c => {
+          if(c.isLetter){
+            totalLetters++;
+            if(c.isRevealed) revealedLetters++;
+          }
+        });
+      });
+      
+      const boardMsg = `Tabellone: ${totalWords} parole, ${totalLetters} lettere totali, ${revealedLetters} scoperte.`;
+      
+      speak(`${turnMsg} ${boardMsg}`);
     }
 
     async function openPlayersPanel(){
@@ -1344,23 +1391,13 @@
           return;
        }
 
-       // ERRORE UMANO OCCASIONALE (3%): richiama una lettera già uscita (distrazione)
-       if(Math.random() < 0.03) {
-          const alreadyRevealed = [];
-          let gIdx = 0;
-          for(let i=0; i<currentPuzzleText.length; i++){
-             if(currentPuzzleText[i].match(/[A-ZÀ-Ù]/)){
-                if(s.lettere_rivelate.includes(gIdx)) alreadyRevealed.push(currentPuzzleText[i].toUpperCase());
-                gIdx++;
-             }
-          }
-          if(alreadyRevealed.length > 3) {
-             const errorChar = alreadyRevealed[Math.floor(Math.random()*alreadyRevealed.length)];
-             await _supabase.from('stanze').update({ultima_azione: 'errore', ultimo_messaggio: `${botPlayer.nome} ripete la "${errorChar}" già uscita!`, azione_timestamp: new Date().toISOString()}).eq('id', roomId);
-             passTurnBot();
-             isBotThinking = false;
-             return;
-          }
+       // ERRORE UMANO OCCASIONALE (7%): richiama una lettera già chiamata (distrazione/non se la ricorda)
+       if(Math.random() < 0.07 && lettersCalledThisRound.length > 3) {
+          const errorChar = lettersCalledThisRound[Math.floor(Math.random()*lettersCalledThisRound.length)];
+          await _supabase.from('stanze').update({ultima_azione: 'errore', ultimo_messaggio: `${botPlayer.nome} richiama la "${errorChar}" già provata!`, azione_timestamp: new Date().toISOString()}).eq('id', roomId);
+          passTurnBot();
+          isBotThinking = false;
+          return;
        }
 
        // 2. LOGICA DI GIOCO
@@ -1373,16 +1410,8 @@
        // Non serve "margine di sicurezza" - se ha i soldi e serve, la compra!
        if(botMoney >= costVowel && ratio < 0.65 && Math.random() < 0.35) {
            // Usa i gruppi randomizzati per le vocali
-           const alreadyRevealedVowels = [];
-           let gIdx = 0;
-           for(let i=0; i<currentPuzzleText.length; i++){
-              if(currentPuzzleText[i].match(/[A-ZÀ-Ù]/)){
-                 const c = currentPuzzleText[i].toUpperCase();
-                 if('AEIOU'.includes(c) && s.lettere_rivelate.includes(gIdx)) alreadyRevealedVowels.push(c);
-                 gIdx++;
-              }
-           }
-           chosenChar = getNextVowelHuman(alreadyRevealedVowels);
+           // IMPORTANTE: Non richiamare lettere già chiamate!
+           chosenChar = getNextVowelHuman(lettersCalledThisRound);
            if(chosenChar) isVowel = true;
        }
 
@@ -1431,16 +1460,8 @@
            // CHIAMA LETTERA (Consonante o Vocale comprata)
            if(!chosenChar) {
                // Usa i gruppi randomizzati per le consonanti
-               const alreadyRevealedCons = [];
-               let gIdx = 0;
-               for(let i=0; i<currentPuzzleText.length; i++){
-                  if(currentPuzzleText[i].match(/[A-ZÀ-Ù]/)){
-                     const c = currentPuzzleText[i].toUpperCase();
-                     if(!'AEIOU'.includes(c) && s.lettere_rivelate.includes(gIdx)) alreadyRevealedCons.push(c);
-                     gIdx++;
-                  }
-               }
-               chosenChar = getNextConsonantHuman(alreadyRevealedCons);
+               // IMPORTANTE: Non richiamare lettere già chiamate (presenti o assenti!)
+               chosenChar = getNextConsonantHuman(lettersCalledThisRound);
            }
 
            if(!chosenChar) chosenChar = "Z"; // Fallback rarissimo
@@ -1805,10 +1826,37 @@
       inputMode=mode;
       lastInputMode=mode; 
       document.getElementById('input-area').classList.remove('hidden');
-      const inp=document.getElementById('game-input'); inp.value='';
-      if(mode==='solve') speak("Scrivi la soluzione.");
-      else if(mode==='vowel') speak("Scrivi una vocale.");
-      else speak("Scrivi una consonante.");
+      const inp=document.getElementById('game-input');
+      
+      if(mode==='solve') {
+        // PRECOMPILA con lettere rivelate + asterischi
+        let template = "";
+        for(let i=0; i<currentPuzzleText.length; i++){
+          const char = currentPuzzleText[i].toUpperCase();
+          if(!char.match(/[A-ZÀ-Ù]/)){
+            template += char; // Spazi, punteggiatura
+          } else {
+            // È una lettera: controlla se è rivelata
+            let gIdx = 0;
+            for(let j=0; j<=i; j++){
+              if(currentPuzzleText[j].match(/[A-ZÀ-Ù]/)){
+                if(j === i) break;
+                gIdx++;
+              }
+            }
+            // Verifica se questo indice è rivelato
+            const isRevealed = currentStanza?.lettere_rivelate?.includes(gIdx);
+            template += isRevealed ? char : '*';
+          }
+        }
+        inp.value = template;
+        speak("Risolvi. Completa gli asterischi con le lettere mancanti.");
+      } else {
+        inp.value='';
+        if(mode==='vowel') speak("Scrivi una vocale.");
+        else speak("Scrivi una consonante.");
+      }
+      
       setTimeout(()=>inp.focus(),100);
     }
     function closeInput(){ document.getElementById('input-area').classList.add('hidden'); inputMode=null; }
@@ -1882,6 +1930,12 @@
 
         let foundIndices=[]; let gIdx=0;
         const sol=currentPuzzleText.toUpperCase();
+        
+        // TRACCIA la lettera chiamata (per i bot)
+        if(!lettersCalledThisRound.includes(char)) {
+          lettersCalledThisRound.push(char);
+        }
+        
         for(let i=0;i<sol.length;i++){
           if(sol[i].match(/[A-ZÀ-Ù]/)){
             if(cleanStr(sol[i])===cleanStr(char)) foundIndices.push(gIdx);
@@ -1958,8 +2012,17 @@
     function openChat(){ 
        document.getElementById('chat-overlay').classList.remove('hidden'); 
        fetchChat(); 
-       speak("Chat aperta"); 
-       setTimeout(() => document.getElementById('chat-input').focus(), 150);
+       
+       // Leggi solo l'ultimo messaggio (non tutti!)
+       setTimeout(async () => {
+         const {data:msgs}=await _supabase.from('chat_messaggi').select('*').eq('stanza_id', roomId).order('created_at',{ascending:false}).limit(1).single();
+         if(msgs) {
+           speak(`Chat aperta. Ultimo messaggio: ${msgs.giocatore_nome} dice ${msgs.messaggio}`);
+         } else {
+           speak("Chat aperta. Nessun messaggio.");
+         }
+         document.getElementById('chat-input').focus();
+       }, 150);
     }
     
     async function sendChatMessage(){
@@ -1974,6 +2037,9 @@
       if(!isHost) return;
       let n=currentStanza.round_giocati + 1;
       if(n>10){ await _supabase.from('stanze').update({stato:'terminata'}).eq('id', roomId); return; }
+      
+      // RESET tracking lettere chiamate
+      lettersCalledThisRound = [];
       
       // ROUND SPECIALI: 4, 7, 10
       const isSpecial = (n === 4 || n === 7 || n === 10);

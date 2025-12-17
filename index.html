@@ -1236,6 +1236,12 @@
         document.getElementById('game-panel').classList.remove('hidden');
         document.getElementById('btn-host-next').classList.toggle('hidden', !isHost);
         document.getElementById('btn-resume-host').classList.toggle('hidden', !isHost);
+        
+        // Aggiorna testo pulsante CLASSIFICA in base a isHost
+        const btnManagement = document.getElementById('btn-management');
+        if(btnManagement) {
+          btnManagement.textContent = isHost ? 'CONTROLLI E CLASSIFICA (S)' : 'CLASSIFICA (S)';
+        }
 
         _supabase.channel('game').on('postgres_changes',{event:'UPDATE',schema:'public',table:'stanze',filter:`id=eq.${roomId}`},fetchFullState).subscribe();
         _supabase.channel('chat').on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_messaggi',filter:`stanza_id=eq.${roomId}`},payload=>{
@@ -1594,6 +1600,10 @@
       }
 
       let canSpin=isMe && !isSpinning && !inputMode && s.montepremi_round===0;
+      let canSolve=isMe && !isSpinning && !inputMode;
+      let canPass=isMe && !isSpinning;
+      let canVowel=isMe && !isSpinning && !inputMode;
+      
       if(isRaddoppiaActive && isMe) canSpin=true;
       
       // ROUND SPECIALI: Override logica pulsanti
@@ -1618,10 +1628,7 @@
           }
         }
       } else {
-        // ROUND NORMALE (già gestito sopra)
-        let canSolve=isMe && !isSpinning && !inputMode;
-        let canPass=isMe && !isSpinning;
-        let canVowel=isMe && !isSpinning && !inputMode;
+        // ROUND NORMALE
         if(myRoundMoney < vCost) canVowel=false;
         if(vowelsBoughtThisTurn>=1) canVowel=false;
         if(isRaddoppiaActive) canVowel=false;

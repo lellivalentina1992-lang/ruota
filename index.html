@@ -826,7 +826,7 @@
       if(k==='s'){ e.preventDefault(); readAllScores(); }
       if(k==='l'){ e.preventDefault(); readRevealedLetters(); }
       if(k==='a'){ e.preventDefault(); openActionHistory(true); }
-      if(k==='b'){ e.preventDefault(); addBot(); } // TASTO BOT
+      if(k==='b'){ e.preventDefault(); addBot(); } 
     });
 
     function toggleAccessibleMode(){
@@ -981,11 +981,11 @@
       const ok=confirm(`Hai un JOLLY attivo. Vuoi usarlo per evitare: ${kindLabel}?`);
       if(!ok) return false;
       await consumeJolly();
-      await _supabase.from('stanze').update({montepremi_round:0,fase_speciale:0,ultima_azione:'jolly',ultimo_messaggio:`JOLLY usato: evitato ${kindLabel}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+      await _supabase.from('stanze').update({montepremi_round:0,fase_speciale:0,ultima_azione:'jolly',ultimo_messaggio:`JOLLY usato: evitato ${kindLabel}`,azione_timestamp: new Date().toISOString()}).eq('id', roomId);
       return true;
     }
 
-    // --- LOGICA BOT UMANO (V6) ---
+    // --- LOGICA BOT UMANO (AVVERSARIO REALE) ---
     async function addBot(){
       if(!isHost || !currentStanza) return;
       const botNames = ["🤖 Mario", "🤖 Luigi", "🤖 Anna", "🤖 Giulia", "🤖 Robot"];
@@ -1001,116 +1001,115 @@
        isBotThinking = true;
        console.log("Bot playing:", botPlayer.nome);
 
-       await new Promise(r => setTimeout(r, 2000));
+       await new Promise(r => setTimeout(r, 2500)); // Riflessione umana
 
        const s = currentStanza;
-
-       // 1. DECISIONE: Provo a risolvere?
-       // Calcola percentuale lettere scoperte
        const totalLetters = currentPuzzleText.replace(/[^A-ZÀ-Ù]/g, '').length;
        const revealedIndices = s.lettere_rivelate || [];
-       let revealedCount = 0;
-       
-       let gIdx = 0;
-       for(let i=0; i<currentPuzzleText.length; i++){
-          if(currentPuzzleText[i].match(/[A-ZÀ-Ù]/)){
-              if(revealedIndices.includes(gIdx)) revealedCount++;
-              gIdx++;
-          }
-       }
-       
-       const ratio = revealedCount / totalLetters;
-       let shouldSolve = false;
-       
-       if(ratio > 0.8 && Math.random() > 0.1) shouldSolve = true; 
-       else if(ratio > 0.6 && Math.random() > 0.6) shouldSolve = true; 
-       else if(ratio > 0.4 && Math.random() > 0.9) shouldSolve = true; 
+       const ratio = revealedIndices.length / totalLetters;
 
-       if(shouldSolve && s.montepremi_round === 0){
-          // SIMULAZIONE ERRORE RISOLUZIONE: 5% chance che sbagli
-          if(Math.random() < 0.05) {
-             await _supabase.from('stanze').update({ultima_azione: 'errore', ultimo_messaggio: `${botPlayer.nome} sbaglia soluzione!`, azione_timestamp: new Date().toISOString()}).eq('id', roomId);
+       // 1. IL BOT PROVA A RISOLVERE? (Solo se il tabellone è quasi pieno > 80%)
+       if(ratio > 0.8 && Math.random() > 0.2) {
+          if(Math.random() < 0.05) { // Errore umano nel digitare la soluzione
+             await _supabase.from('stanze').update({ultima_azione: 'errore', ultimo_messaggio: `${botPlayer.nome} tenta la soluzione ma sbaglia!`, azione_timestamp: new Date().toISOString()}).eq('id', roomId);
              passTurnBot();
              isBotThinking = false;
              return;
           }
-
-          // Tenta la soluzione (Vittoria)
           await _supabase.from('giocatori').update({punteggio_totale:(botPlayer.punteggio_totale||0)+(botPlayer.punteggio_round||0)+1000, punteggio_round:0}).eq('id', botPlayer.id);
-          await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${botPlayer.nome} HA RISOLTO!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+          await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${botPlayer.nome} HA RISOLTO LA FRASE!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
           isBotThinking = false;
           return;
        }
 
-       // 2. GIOCO NORMALE (Gira o chiama lettera)
-       if(s.montepremi_round === 0 && s.fase_speciale !== 2){
-         let val = WHEEL_VALUES[Math.floor(Math.random()*WHEEL_VALUES.length)];
-         if(val === 'MISTERO') val = 500; 
+       // 2. LOGICA DI GIOCO (SENZA CONOSCERE LA SOLUZIONE)
+       let chosenChar = null;
+       let isVowel = false;
+       const costVowel = getVowelCost();
 
-         if(val === 'BANCAROTTA' || val === 'PASSA' || val === 'PASSA_TURNO' || val === 'PASSA_AVVERSARIO'){
-             await _supabase.from('giocatori').update({punteggio_round:0}).eq('id', botPlayer.id);
-             passTurnBot();
-             isBotThinking = false;
-             return;
-         }
+       // Strategia: Compra vocale se ha soldi e il tabellone è poco chiaro
+       if((botPlayer.punteggio_round || 0) >= costVowel && ratio < 0.7 && Math.random() < 0.4) {
+           for(let v of FREQ_VOW) {
+               if(!isLetterAlreadyRevealedOnBoard(v, s)) {
+                   chosenChar = v;
+                   isVowel = true;
+                   break;
+               }
+           }
+       }
 
-         let prize = 0;
-         let msg = `${botPlayer.nome} gira: ${val}`;
-         
-         if(typeof val === 'number'){
-             prize = val;
-             if(s.fase_speciale === 2) { prize *= 2; msg += " (Raddoppiato!)"; }
-         } else if(val === '+1000'){
-             await _supabase.from('giocatori').update({punteggio_round:(botPlayer.punteggio_round||0)+1000}).eq('id', botPlayer.id);
-         } else if(val === 'RADDOPPIA'){
-             msg += " (Raddoppia!)";
-         }
+       if(s.montepremi_round === 0 && !isVowel) {
+           // GIRA LA RUOTA
+           let val = WHEEL_VALUES[Math.floor(Math.random()*WHEEL_VALUES.length)];
+           if(val === 'MISTERO') val = 500; 
 
-         await _supabase.from('stanze').update({montepremi_round: prize,fase_speciale: (val==='RADDOPPIA'?2:0),ultima_azione:'gira_ruota',ultimo_messaggio: msg,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+           if(['BANCAROTTA','PASSA','PASSA_TURNO','PASSA_AVVERSARIO'].includes(val)) {
+               await _supabase.from('giocatori').update({punteggio_round:0}).eq('id', botPlayer.id);
+               await _supabase.from('stanze').update({ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} gira: ${val}. Cambio turno!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+               passTurnBot();
+               isBotThinking = false;
+               return;
+           }
 
+           let prize = (typeof val === 'number') ? val : 0;
+           await _supabase.from('stanze').update({montepremi_round:prize,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} gira: ${val}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+           isBotThinking = false; 
+           return; 
        } else {
-         await new Promise(r => setTimeout(r, 1500));
-         let chosenChar = null;
-         
-         // FATTORE ERRORE UMANO: 20% che scelga completamente a caso
-         if(Math.random() < 0.20) {
-            const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-            chosenChar = alphabet[Math.floor(Math.random() * alphabet.length)];
-         } else {
-             // Scelta intelligente
-             const candidates = [...FREQ_CONS, ...FREQ_VOW];
-             for(let i=0; i<10; i++){
-                let c = candidates[Math.floor(Math.random()*candidates.length)];
-                if(s.ultimo_messaggio && !s.ultimo_messaggio.includes(c)) { chosenChar = c; break; }
-             }
-             if(!chosenChar) chosenChar = "R"; // fallback
-         }
+           // CHIAMA LETTERA (Consonante o Vocale comprata)
+           if(!chosenChar) {
+               // Cerca la consonante più logica che non ha ancora chiamato
+               for(let c of FREQ_CONS) {
+                   if(!isLetterAlreadyRevealedOnBoard(c, s)) {
+                       chosenChar = c;
+                       break;
+                   }
+               }
+           }
 
-         // Check soluzione
-         let foundIndices=[]; let gIdx=0;
-         const sol=currentPuzzleText.toUpperCase();
-         const cleanChar = cleanStr(chosenChar);
-         
-         for(let i=0;i<sol.length;i++){
-          if(sol[i].match(/[A-ZÀ-Ù]/)){
-            if(cleanStr(sol[i])===cleanChar) foundIndices.push(gIdx);
-            gIdx++;
-          }
-         }
-         
-         const newFound = foundIndices.filter(idx => !s.lettere_rivelate.includes(idx));
+           if(!chosenChar) chosenChar = "X"; // Fallback raro
 
-         if(newFound.length > 0){
-             const newRev = [...s.lettere_rivelate, ...newFound];
-             const gain = (s.montepremi_round||0) * newFound.length;
-             await _supabase.from('giocatori').update({punteggio_round:(botPlayer.punteggio_round||0)+gain}).eq('id', botPlayer.id);
-             await _supabase.from('stanze').update({lettere_rivelate: newRev,montepremi_round: 0,fase_speciale: 0,ultima_azione: 'chiama_lettera',ultimo_messaggio: `${botPlayer.nome}: Trovate ${newFound.length} ${chosenChar}`,azione_timestamp: new Date().toISOString()}).eq('id', roomId);
-         } else {
-             await _supabase.from('stanze').update({ultima_azione: 'errore',ultimo_messaggio: `${botPlayer.nome}: ${chosenChar} assente`,azione_timestamp: new Date().toISOString()}).eq('id', roomId);
-             passTurnBot();
-         }
+           // Verifica reale senza barare
+           let foundIndices = []; let gIdx = 0;
+           const sol = currentPuzzleText.toUpperCase();
+           const cleanChar = cleanStr(chosenChar);
+           for(let i=0; i<sol.length; i++) {
+               if(sol[i].match(/[A-ZÀ-Ù]/)) {
+                   if(cleanStr(sol[i]) === cleanChar) foundIndices.push(gIdx);
+                   gIdx++;
+               }
+           }
+           const newFound = foundIndices.filter(idx => !s.lettere_rivelate.includes(idx));
+
+           if(newFound.length > 0) {
+               const newRev = [...s.lettere_rivelate, ...newFound];
+               let gain = 0;
+               if(isVowel) {
+                   await _supabase.from('giocatori').update({punteggio_round:(botPlayer.punteggio_round||0)-costVowel}).eq('id', botPlayer.id);
+               } else {
+                   gain = (s.fase_speciale === 3) ? (s.montepremi_round||0) : ((s.montepremi_round||0) * newFound.length);
+                   await _supabase.from('giocatori').update({punteggio_round:(botPlayer.punteggio_round||0)+gain}).eq('id', botPlayer.id);
+               }
+               await _supabase.from('stanze').update({lettere_rivelate:newRev,montepremi_round:0,ultima_azione:'chiama_lettera',ultimo_messaggio:`${botPlayer.nome}: Trovate ${newFound.length} "${chosenChar}"!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+           } else {
+               if(isVowel) await _supabase.from('giocatori').update({punteggio_round:(botPlayer.punteggio_round||0)-costVowel}).eq('id', botPlayer.id);
+               await _supabase.from('stanze').update({ultima_azione:'errore',ultimo_messaggio:`${botPlayer.nome}: La "${chosenChar}" è assente.`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+               passTurnBot();
+           }
        }
        isBotThinking = false;
+    }
+
+    function isLetterAlreadyRevealedOnBoard(char, stanza) {
+        let found = false; let gIdx = 0;
+        const sol = currentPuzzleText.toUpperCase();
+        for(let i=0; i<sol.length; i++){
+            if(sol[i].match(/[A-ZÀ-Ù]/)){
+                if(cleanStr(sol[i]) === cleanStr(char) && stanza.lettere_rivelate.includes(gIdx)) found = true;
+                gIdx++;
+            }
+        }
+        return found;
     }
 
     function passTurnBot(){
@@ -1121,11 +1120,7 @@
     }
 
     function updateUI(s){
-      if (!s || !s.giocatori) {
-        console.warn("Dati stanza corrotti.");
-        return; 
-      }
-
+      if (!s || !s.giocatori) return;
       currentStanza=s;
       s.giocatori.sort((a,b)=>a.indice-b.indice);
 
@@ -1247,7 +1242,7 @@
         document.getElementById('score-total').textContent=me.punteggio_totale||0;
       }
       let statusTxt="";
-      if(s.montepremi_round>0) statusTxt = isMysteryFlat ? `IN PALIO: €${s.montepremi_round} (1 volta)` : `IN PALIO: €${s.montepremi_round}`;
+      if(s.montepremi_round>0) statusTxt = isMysteryFlat ? `IN PALIO: €${s.montepremi_round} (Piatto)` : `IN PALIO: €${s.montepremi_round}`;
       else if(isRaddoppiaActive) statusTxt="RADDOPPIA ATTIVO! GIRA!";
       document.getElementById('wheel-status-text').textContent=statusTxt;
 
@@ -1292,7 +1287,7 @@
         if(!openIt){
           val = 500;
           mysterySafeFlat = true;
-          speak("Scelti 500 sicuri. Ora chiama una consonante.");
+          speak("Scelti 500 sicuri.");
         } else {
           val = MISTERO_VALUES[Math.floor(Math.random()*MISTERO_VALUES.length)];
           speak("Mistero svelato... " + val);
@@ -1324,7 +1319,7 @@
       if(typeof val==='number'){
         if(mysterySafeFlat){
           finalPrize = val;
-          msg = `${myName} prende ${val}€ sicuri (premio piatto)!`;
+          msg = `${myName} prende ${val}€ (piatto)!`;
           nextFaseSpeciale = 3; 
         } else {
           finalPrize = val * activeMultiplier;
@@ -1338,14 +1333,14 @@
         nextFaseSpeciale=0;
       } else if(val==='RADDOPPIA'){
         finalPrize=0;
-        msg=`${myName} trova RADDOPPIA! Gira ancora per raddoppiare la cifra!`;
+        msg=`${myName} trova RADDOPPIA! Gira ancora!`;
         nextFaseSpeciale=2;
       } else if(val==='JOLLY'){
         const startR=currentStanza.round_giocati;
         const endR=startR + 4;
         await _supabase.from('giocatori').update({scadenza_jolly:endR}).eq('id', myId);
         finalPrize=0;
-        msg=`${myName} pesca il JOLLY! Valido fino al round ${endR}`;
+        msg=`${myName} pesca il JOLLY!`;
         nextFaseSpeciale=0;
       }
 
@@ -1370,7 +1365,7 @@
       lastInputMode=mode; 
       document.getElementById('input-area').classList.remove('hidden');
       const inp=document.getElementById('game-input'); inp.value='';
-      if(mode==='solve') speak("Scrivi la soluzione completa.");
+      if(mode==='solve') speak("Scrivi la soluzione.");
       else if(mode==='vowel') speak("Scrivi una vocale.");
       else speak("Scrivi una consonante.");
       setTimeout(()=>inp.focus(),100);
@@ -1391,7 +1386,7 @@
         if(cleanStr(txt)===cleanStr(currentPuzzleText)){
           const me=s.giocatori.find(p=>p.id===myId);
           await _supabase.from('giocatori').update({punteggio_totale:(me.punteggio_totale||0)+(me.punteggio_round||0)+1000,punteggio_round:0}).eq('id', myId);
-          await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${myName} HA VINTO!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+          await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${myName} HA RISOLTO!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
         } else {
           passTurn();
         }
@@ -1489,8 +1484,8 @@
     
     async function surrenderPhrase(){
       if(!isHost) return;
-      if(confirm("Arrenditi e rivela la soluzione?")){
-        await _supabase.from('stanze').update({stato:'finito',ultima_azione:'arresa',ultimo_messaggio:'HOST SI È ARRESO - Soluzione rivelata',azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+      if(confirm("Arrenditi?")){
+        await _supabase.from('stanze').update({stato:'finito',ultima_azione:'arresa',ultimo_messaggio:'HOST SI È ARRESO',azione_timestamp:new Date().toISOString()}).eq('id', roomId);
       }
     }
     

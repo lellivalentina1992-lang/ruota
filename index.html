@@ -745,69 +745,73 @@
       speak(msg);
     }
 
-    function openPlayersPanel(){
+    async function openPlayersPanel(){
       const panel = document.getElementById('players-panel');
       panel.classList.remove('hidden');
       
       const list = document.getElementById('players-list');
+      list.innerHTML = '<p style="color:#888; text-align:center; padding:20px;">Caricamento...</p>';
       
-      if(!currentStanza || !currentStanza.giocatori || currentStanza.giocatori.length === 0){
-        list.innerHTML = '<p style="color:#888; text-align:center; padding:20px;">Nessuna partita attiva o nessun giocatore presente.</p>';
-        speak("Nessuna partita attiva");
-        setTimeout(() => {
-          const closeBtn = panel.querySelector('button');
-          if(closeBtn) closeBtn.focus();
-        }, 100);
-        return;
-      }
-      
-      list.innerHTML = '<h3 style="color:var(--col-accent); margin-bottom:15px;">CLASSIFICA</h3>';
-      
-      // Classifica ordinata per punteggio
-      const sorted = [...currentStanza.giocatori].sort((a,b) => (b.punteggio_totale||0) - (a.punteggio_totale||0));
-      sorted.forEach((p, i) => {
-        const div = document.createElement('div');
-        div.style = 'background:#111; border:1px solid #333; padding:12px; margin:8px 0; border-radius:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;';
-        
-        const info = document.createElement('span');
-        info.style = 'color:#ddd; font-size:1.1em; flex:1; min-width:200px;';
-        info.innerHTML = `<strong style="color:var(--col-accent);">${i+1}.</strong> ${p.nome} - <strong>${p.punteggio_totale||0}€</strong> (Giro: ${p.punteggio_round||0}€)`;
-        div.appendChild(info);
-        
-        // PULSANTI HOST (solo per host e non per se stesso)
-        if(isHost && p.id !== myId){
-          const btnContainer = document.createElement('div');
-          btnContainer.style = 'display:flex; gap:5px; flex-wrap:wrap;';
+      // RICARICA dati freschi dal database
+      if(roomId){
+        const {data: freshStanza} = await _supabase.from('stanze').select('*, giocatori(*)').eq('id', roomId).single();
+        if(freshStanza && freshStanza.giocatori && freshStanza.giocatori.length > 0){
+          list.innerHTML = '<h3 style="color:var(--col-accent); margin-bottom:15px;">CLASSIFICA</h3>';
           
-          // Pulsante PASSA HOST
-          const btnHost = document.createElement('button');
-          btnHost.textContent = 'PASSA HOST';
-          btnHost.className = 'action-btn';
-          btnHost.style = 'padding:8px 12px; font-size:0.9em; background:#1a5490; border-color:#4a90e2; min-height:auto;';
-          btnHost.onclick = () => transferHost(p.id, p.nome);
-          btnContainer.appendChild(btnHost);
+          // Classifica ordinata per punteggio
+          const sorted = [...freshStanza.giocatori].sort((a,b) => (b.punteggio_totale||0) - (a.punteggio_totale||0));
+          sorted.forEach((p, i) => {
+            const div = document.createElement('div');
+            div.style = 'background:#111; border:1px solid #333; padding:12px; margin:8px 0; border-radius:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;';
+            
+            const info = document.createElement('span');
+            info.style = 'color:#ddd; font-size:1.1em; flex:1; min-width:200px;';
+            info.innerHTML = `<strong style="color:var(--col-accent);">${i+1}.</strong> ${p.nome} - <strong>${p.punteggio_totale||0}€</strong> (Giro: ${p.punteggio_round||0}€)`;
+            div.appendChild(info);
+            
+            // PULSANTI HOST (solo per host e non per se stesso)
+            if(isHost && p.id !== myId){
+              const btnContainer = document.createElement('div');
+              btnContainer.style = 'display:flex; gap:5px; flex-wrap:wrap;';
+              
+              // Pulsante PASSA HOST
+              const btnHost = document.createElement('button');
+              btnHost.textContent = 'PASSA HOST';
+              btnHost.className = 'action-btn';
+              btnHost.style = 'padding:8px 12px; font-size:0.9em; background:#1a5490; border-color:#4a90e2; min-height:auto;';
+              btnHost.onclick = () => transferHost(p.id, p.nome);
+              btnContainer.appendChild(btnHost);
+              
+              // Pulsante ELIMINA
+              const btnDel = document.createElement('button');
+              btnDel.textContent = 'ELIMINA';
+              btnDel.className = 'action-btn';
+              btnDel.style = 'padding:8px 12px; font-size:0.9em; background:#8b0000; border-color:#ff0000; min-height:auto;';
+              btnDel.onclick = () => removePlayer(p.id, p.nome);
+              btnContainer.appendChild(btnDel);
+              
+              div.appendChild(btnContainer);
+            }
+            
+            list.appendChild(div);
+          });
           
-          // Pulsante ELIMINA
-          const btnDel = document.createElement('button');
-          btnDel.textContent = 'ELIMINA';
-          btnDel.className = 'action-btn';
-          btnDel.style = 'padding:8px 12px; font-size:0.9em; background:#8b0000; border-color:#ff0000; min-height:auto;';
-          btnDel.onclick = () => removePlayer(p.id, p.nome);
-          btnContainer.appendChild(btnDel);
+          speak("Pannello giocatori aperto");
           
-          div.appendChild(btnContainer);
+          // FOCUS automatico sul primo pulsante (elimina o chiudi)
+          setTimeout(() => {
+            const firstBtn = list.querySelector('button') || panel.querySelector('button');
+            if(firstBtn) firstBtn.focus();
+          }, 100);
+          
+        } else {
+          list.innerHTML = '<p style="color:#888; text-align:center; padding:20px;">Nessun giocatore presente.</p>';
+          speak("Nessun giocatore");
         }
-        
-        list.appendChild(div);
-      });
-      
-      speak("Pannello giocatori aperto");
-      
-      // FOCUS automatico sul primo pulsante (elimina o chiudi)
-      setTimeout(() => {
-        const firstBtn = list.querySelector('button') || panel.querySelector('button');
-        if(firstBtn) firstBtn.focus();
-      }, 100);
+      } else {
+        list.innerHTML = '<p style="color:#888; text-align:center; padding:20px;">Nessuna partita attiva.</p>';
+        speak("Nessuna partita attiva");
+      }
     }
 
     function closePlayers(){
@@ -833,6 +837,9 @@
       
       speak(`${playerName} eliminato. Turni resettati.`);
       closePlayers();
+      
+      // FORZA il refresh immediato dello stato
+      await fetchFullState();
     }
 
     async function transferHost(newHostId, newHostName){
@@ -853,6 +860,9 @@
       
       // Nascondi i controlli host
       document.getElementById('host-controls-area').classList.add('hidden');
+      
+      // FORZA il refresh immediato dello stato
+      await fetchFullState();
     }
 
     function readAllScores(){
@@ -1174,6 +1184,9 @@
       
       await _supabase.from('giocatori').insert({stanza_id:roomId, nome:name, indice:lastInd+1, is_host:false});
       speak("Bot aggiunto: " + name);
+      
+      // FORZA il refresh immediato dello stato
+      await fetchFullState();
     }
 
     async function playBotTurn(botPlayer){

@@ -394,6 +394,7 @@
     const WHEEL_VALUES=[100,200,300,400,500,600,700,800,900,1000,2000,'MISTERO','PASSA','BANCAROTTA','JOLLY'];
     const MISTERO_VALUES=['RADDOPPIA','BANCAROTTA','PASSA','PASSA_AVVERSARIO','+1000','JOLLY'];
     const TURN_LIMIT_SEC=240;
+    const MAX_PLAYERS=3;
 
     let myId, myIndex, roomId, isHost=false;
     let currentFrase=null, currentStanza=null, currentPuzzleText="", currentHintText="", fullSolutionText="";
@@ -1019,6 +1020,13 @@
     // --- LOGICA BOT UMANO (AVVERSARIO REALE) ---
     async function addBot(){
       if(!isHost || !currentStanza) return;
+      
+      // CONTROLLO LIMITE GIOCATORI
+      if(currentStanza.giocatori.length >= MAX_PLAYERS) {
+        speak("Stanza piena! Massimo " + MAX_PLAYERS + " giocatori.");
+        return;
+      }
+      
       const botNames = ["🤖 Giulia", "🤖 Matteo"];
       const usedNames = currentStanza.giocatori.map(p => p.nome);
       const name = botNames.find(n => !usedNames.includes(n)) || "🤖 Bot" + Math.floor(Math.random()*100);

@@ -993,7 +993,7 @@
       const name = botNames.find(n => !usedNames.includes(n)) || "🤖 Bot" + Math.floor(Math.random()*100);
       const lastInd = currentStanza.giocatori[currentStanza.giocatori.length-1].indice;
       await _supabase.from('giocatori').insert({stanza_id:roomId, nome:name, indice:lastInd+1, is_host:false});
-      speak("Bot aggiunto");
+      speak("Bot aggiunto, la sfida ha inizio");
     }
 
     async function playBotTurn(botPlayer){
@@ -1045,6 +1045,7 @@
 
            if(['BANCAROTTA','PASSA','PASSA_TURNO','PASSA_AVVERSARIO'].includes(val)) {
                await _supabase.from('giocatori').update({punteggio_round:0}).eq('id', botPlayer.id);
+               // BLOCCO DI SICUREZZA: Aggiorna e ritorna subito per non far fare al bot altre mosse
                await _supabase.from('stanze').update({ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} gira: ${val}. Cambio turno!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
                passTurnBot();
                isBotThinking = false;
@@ -1491,8 +1492,9 @@
     
     async function resetGame(){
       if(confirm("Reset partita?")){
+        // Usiamo 'await' per assicurarci che il reset avvenga PRIMA di iniziare il nuovo round
         await _supabase.from('giocatori').update({punteggio_totale:0, punteggio_round:0}).eq('stanza_id', roomId);
-        await _supabase.from('stanze').update({round_giocati:0}).eq('id', roomId);
+        await _supabase.from('stanze').update({round_giocati:0, lettere_rivelate:[]}).eq('id', roomId);
         startNewRound();
       }
     }

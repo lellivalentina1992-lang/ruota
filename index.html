@@ -136,7 +136,7 @@
 
   <div style="display:flex; justify-content:space-between; width:95%; max-width:900px; margin:10px auto;">
     <button onclick="toggleContrast()" style="background:transparent; border:1px solid #555; color:#888; padding:5px 10px; border-radius:5px; font-size:0.8em;">Contrasto</button>
-    <button onclick="toggleAccessibleMode()" id="btn-acc-mode" style="background:transparent; border:1px solid #555; color:#fff; font-weight:bold; padding:5px 10px; border-radius:5px; font-size:0.8em;" aria-pressed="false">👁️ VISTA TESTO</button>
+    <button onclick="toggleAccessibleMode()" id="btn-acc-mode" style="background:transparent; border:1px solid #555; color:#fff; font-weight:bold; padding:5px 10px; border-radius:5px; font-size:0.8em;" aria-pressed="false">VISTA TESTO</button>
     <button onclick="openHelp()" style="background:transparent; border:1px solid #555; color:#888; padding:5px 10px; border-radius:5px; font-size:0.8em;" aria-label="Aiuto tasti rapidi (H)">Aiuto (H)</button>
     <button onclick="openActionHistory(true)" style="background:transparent; border:1px solid #555; color:#888; padding:5px 10px; border-radius:5px; font-size:0.8em;">Storico (A)</button>
   </div>
@@ -242,7 +242,7 @@
     <div id="host-controls-area" class="hidden" style="width:90%; margin-top:20px; border-top:1px solid #333; padding-top:10px;">
       <p style="color:#555; font-size:0.8em;">HOST</p>
       <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
-        <button onclick="addBot()" class="action-btn" style="font-size:0.8em; padding:10px; border-color:cyan; color:cyan;">AGGIUNGI BOT 🤖 (B)</button>
+        <button onclick="addBot()" class="action-btn" style="font-size:0.8em; padding:10px; border-color:cyan; color:cyan;">AGGIUNGI BOT (B)</button>
         <button onclick="resetGame()" class="action-btn" style="font-size:0.8em; padding:10px; border-color:blue;">RESET</button>
         <button onclick="closeRoom()" class="action-btn" style="font-size:0.8em; padding:10px; border-color:red;">CHIUDI</button>
         <button onclick="togglePause()" class="action-btn" style="font-size:0.8em; padding:10px; border-color:orange;">PAUSA</button>
@@ -252,11 +252,11 @@
 
     <div id="audio-panel">
       <span class="label">AUDIO:</span>
-      <button class="action-btn" onclick="playAudio('snd-clap')" aria-label="Applauso">👏</button>
-      <button class="action-btn" onclick="playAudio('snd-laugh')" aria-label="Risata">😂</button>
-      <button class="action-btn" onclick="playAudio('snd-boo')" aria-label="Buuu">👎</button>
-      <button class="action-btn" onclick="playAudio('snd-ooh')" aria-label="Ohhh">😮</button>
-      <button id="btn-mute" class="action-btn mutebtn" onclick="toggleMute()">🔊</button>
+      <button class="action-btn" onclick="playAudio('snd-clap')" aria-label="Applauso">APPLAUSO</button>
+      <button class="action-btn" onclick="playAudio('snd-laugh')" aria-label="Risata">RISATA</button>
+      <button class="action-btn" onclick="playAudio('snd-boo')" aria-label="Buuu">BUUU</button>
+      <button class="action-btn" onclick="playAudio('snd-ooh')" aria-label="Ohhh">OHHH</button>
+      <button id="btn-mute" class="action-btn mutebtn" onclick="toggleMute()">AUDIO ON</button>
     </div>
   </div>
 
@@ -489,7 +489,7 @@
     }
     function toggleMute(){
       isMuted=!isMuted;
-      document.getElementById('btn-mute').textContent = isMuted ? '🔇' : '🔊';
+      document.getElementById('btn-mute').textContent = isMuted ? 'AUDIO OFF' : 'AUDIO ON';
       speak(isMuted ? "Audio disattivato" : "Audio attivato");
     }
     function cleanStr(s){ return (s && typeof s === 'string') ? s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"") : ""; }
@@ -767,21 +767,35 @@
       const sorted = [...currentStanza.giocatori].sort((a,b) => (b.punteggio_totale||0) - (a.punteggio_totale||0));
       sorted.forEach((p, i) => {
         const div = document.createElement('div');
-        div.style = 'background:#111; border:1px solid #333; padding:12px; margin:8px 0; border-radius:8px; display:flex; justify-content:space-between; align-items:center;';
+        div.style = 'background:#111; border:1px solid #333; padding:12px; margin:8px 0; border-radius:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;';
         
         const info = document.createElement('span');
-        info.style = 'color:#ddd; font-size:1.1em;';
+        info.style = 'color:#ddd; font-size:1.1em; flex:1; min-width:200px;';
         info.innerHTML = `<strong style="color:var(--col-accent);">${i+1}.</strong> ${p.nome} - <strong>${p.punteggio_totale||0}€</strong> (Giro: ${p.punteggio_round||0}€)`;
         div.appendChild(info);
         
-        // PULSANTE ELIMINA (solo per host e non per se stesso)
+        // PULSANTI HOST (solo per host e non per se stesso)
         if(isHost && p.id !== myId){
+          const btnContainer = document.createElement('div');
+          btnContainer.style = 'display:flex; gap:5px; flex-wrap:wrap;';
+          
+          // Pulsante PASSA HOST
+          const btnHost = document.createElement('button');
+          btnHost.textContent = 'PASSA HOST';
+          btnHost.className = 'action-btn';
+          btnHost.style = 'padding:8px 12px; font-size:0.9em; background:#1a5490; border-color:#4a90e2; min-height:auto;';
+          btnHost.onclick = () => transferHost(p.id, p.nome);
+          btnContainer.appendChild(btnHost);
+          
+          // Pulsante ELIMINA
           const btnDel = document.createElement('button');
-          btnDel.textContent = '❌ ELIMINA';
+          btnDel.textContent = 'ELIMINA';
           btnDel.className = 'action-btn';
           btnDel.style = 'padding:8px 12px; font-size:0.9em; background:#8b0000; border-color:#ff0000; min-height:auto;';
           btnDel.onclick = () => removePlayer(p.id, p.nome);
-          div.appendChild(btnDel);
+          btnContainer.appendChild(btnDel);
+          
+          div.appendChild(btnContainer);
         }
         
         list.appendChild(div);
@@ -819,6 +833,26 @@
       
       speak(`${playerName} eliminato. Turni resettati.`);
       closePlayers();
+    }
+
+    async function transferHost(newHostId, newHostName){
+      if(!isHost) return;
+      if(!confirm(`Passare il controllo della stanza a ${newHostName}?`)) return;
+      
+      // Rimuovi host dal vecchio host (te)
+      await _supabase.from('giocatori').update({is_host: false}).eq('id', myId);
+      
+      // Dai host al nuovo giocatore
+      await _supabase.from('giocatori').update({is_host: true}).eq('id', newHostId);
+      
+      // Aggiorna la variabile locale
+      isHost = false;
+      
+      speak(`${newHostName} è ora l'host della stanza.`);
+      closePlayers();
+      
+      // Nascondi i controlli host
+      document.getElementById('host-controls-area').classList.add('hidden');
     }
 
     function readAllScores(){
@@ -953,7 +987,11 @@
       if(k==='r' || (e.ctrlKey && k==='r')){ e.preventDefault(); openInput('solve'); }
       if(k==='t' || (e.ctrlKey && k==='t')){ e.preventDefault(); announceTurn(); }
       if(k==='k' || (e.ctrlKey && k==='k')){ e.preventDefault(); openChat(); }
-      if(k==='s' || (e.ctrlKey && k==='s')){ e.preventDefault(); openPlayersPanel(); }
+      if(k==='s' || (e.ctrlKey && k==='s')){ 
+        e.preventDefault(); 
+        console.log("S premuto! Chiamando openPlayersPanel...");
+        openPlayersPanel(); 
+      }
       if(k==='l' || (e.ctrlKey && k==='l')){ e.preventDefault(); readRevealedLetters(); }
       if(k==='a' || (e.ctrlKey && k==='a')){ e.preventDefault(); openActionHistory(true); }
       if(k==='b' || (e.ctrlKey && k==='b')){ e.preventDefault(); addBot(); } 
@@ -1129,9 +1167,9 @@
         return;
       }
       
-      const botNames = ["🤖 Giulia", "🤖 Matteo"];
+      const botNames = ["BOT Giulia", "BOT Matteo"];
       const usedNames = freshStanza.giocatori.map(p => p.nome);
-      const name = botNames.find(n => !usedNames.includes(n)) || "🤖 Bot" + Math.floor(Math.random()*100);
+      const name = botNames.find(n => !usedNames.includes(n)) || "BOT " + Math.floor(Math.random()*100);
       const lastInd = freshStanza.giocatori[freshStanza.giocatori.length-1].indice;
       
       await _supabase.from('giocatori').insert({stanza_id:roomId, nome:name, indice:lastInd+1, is_host:false});
@@ -1386,7 +1424,7 @@
       const currentPlayer = s.giocatori.find(p=>p.indice===s.id_giocatore_corrente);
       const isMe=(s.id_giocatore_corrente===myIndex);
       
-      if(isHost && currentPlayer && currentPlayer.nome.startsWith("🤖")){
+      if(isHost && currentPlayer && currentPlayer.nome.startsWith("BOT")){
           playBotTurn(currentPlayer);
       }
 

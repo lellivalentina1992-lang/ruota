@@ -746,10 +746,21 @@
     }
 
     function openPlayersPanel(){
-      if(!currentStanza) return;
-      document.getElementById('players-panel').classList.remove('hidden');
+      console.log("openPlayersPanel chiamata! currentStanza:", currentStanza);
+      const panel = document.getElementById('players-panel');
+      console.log("Panel trovato:", panel);
+      
+      panel.classList.remove('hidden');
+      console.log("Hidden rimosso, classList:", panel.classList);
       
       const list = document.getElementById('players-list');
+      
+      if(!currentStanza || !currentStanza.giocatori || currentStanza.giocatori.length === 0){
+        list.innerHTML = '<p style="color:#888; text-align:center; padding:20px;">Nessuna partita attiva o nessun giocatore presente.</p>';
+        speak("Nessuna partita attiva");
+        return;
+      }
+      
       list.innerHTML = '<h3 style="color:var(--col-accent); margin-bottom:15px;">CLASSIFICA</h3>';
       
       // Classifica ordinata per punteggio

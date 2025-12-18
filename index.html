@@ -681,7 +681,10 @@
     }
     function speakChat(t){
       if(!t) return;
-      const e=document.getElementById('sr-chat'); e.textContent='';
+      const e=document.getElementById('sr-chat'); 
+      e.textContent='';
+      // Non usare setTimeout qui - aggiorna direttamente
+      // Il delay di 50ms non è critico per la chat
       setTimeout(()=>{ e.textContent=t; },50);
     }
     function playAudio(id){
@@ -705,13 +708,30 @@
         });
       }
     }
+    let multipleHitsTimeouts = []; // ✅ FIX: Array per tracciare i timeout attivi
+    
     function playMultipleHits(count) {
-        let i = 0;
-        const interval = setInterval(() => {
+        // ✅ FIX: Cancella qualsiasi timeout precedente ancora in esecuzione
+        multipleHitsTimeouts.forEach(timeout => clearTimeout(timeout));
+        multipleHitsTimeouts = [];
+        
+        // ✅ FIX: Riproduci un singolo suono "consolidato" invece di uno per ogni lettera
+        // Questo evita sovrapposizioni caotiche quando vengono trovate molte lettere
+        if(count === 1) {
+            // Una sola lettera: suono normale
             playAudio('snd-hit');
-            i++;
-            if (i >= count) clearInterval(interval);
-        }, 300);
+        } else if(count === 2) {
+            // Due lettere: due beep ravvicinati
+            playAudio('snd-hit');
+            const timeout1 = setTimeout(() => playAudio('snd-hit'), 200);
+            multipleHitsTimeouts.push(timeout1);
+        } else if(count >= 3) {
+            // Tre o più lettere: suono "successo multiplo" (tripletta di beep veloci)
+            playAudio('snd-hit');
+            const timeout1 = setTimeout(() => playAudio('snd-hit'), 150);
+            const timeout2 = setTimeout(() => playAudio('snd-hit'), 300);
+            multipleHitsTimeouts.push(timeout1, timeout2);
+        }
     }
     function toggleMute(){
       isMuted=!isMuted;
@@ -908,13 +928,56 @@
       clearSpeechQueue();
       if(spellingTimer) clearTimeout(spellingTimer);
       if(!parsedBoard.length) return;
+      
+      // ✅ SALVA la parola corrente PRIMA di fare qualsiasi calcolo
+      const savedWordIdx = navWordIdx;
       let currentW = parsedBoard[navWordIdx];
       if(!currentW) return; 
+      
       let newCharIdx = navCharIdx + d;
-      if(newCharIdx < -1) { speak("Inizio parola"); return; }
-      if(newCharIdx >= currentW.chars.length) { speak("Fine parola"); return; }
-      if(newCharIdx === -1) { navCharIdx = -1; highlightNav(); speak("Inizio parola"); return; }
+      
+      // ✅ FIX: Se navCharIdx è -1 (nessuna lettera selezionata)
+      if(navCharIdx === -1) {
+        if(d > 0) {
+          // Freccia destra da inizio parola: vai alla prima lettera (se esiste)
+          if(currentW.chars.length > 0) {
+            navCharIdx = 0;
+            highlightNav();
+            readSingleChar();
+          } else {
+            speak("Parola vuota");
+          }
+        } else {
+          // Freccia sinistra da inizio parola: NON fare nulla
+          speak("Inizio parola");
+        }
+        return;
+      }
+      
+      // ✅ FIX CRITICO: Blocca COMPLETAMENTE il movimento oltre i limiti
+      // NON permettere MAI di cambiare parola con le frecce orizzontali!
+      if(newCharIdx < 0) {
+        // Tentativo di andare prima del primo carattere
+        speak("Inizio parola"); 
+        return; // ← RETURN IMMEDIATO, non cambiare NULLA
+      }
+      
+      if(newCharIdx >= currentW.chars.length) {
+        // Tentativo di andare oltre l'ultimo carattere
+        speak("Fine parola"); 
+        return; // ← RETURN IMMEDIATO, non cambiare NULLA
+      }
+      
+      // ✅ Movimento valido DENTRO la stessa parola
       navCharIdx = newCharIdx;
+      
+      // ✅ VERIFICA POST-MODIFICA: assicurati che non sia cambiata la parola
+      if(navWordIdx !== savedWordIdx) {
+        // ERRORE CRITICO: qualcosa ha cambiato la parola!
+        console.error("BUG: navWordIdx è cambiato durante moveNav!", {savedWordIdx, navWordIdx});
+        navWordIdx = savedWordIdx; // Ripristina
+      }
+      
       highlightNav();
       readSingleChar();
     }
@@ -1334,11 +1397,13 @@
           return;
         }
         
+        showFlashMessage(`${playerName} eliminato dal database...`, 'info');
         
         // Riorganizza tutti i giocatori rimasti
         await reorganizePlayers();
         
-        speak(`${playerName} eliminato. Turni riorganizzati.`);
+        speak(`${playerName} eliminato. Turni riorganizzati. Tutti i giocatori sono stati risincronizzati.`);
+        showFlashMessage(`✓ ${playerName} eliminato e turni riorganizzati`, 'success');
         
         // Riapri il pannello giocatori aggiornato
         setTimeout(() => openPlayersPanel(), 500);
@@ -1551,6 +1616,13 @@
         }
         if(k==='enter'){ e.preventDefault(); if(document.activeElement) document.activeElement.click(); return; }
         if(e.ctrlKey || /^[a-z]$/.test(k)) { e.preventDefault(); return; }
+      }
+
+      // ✅ FIX: Se sei in un campo input, permetti le frecce per navigare nel testo
+      // NON intercettare le frecce quando l'utente sta editando testo
+      if(isInInput && ['arrowleft','arrowright','arrowup','arrowdown','home','end'].includes(k)){
+        // Lascia che il browser gestisca normalmente la navigazione nel campo input
+        return; // Non fare e.preventDefault(), lascia funzionare normalmente
       }
 
       if(k==='arrowup'){ e.preventDefault(); moveWordNav(-1); return; }
@@ -2233,6 +2305,19 @@
       }
       
       if(isHost && currentPlayer && currentPlayer.nome.startsWith("BOT")){
+          console.log("🤖 BOT RILEVATO:", {
+            nome: currentPlayer.nome,
+            id: currentPlayer.id,
+            indice: currentPlayer.indice,
+            timestamp_creazione: currentPlayer.created_at,
+            tutti_giocatori: s.giocatori.map(p => ({nome: p.nome, id: p.id}))
+          });
+          
+          // ✅ Avvisa l'utente che c'è un bot (potrebbe essere non voluto)
+          const botWarning = `Rilevato ${currentPlayer.nome}. Se non l'hai aggiunto tu, puoi eliminarlo dal pannello Giocatori (tasto S).`;
+          showFlashMessage(botWarning, 'warning');
+          speak(`Turno del bot: ${currentPlayer.nome}`);
+          
           playBotTurn(currentPlayer);
       } else {
       }
@@ -2355,6 +2440,8 @@ const showSurrender = isHost && (
         if(s.ultima_azione==='errore') playAudio('snd-miss');
         else if(s.ultima_azione==='gira_ruota' && (s.ultimo_messaggio||"").includes("BANCAROTTA")) playAudio('snd-bankrupt');
         else if(s.ultima_azione==='chiama_lettera') {
+            // ✅ FIX: Riproduci il suono SOLO se il timestamp è cambiato
+            // Questo previene sovrapposizioni quando updateUI viene chiamato più volte
             const match = (s.ultimo_messaggio || "").match(/Trovate (\d+)/);
             const count = match ? parseInt(match[1]) : 1;
             playMultipleHits(count);
@@ -2658,23 +2745,55 @@ const showSurrender = isHost && (
         }
         inp.value = template;
         
+        // ✅ FIX: Migliore gestione della digitazione interattiva con supporto per frecce
+        let lastCursorPos = 0;
         
         inp.addEventListener('input', function handleInteractiveTyping(e) {
           const currentValue = e.target.value.toUpperCase();
           const templateValue = template.toUpperCase();
           
-          // ✅ FIX 4: Se l'utente ha cancellato caratteri, ripristina il template
+          // Se l'utente ha cancellato caratteri, ripristina il template
           if(currentValue.length < templateValue.length) {
             e.target.value = template;
+            e.target.setSelectionRange(lastCursorPos, lastCursorPos);
             return;
           }
           
-          // Se lunghezza maggiore, tronca
+          // Se lunghezza maggiore, gestisci la nuova lettera
           if(currentValue.length > templateValue.length) {
-            e.target.value = currentValue.substring(0, templateValue.length);
+            // L'utente ha digitato un carattere
+            // Trova dove l'ha digitato (posizione del cursore prima della digitazione)
+            const cursorPos = lastCursorPos;
+            
+            // Prendi il carattere digitato
+            const typedChar = currentValue[cursorPos];
+            
+            // Controlla se in quella posizione c'è un asterisco nel template
+            if(template[cursorPos] === '*' && typedChar.match(/[A-ZÀ-Ù]/)) {
+              // Sostituisci l'asterisco con la lettera
+              const newTemplate = template.substring(0, cursorPos) + typedChar + template.substring(cursorPos + 1);
+              template = newTemplate;
+              e.target.value = newTemplate;
+              
+              // Sposta alla prossima posizione (o al prossimo asterisco)
+              let nextPos = cursorPos + 1;
+              for(let i = nextPos; i < newTemplate.length; i++) {
+                if(newTemplate[i] === '*') {
+                  nextPos = i;
+                  break;
+                }
+              }
+              e.target.setSelectionRange(nextPos, nextPos);
+              lastCursorPos = nextPos;
+            } else {
+              // Carattere non valido o posizione non corretta, ripristina
+              e.target.value = template;
+              e.target.setSelectionRange(cursorPos, cursorPos);
+            }
             return;
           }
           
+          // Lunghezza uguale: potrebbe essere una sostituzione diretta
           // Trova la prima differenza
           let diffPos = -1;
           for(let i = 0; i < currentValue.length; i++) {
@@ -2684,38 +2803,44 @@ const showSurrender = isHost && (
             }
           }
           
-          // ✅ FIX 4: Sostituisci l'asterisco con la lettera digitata
           if(diffPos !== -1 && templateValue[diffPos] === '*') {
             const newChar = currentValue[diffPos];
             if(newChar.match(/[A-ZÀ-Ù]/)) {
-              // Sostituisci nel template l'asterisco con la nuova lettera
+              // Sostituisci l'asterisco con la nuova lettera
               const newTemplate = template.substring(0, diffPos) + newChar + template.substring(diffPos + 1);
               template = newTemplate;
               e.target.value = newTemplate;
               
-              // Sposta il cursore alla prossima posizione
-              setTimeout(() => {
-                // Trova il prossimo asterisco
-                let nextAsterisk = -1;
-                for(let i = diffPos + 1; i < newTemplate.length; i++) {
-                  if(newTemplate[i] === '*') {
-                    nextAsterisk = i;
-                    break;
-                  }
+              // Sposta al prossimo asterisco
+              let nextAsterisk = -1;
+              for(let i = diffPos + 1; i < newTemplate.length; i++) {
+                if(newTemplate[i] === '*') {
+                  nextAsterisk = i;
+                  break;
                 }
-                if(nextAsterisk !== -1) {
-                  e.target.setSelectionRange(nextAsterisk, nextAsterisk);
-                } else {
-                  e.target.setSelectionRange(newTemplate.length, newTemplate.length);
-                }
-              }, 0);
+              }
+              const nextPos = nextAsterisk !== -1 ? nextAsterisk : newTemplate.length;
+              e.target.setSelectionRange(nextPos, nextPos);
+              lastCursorPos = nextPos;
             } else {
               // Carattere non valido, ripristina
               e.target.value = template;
             }
           } else {
-            // Non è un asterisco o posizione non valida, ripristina
+            // Non è un asterisco, ripristina
             e.target.value = template;
+          }
+        });
+        
+        // Traccia la posizione del cursore per gestire meglio la digitazione
+        inp.addEventListener('click', function(e) {
+          lastCursorPos = e.target.selectionStart;
+        });
+        
+        inp.addEventListener('keydown', function(e) {
+          // Prima dell'input, salva la posizione del cursore
+          if(e.key.length === 1 || e.key === 'Backspace' || e.key === 'Delete') {
+            lastCursorPos = e.target.selectionStart;
           }
         });
         
@@ -2987,18 +3112,25 @@ const showSurrender = isHost && (
     function checkTurnTimer(){
       if(!currentStanza || currentStanza.in_pausa || currentStanza.stato!=='gioco') return;
       
-      
+      // Non controllare il timer se l'utente sta facendo qualcosa
       if(isSpinning || isProcessingInput) return;
       
+      // ✅ FIX: Non passare automaticamente il turno se l'utente è in modalità input
+      // (sta scrivendo una consonante, vocale o soluzione)
+      if(inputMode) return;
+      
       // ✅ FIX CHATGPT: Usa SOLO azione_timestamp dal DB (fonte di verità unica)
-      // lastSpinTimestamp locale può "sfasare" se non aggiornato correttamente
       const timestampToUse = currentStanza.azione_timestamp;
       
       const elapsed=Math.floor((new Date().getTime() - new Date(timestampToUse).getTime())/1000);
       if(isNaN(elapsed) || elapsed > 10000 || elapsed < -100) return;
       const left=Math.max(0, TURN_LIMIT_SEC - elapsed);
       document.getElementById('timer-box').textContent=left;
-      if(left===0 && isHost && !isHandlingTimeout) passTurn();
+      
+      // ✅ Quando il timer scade, passa il turno (anche se sei tu a giocare)
+      if(left===0 && isHost && !isHandlingTimeout) {
+        passTurn();
+      }
     }
 
     async function fetchChat(showAll = false){
@@ -3318,6 +3450,10 @@ const showSurrender = isHost && (
       if(turnTimerInterval) {
         clearInterval(turnTimerInterval);
         turnTimerInterval = null;
+      }
+      if(nextRoundInterval) {
+        clearInterval(nextRoundInterval);
+        nextRoundInterval = null;
       }
       
       if(roomId && myId){

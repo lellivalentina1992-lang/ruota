@@ -1909,6 +1909,7 @@
       // RIMOSSO: vowelsBoughtThisTurn=0; - si resetta solo con consonante corretta!
       speak("Giro la ruota...");
       playAudio('snd-spin');
+      playWheelSpinSound(); // SUONO RUOTA
       animateWheelSpin();
       await new Promise(r=>setTimeout(r,3000));
       let val=WHEEL_VALUES[Math.floor(Math.random()*WHEEL_VALUES.length)];
@@ -2181,6 +2182,7 @@
 
       if(mode==='solve'){
         if(cleanStr(txt)===cleanStr(currentPuzzleText)){
+          playSuccessSound(); // SUONO VITTORIA
           const me=s.giocatori.find(p=>p.id===myId);
           
           // ROUND SPECIALI: +1000 per ogni frase risolta
@@ -2200,6 +2202,7 @@
             await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${myName} HA RISOLTO!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
           }
         } else {
+          playIncorrectSound(); // SUONO SOLUZIONE SBAGLIATA
           passTurn();
         }
       } else {
@@ -2245,14 +2248,33 @@
           }
         }
         if(foundIndices.length>0){
+          // CALCOLA SOLO LE NUOVE LETTERE TROVATE (escludendo quelle già rivelate)
+          const newFoundIndices = foundIndices.filter(idx => !(s.lettere_rivelate||[]).includes(idx));
+          
+          // Se tutte le lettere erano già state rivelate, consideralo come errore
+          if(newFoundIndices.length === 0){
+            playIncorrectSound();
+            speak(`${char} già rivelata!`);
+            await _supabase.from('stanze').update({
+              ultima_azione:'errore',
+              ultimo_messaggio:`${myName}: ${char} già rivelata!`,
+              azione_timestamp:new Date().toISOString()
+            }).eq('id', roomId);
+            passTurn();
+            isProcessingInput=false;
+            return;
+          }
+          
+          playRandomCorrectSound(); // SUONO LETTERA TROVATA
           // NON resettiamo più vowelsBoughtThisTurn qui - si resetta a ogni turno
           const newRev=[...new Set([...(s.lettere_rivelate||[]), ...foundIndices])];
           if(mode==='letter'){
             const me=s.giocatori.find(p=>p.id===myId);
-            const gain = (s.fase_speciale===3) ? (s.montepremi_round||0) : ((s.montepremi_round||0) * foundIndices.length);
+            // USA newFoundIndices.length invece di foundIndices.length per il guadagno
+            const gain = (s.fase_speciale===3) ? (s.montepremi_round||0) : ((s.montepremi_round||0) * newFoundIndices.length);
             
             // ANNUNCIO IMMEDIATO per NVDA
-            const resultMsg = `Trovate ${foundIndices.length} ${char}! Guadagni ${gain} euro`;
+            const resultMsg = `Trovate ${newFoundIndices.length} ${char}! Guadagni ${gain} euro`;
             speak(resultMsg);
             
             await _supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)+gain}).eq('id', myId);
@@ -2276,24 +2298,25 @@
                   lettere_rivelate:newRev,
                   montepremi_round:0,
                   ultima_azione:'chiama_lettera',
-                  ultimo_messaggio:`${myName}: Trovate ${foundIndices.length} ${char} (${specialConsonantsUsed}/12 consonanti)`,
+                  ultimo_messaggio:`${myName}: Trovate ${newFoundIndices.length} ${char} (${specialConsonantsUsed}/12 consonanti)`,
                   azione_timestamp:new Date().toISOString()
                 }).eq('id', roomId);
               }
             } else {
               // Round normale
-              await _supabase.from('stanze').update({lettere_rivelate:newRev,montepremi_round:0,fase_speciale:0,ultima_azione:'chiama_lettera',ultimo_messaggio:`${myName}: Trovate ${foundIndices.length} ${char}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+              await _supabase.from('stanze').update({lettere_rivelate:newRev,montepremi_round:0,fase_speciale:0,ultima_azione:'chiama_lettera',ultimo_messaggio:`${myName}: Trovate ${newFoundIndices.length} ${char}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
             }
           } else {
             // VOCALE - Annuncia risultato
-            const vowelResultMsg = foundIndices.length > 0 
-              ? `Trovate ${foundIndices.length} ${char}` 
+            const vowelResultMsg = newFoundIndices.length > 0 
+              ? `Trovate ${newFoundIndices.length} ${char}` 
               : `${char} non presente`;
             speak(vowelResultMsg);
             
-            await _supabase.from('stanze').update({lettere_rivelate:newRev,ultima_azione:'chiama_lettera',ultimo_messaggio:`${myName}: Trovate ${foundIndices.length} ${char}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+            await _supabase.from('stanze').update({lettere_rivelate:newRev,ultima_azione:'chiama_lettera',ultimo_messaggio:`${myName}: Trovate ${newFoundIndices.length} ${char}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
           }
         } else {
+          playIncorrectSound(); // SUONO LETTERA NON TROVATA
           // ANNUNCIO IMMEDIATO per NVDA - lettera non trovata
           speak(`${char} non trovata! Passi il turno`);
           

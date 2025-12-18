@@ -233,7 +233,7 @@
     <div class="top-controls-wrapper">
       <div class="controls-grid">
         <button id="btn-spin" class="action-btn btn-spin" onclick="doSpin()">GIRA</button>
-        <button id="btn-vowel" class="action-btn btn-vowel" onclick="openInput('vowel')">VOCALE</button>
+        <button id="btn-vowel" class="action-btn btn-vowel" onclick="tryOpenVowelInput()">VOCALE</button>
         <button id="btn-pass" class="action-btn btn-pass" onclick="passTurn()">PASSA</button>
         <button id="btn-inspect-word" class="action-btn" style="border-color:#555;background:#222;" onclick="openWordInspector()">ISPEZIONA PAROLA</button>
         <button id="btn-letters" class="action-btn" onclick="readRevealedLetters()" style="border-color:#aaa; background:#111; font-size:0.9em;">LETTERE USCITE</button>
@@ -1309,9 +1309,10 @@
     window.addEventListener('keydown', e=>{
       if(!e.key) return;
       if((e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'r') || e.key.toLowerCase() === 'f5') return;
-      if(inputMode) return;
       
       const k=e.key.toLowerCase();
+      
+      // ESC deve funzionare SEMPRE, anche in input mode
       if(k === 'escape'){
          e.preventDefault();
          ['player-check-overlay','chat-overlay','help-panel','players-panel','action-history-panel','input-area','word-inspector-overlay','mystery-choice-overlay'].forEach(id => {
@@ -1322,6 +1323,9 @@
          speak("Finestre chiuse.");
          return;
       }
+      
+      // Blocca altri tasti se sei in input mode
+      if(inputMode) return;
 
       const isInInput = document.activeElement && document.activeElement.tagName==='INPUT';
       
@@ -1353,7 +1357,7 @@
       
       if((k==='h' && !isInInput) || (e.ctrlKey && k==='h')){ e.preventDefault(); const p=document.getElementById('help-panel'); if(p.classList.contains('hidden')) openHelp(); else closeHelp(); return; }
       if((k==='g' && !isInInput) || (e.ctrlKey && k==='g')){ e.preventDefault(); doSpin(); return; }
-      if((k==='v' && !isInInput) || (e.ctrlKey && k==='v')){ e.preventDefault(); openInput('vowel'); return; }
+      if((k==='v' && !isInInput) || (e.ctrlKey && k==='v')){ e.preventDefault(); tryOpenVowelInput(); return; }
       if((k==='p' && !isInInput) || (e.ctrlKey && k==='p')){ e.preventDefault(); passTurn(); return; }
       if((k==='r' && !isInInput) || (e.ctrlKey && k==='r')){ e.preventDefault(); openInput('solve'); return; }
       if((k==='t' && !isInInput) || (e.ctrlKey && k==='t')){ e.preventDefault(); announceTurn(); return; }
@@ -1584,6 +1588,32 @@
       if(len<=50) return 500;
       if(len<=80) return 1000;
       return 2000;
+    }
+    
+    function tryOpenVowelInput(){
+      // Controlla condizioni PRIMA di aprire l'input
+      const cost = getVowelCost();
+      const me = currentStanza?.giocatori?.find(p=>p.id===myId);
+      const myRoundMoney = me ? (me.punteggio_round||0) : 0;
+      
+      // Controlla se hai abbastanza soldi
+      if(myRoundMoney < cost){
+        playAudio('snd-miss');
+        speak(`Non hai abbastanza soldi! Servono ${cost} euro, hai ${myRoundMoney} euro.`);
+        alert(`Non hai abbastanza soldi per la vocale!\nCosto: €${cost}\nHai: €${myRoundMoney}`);
+        return;
+      }
+      
+      // Controlla se hai già comprato una vocale
+      if(vowelsBoughtThisTurn >= 1){
+        playAudio('snd-miss');
+        speak("Hai già comprato una vocale! Devi girare la ruota prima di comprarne un'altra.");
+        alert("Hai già comprato una vocale in questo giro!\nGira la ruota prima di comprarne un'altra.");
+        return;
+      }
+      
+      // Ok, apri l'input
+      openInput('vowel');
     }
 
     function hasActiveJolly(me, stanza){
@@ -2462,24 +2492,6 @@
           const cost=getVowelCost();
           const me=s.giocatori.find(p=>p.id===myId);
           const myRoundMoney = me ? (me.punteggio_round||0) : 0;
-          
-          
-          if(myRoundMoney < cost){
-            playAudio('snd-miss');
-            speak(`Non hai abbastanza soldi! Servono €${cost}, hai €${myRoundMoney}`);
-            alert(`Non hai abbastanza soldi per la vocale!\nCosto: €${cost}\nHai: €${myRoundMoney}`);
-            isProcessingInput=false;
-            return;
-          }
-          
-          
-          if(vowelsBoughtThisTurn >= 1){
-            playAudio('snd-miss');
-            speak("Hai già comprato una vocale! Devi girare la ruota prima di comprarne un'altra.");
-            alert("Hai già comprato una vocale in questo giro!\nGira la ruota prima di comprarne un'altra.");
-            isProcessingInput=false;
-            return;
-          }
           
           vowelsBoughtThisTurn++;
           await _supabase.from('giocatori').update({punteggio_round:myRoundMoney-cost}).eq('id', myId);

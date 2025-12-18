@@ -1876,7 +1876,18 @@
     }
 
     async function doSpin(){
-      if(isBtnDisabled('btn-spin')) return;
+      console.log('========== INIZIO DOSPIN ==========');
+      console.log('[DEBUG] doSpin chiamato');
+      console.log('[DEBUG] isBtnDisabled:', isBtnDisabled('btn-spin'));
+      console.log('[DEBUG] myId:', myId);
+      console.log('[DEBUG] roomId:', roomId);
+      console.log('[DEBUG] currentStanza:', currentStanza);
+      
+      if(isBtnDisabled('btn-spin')) {
+        console.log('[DEBUG] USCITA: btn-spin è disabilitato');
+        return;
+      }
+      
       isSpinning=true;
       // RIMOSSO: vowelsBoughtThisTurn=0; - si resetta solo con consonante corretta!
       speak("Giro la ruota...");
@@ -1884,8 +1895,14 @@
       animateWheelSpin();
       await new Promise(r=>setTimeout(r,3000));
       let val=WHEEL_VALUES[Math.floor(Math.random()*WHEEL_VALUES.length)];
+      console.log('[DEBUG] Valore girato:', val);
+      
       const myName=document.getElementById('inp-name').value;
+      console.log('[DEBUG] myName:', myName);
+      
       const me=currentStanza.giocatori.find(p=>p.id===myId);
+      console.log('[DEBUG] me (giocatore):', me);
+      
       const activeMultiplier=(currentStanza.fase_speciale===2) ? 2 : 1;
       let nextFaseSpeciale=0;
       let mysterySafeFlat=false;
@@ -1969,13 +1986,43 @@
       }
 
       isSpinning=false;
-      await _supabase.from('stanze').update({montepremi_round:finalPrize,fase_speciale:nextFaseSpeciale,ultima_azione:'gira_ruota',ultimo_messaggio:msg,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+      
+      console.log('[DEBUG] ========== AGGIORNAMENTO DATABASE ==========');
+      console.log('[DEBUG] finalPrize:', finalPrize);
+      console.log('[DEBUG] nextFaseSpeciale:', nextFaseSpeciale);
+      console.log('[DEBUG] msg:', msg);
+      console.log('[DEBUG] roomId:', roomId);
+      console.log('[DEBUG] Tentativo di aggiornare stanze...');
+      
+      const updateResult = await _supabase.from('stanze').update({
+        montepremi_round:finalPrize,
+        fase_speciale:nextFaseSpeciale,
+        ultima_azione:'gira_ruota',
+        ultimo_messaggio:msg,
+        azione_timestamp:new Date().toISOString()
+      }).eq('id', roomId);
+      
+      console.log('[DEBUG] Risultato update stanze:', updateResult);
+      console.log('[DEBUG] Update error:', updateResult.error);
+      console.log('[DEBUG] Update data:', updateResult.data);
+      
+      if(updateResult.error) {
+        console.error('[DEBUG] ❌ ERRORE NELL\'UPDATE!', updateResult.error);
+        alert('ERRORE: ' + updateResult.error.message);
+      } else {
+        console.log('[DEBUG] ✅ Update riuscito!');
+      }
       
       // APERTURA AUTOMATICA: Se ho girato un numero, apri subito la chiamata consonante
+      console.log('[DEBUG] Controllo apertura automatica: finalPrize=', finalPrize, 'mysterySafeFlat=', mysterySafeFlat);
       if(finalPrize > 0 && !mysterySafeFlat) {
+        console.log('[DEBUG] ✅ Apertura automatica consonante tra 500ms...');
         await new Promise(r=>setTimeout(r, 500)); // Piccolo delay per far aggiornare l'UI
         openInput('letter');
+      } else {
+        console.log('[DEBUG] ⚠️ NON apro finestra consonante (finalPrize=0 o mysterySafeFlat)');
       }
+      console.log('[DEBUG] ========== FINE DOSPIN ==========');
     }
 
     function passTurn(){

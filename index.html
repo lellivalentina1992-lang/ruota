@@ -187,20 +187,14 @@
     <h1 style="color:var(--col-accent); font-size:3em; margin-bottom:10px; text-shadow:0 0 20px rgba(255,215,0,0.3);">LA RUOTA</h1>
     
     <label for="inp-name" style="color:#fff; font-size:1.2em; display:block; margin-bottom:5px;">Nome Giocatore:</label>
-    <div style="display:flex; gap:10px; align-items:center; width:90%; margin:0 auto;">
-      <input id="inp-name" type="text" placeholder="NOME GIOCATORE" aria-label="Nome giocatore" aria-required="true" style="flex:1; margin-bottom:0;">
-      <button onclick="document.getElementById('inp-name').value=''; document.getElementById('inp-name-display').textContent='(vuoto)'; document.getElementById('inp-name').focus();" class="action-btn" aria-label="Cancella nome" style="background:#cc0000; padding:10px 15px; min-height:auto; font-size:1em; margin-bottom:0;">CANC</button>
-    </div>
-    <div id="inp-name-display" style="color:#0f0; font-size:1.5em; min-height:1.5em; margin:5px 0 10px 0;" aria-hidden="true"></div>
+    <input id="inp-name" type="text" placeholder="NOME GIOCATORE" aria-label="Nome giocatore" aria-required="true" style="width:90%; margin:0 auto 10px auto; display:block;">
     
     <label for="inp-code" style="color:#fff; font-size:1.2em; display:block; margin-bottom:5px; margin-top:10px;">
       Codice Stanza: <span style="color:#888; font-size:0.9em;">(scegli un codice per creare, es: AMICI23)</span>
     </label>
     <div style="display:flex; gap:10px; align-items:center; width:90%; margin:0 auto;">
       <input id="inp-code" type="text" placeholder="SCRIVI UN CODICE" aria-label="Codice stanza da creare o per entrare" aria-required="true" style="flex:1; margin-bottom:0;">
-      <button onclick="document.getElementById('inp-code').value=''; document.getElementById('inp-code-display').textContent='(vuoto)'; document.getElementById('inp-code').focus();" class="action-btn" aria-label="Cancella codice" style="background:#cc0000; padding:10px 15px; min-height:auto; font-size:1em; margin-bottom:0;">CANC</button>
     </div>
-    <div id="inp-code-display" style="color:#0f0; font-size:1.5em; min-height:1.5em; margin:5px 0 10px 0;" aria-hidden="true"></div>
     
     <div style="text-align:center; color:#aaa; font-size:1em; margin-bottom:15px;">
       <strong style="color:#fff;">Vuoi creare o entrare?</strong><br>
@@ -571,32 +565,15 @@
       
       const inpName = document.getElementById('inp-name');
       const inpCode = document.getElementById('inp-code');
-      const displayName = document.getElementById('inp-name-display');
-      const displayCode = document.getElementById('inp-code-display');
       
+      // Ripristina valori salvati
       if(savedName && inpName) {
         inpName.value = savedName;
-        if(displayName) displayName.textContent = savedName;
-      } else if(displayName) {
-        displayName.textContent = '(vuoto)';
       }
       
       if(savedCode && inpCode) {
         inpCode.value = savedCode;
-        if(displayCode) displayCode.textContent = savedCode;
-      } else if(displayCode) {
-        displayCode.textContent = '(vuoto)';
       }
-      
-      // Force sync after a delay to ensure DOM is ready
-      setTimeout(() => {
-        if(inpName && displayName) {
-          displayName.textContent = inpName.value || '(vuoto)';
-        }
-        if(inpCode && displayCode) {
-          displayCode.textContent = inpCode.value || '(vuoto)';
-        }
-      }, 100);
       
       document.getElementById('btn-create-room')?.addEventListener('click', () => askPrivacy());
       document.getElementById('btn-join-room')?.addEventListener('click', () => joinGame(false));
@@ -627,24 +604,8 @@
         }
       });
       
-      // Aggiorna display per inp-name
-      document.getElementById('inp-name')?.addEventListener('input', (e) => {
-        const value = e.target.value;
-        const display = document.getElementById('inp-name-display');
-        if(display){
-          display.textContent = value || '(vuoto)';
-        }
-      });
+      // Display rimossi per accessibilità NVDA
       
-      // Aggiorna display per inp-code
-      document.getElementById('inp-code')?.addEventListener('input', (e) => {
-        const value = e.target.value;
-        const display = document.getElementById('inp-code-display');
-        if(display){
-          display.textContent = value || '(vuoto)';
-        }
-      });
-
       document.getElementById('game-input').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -2311,7 +2272,7 @@
         
         
         
-        const showSurrender = isHost && (;
+        const showSurrender = isHost && (
           (s.fase_speciale === 3 && s.azione_timestamp && (new Date().getTime() - new Date(s.azione_timestamp).getTime()) > TURN_LIMIT_SEC * 1000) ||
           (s.fase_speciale === 102) 
         );

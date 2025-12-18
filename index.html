@@ -422,6 +422,7 @@
     let lastInputMode = null;
     let spellingTimer = null;
     let nextRoundSec = 15;
+    let lastSpinTimestamp = null; // Traccia l'ultimo giro di ruota per il timer
     
     let specialPhase = 0; 
     let lastAutoPassTime = 0;
@@ -1320,8 +1321,19 @@
       try{
         let st;
         if(cr){
-          const {data:fr}=await _supabase.from('frasi').select('id').neq('categoria','SITUAZIONI QUOTIDIANE').limit(100);
-          const rid=fr[Math.floor(Math.random()*fr.length)].id;
+          // IMPORTANTE: Prima creazione - MAI situazioni quotidiane (sono solo per round 4,7,10)
+          const {data:fr}=await _supabase.from('frasi').select('id,categoria').neq('categoria','SITUAZIONI QUOTIDIANE').limit(500);
+          if(!fr || fr.length === 0){
+            speak("Errore: nessuna frase disponibile");
+            return;
+          }
+          // Doppio controllo: escludi qualsiasi frase con categoria SITUAZIONI QUOTIDIANE
+          const validPhrases = fr.filter(f => f.categoria !== 'SITUAZIONI QUOTIDIANE');
+          if(validPhrases.length === 0){
+            speak("Errore: tutte le frasi sono SITUAZIONI QUOTIDIANE");
+            return;
+          }
+          const rid=validPhrases[Math.floor(Math.random()*validPhrases.length)].id;
           const {data}=await _supabase.from('stanze').insert({
             codice:cd, 
             frase_corrente_id:rid, 
@@ -1638,15 +1650,23 @@
 
     function passTurnBot(){
       const s=currentStanza;
-      if(!s || !s.giocatori || s.giocatori.length === 0) return;
+      if(!s || !s.giocatori || s.giocatori.length === 0) {
+        console.log('[PASS_TURN_BOT] Nessun giocatore disponibile');
+        return;
+      }
       
       let currIdx=s.giocatori.findIndex(p=>p.indice===s.id_giocatore_corrente);
       
       // Se il giocatore corrente non esiste più, parte dal primo
-      if(currIdx === -1) currIdx = 0;
+      if(currIdx === -1) {
+        console.log('[PASS_TURN_BOT] Giocatore corrente non trovato, reset a primo giocatore');
+        currIdx = 0;
+      }
       
       let nextIdx = (currIdx + 1) % s.giocatori.length;
       let nextInd = s.giocatori[nextIdx].indice;
+      
+      console.log(`[PASS_TURN_BOT] Da giocatore index ${currIdx} a index ${nextIdx} (indice ${nextInd})`);
       
       _supabase.from('stanze').update({id_giocatore_corrente:nextInd,montepremi_round:0,fase_speciale:0,ultima_azione:'timeout',ultimo_messaggio:'Cambio turno',azione_timestamp:new Date().toISOString()}).eq('id', roomId);
     }
@@ -1695,6 +1715,16 @@
       
       // Aggiorna lista precedente (copia profonda degli ID e nomi)
       previousPlayersList = s.giocatori.map(p => ({id: p.id, nome: p.nome}));
+      
+      // CONTROLLO CRITICO: Se il giocatore corrente non esiste più nella lista, forza il passaggio del turno
+      if(s.stato === 'gioco' && !s.in_pausa && isHost && s.id_giocatore_corrente !== null && s.id_giocatore_corrente !== undefined) {
+        const currentPlayerExists = s.giocatori.some(p => p.indice === s.id_giocatore_corrente);
+        if(!currentPlayerExists) {
+          console.log('[SAFETY CHECK] Giocatore corrente non esiste più! Forzo passaggio turno');
+          showFlashMessage('⚠️ Il giocatore corrente è uscito. Passaggio automatico del turno.', 'info');
+          setTimeout(() => passTurn(), 500); // Piccolo delay per evitare conflitti
+        }
+      }
 
       document.getElementById('pause-panel').classList.toggle('hidden', !s.in_pausa);
       document.getElementById('game-panel').classList.toggle('hidden', s.in_pausa);
@@ -1770,7 +1800,12 @@
           playBotTurn(currentPlayer);
       }
 
-      if(!wasMyTurn && isMe){ vowelsBoughtThisTurn=0; speak("Tocca a te."); playAudio('snd-turn'); }
+      if(!wasMyTurn && isMe){ 
+        vowelsBoughtThisTurn=0; 
+        lastSpinTimestamp = new Date().toISOString(); // Reset timer all'inizio del turno
+        speak("Tocca a te."); 
+        playAudio('snd-turn'); 
+      }
       wasMyTurn=isMe;
       
       const who=currentPlayer?.nome;
@@ -1909,7 +1944,6 @@
       // RIMOSSO: vowelsBoughtThisTurn=0; - si resetta solo con consonante corretta!
       speak("Giro la ruota...");
       playAudio('snd-spin');
-      playWheelSpinSound(); // SUONO RUOTA
       animateWheelSpin();
       await new Promise(r=>setTimeout(r,3000));
       let val=WHEEL_VALUES[Math.floor(Math.random()*WHEEL_VALUES.length)];
@@ -2002,6 +2036,8 @@
 
       isSpinning=false;
       
+      // AGGIORNA il timestamp dell'ultimo giro per il timer
+      lastSpinTimestamp = new Date().toISOString();
       
       const updateResult = await _supabase.from('stanze').update({
         montepremi_round:finalPrize,
@@ -2044,6 +2080,7 @@
       const s=currentStanza;
       
       if(!s || !s.giocatori || s.giocatori.length === 0) {
+        console.log('[PASS_TURN] Nessun giocatore disponibile');
         isHandlingTimeout=false;
         return;
       }
@@ -2051,10 +2088,15 @@
       let currIdx=s.giocatori.findIndex(p=>p.indice===s.id_giocatore_corrente);
       
       // Se il giocatore corrente non esiste più, parte dal primo
-      if(currIdx === -1) currIdx = 0;
+      if(currIdx === -1) {
+        console.log('[PASS_TURN] Giocatore corrente non trovato, reset a primo giocatore');
+        currIdx = 0;
+      }
       
       let nextIdx = (currIdx + 1) % s.giocatori.length;
       let nextInd = s.giocatori[nextIdx].indice;
+      
+      console.log(`[PASS_TURN] Da giocatore index ${currIdx} (indice ${s.id_giocatore_corrente}) a index ${nextIdx} (indice ${nextInd})`);
       
       _supabase.from('stanze').update({id_giocatore_corrente:nextInd,montepremi_round:0,fase_speciale:0,ultima_azione:'timeout',ultimo_messaggio:'Cambio turno',azione_timestamp:new Date().toISOString()}).eq('id', roomId).then(()=>{ isHandlingTimeout=false; });
     }
@@ -2182,7 +2224,7 @@
 
       if(mode==='solve'){
         if(cleanStr(txt)===cleanStr(currentPuzzleText)){
-          playSuccessSound(); // SUONO VITTORIA
+          playAudio('snd-win'); // SUONO VITTORIA
           const me=s.giocatori.find(p=>p.id===myId);
           
           // ROUND SPECIALI: +1000 per ogni frase risolta
@@ -2202,7 +2244,7 @@
             await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${myName} HA RISOLTO!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
           }
         } else {
-          playIncorrectSound(); // SUONO SOLUZIONE SBAGLIATA
+          playAudio('snd-miss'); // SUONO SOLUZIONE SBAGLIATA
           passTurn();
         }
       } else {
@@ -2253,7 +2295,7 @@
           
           // Se tutte le lettere erano già state rivelate, consideralo come errore
           if(newFoundIndices.length === 0){
-            playIncorrectSound();
+            playAudio('snd-miss'); // SUONO LETTERA GIÀ RIVELATA
             speak(`${char} già rivelata!`);
             await _supabase.from('stanze').update({
               ultima_azione:'errore',
@@ -2265,10 +2307,12 @@
             return;
           }
           
-          playRandomCorrectSound(); // SUONO LETTERA TROVATA
-          // NON resettiamo più vowelsBoughtThisTurn qui - si resetta a ogni turno
+          playAudio('snd-hit'); // SUONO LETTERA TROVATA
           const newRev=[...new Set([...(s.lettere_rivelate||[]), ...foundIndices])];
           if(mode==='letter'){
+            // RESET contatore vocali: hai chiamato una consonante con premio, quindi puoi comprare un'altra vocale
+            vowelsBoughtThisTurn = 0;
+            
             const me=s.giocatori.find(p=>p.id===myId);
             // USA newFoundIndices.length invece di foundIndices.length per il guadagno
             const gain = (s.fase_speciale===3) ? (s.montepremi_round||0) : ((s.montepremi_round||0) * newFoundIndices.length);
@@ -2316,7 +2360,7 @@
             await _supabase.from('stanze').update({lettere_rivelate:newRev,ultima_azione:'chiama_lettera',ultimo_messaggio:`${myName}: Trovate ${newFoundIndices.length} ${char}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
           }
         } else {
-          playIncorrectSound(); // SUONO LETTERA NON TROVATA
+          playAudio('snd-miss'); // SUONO LETTERA NON TROVATA
           // ANNUNCIO IMMEDIATO per NVDA - lettera non trovata
           speak(`${char} non trovata! Passi il turno`);
           
@@ -2329,7 +2373,12 @@
 
     function checkTurnTimer(){
       if(!currentStanza || currentStanza.in_pausa || currentStanza.stato!=='gioco') return;
-      const elapsed=Math.floor((new Date().getTime() - new Date(currentStanza.azione_timestamp).getTime())/1000);
+      
+      // USA lastSpinTimestamp per il timer (si resetta solo quando giri o inizia il turno)
+      // Se non è impostato, usa azione_timestamp come fallback
+      const timestampToUse = lastSpinTimestamp || currentStanza.azione_timestamp;
+      
+      const elapsed=Math.floor((new Date().getTime() - new Date(timestampToUse).getTime())/1000);
       if(isNaN(elapsed) || elapsed > 10000 || elapsed < -100) return;
       const left=Math.max(0, TURN_LIMIT_SEC - elapsed);
       document.getElementById('timer-box').textContent=left;
@@ -2477,10 +2526,20 @@
         }).eq('id', roomId);
         
       } else {
-        // Round normale
+        // Round normale - MAI situazioni quotidiane (sono solo per round 4,7,10)
         isSpecialRound = false;
-        const {data:fr}=await _supabase.from('frasi').select('id').neq('categoria','SITUAZIONI QUOTIDIANE');
-        const rid=fr[Math.floor(Math.random()*fr.length)].id;
+        const {data:fr}=await _supabase.from('frasi').select('id,categoria').neq('categoria','SITUAZIONI QUOTIDIANE').limit(500);
+        if(!fr || fr.length === 0){
+          speak("Errore: nessuna frase disponibile");
+          return;
+        }
+        // Doppio controllo: escludi qualsiasi frase con categoria SITUAZIONI QUOTIDIANE
+        const validPhrases = fr.filter(f => f.categoria !== 'SITUAZIONI QUOTIDIANE');
+        if(validPhrases.length === 0){
+          speak("Errore: tutte le frasi sono SITUAZIONI QUOTIDIANE");
+          return;
+        }
+        const rid=validPhrases[Math.floor(Math.random()*validPhrases.length)].id;
         await _supabase.from('giocatori').update({punteggio_round:0}).eq('stanza_id', roomId);
         await _supabase.from('stanze').update({frase_corrente_id:rid,stato:'gioco',round_giocati:n,lettere_rivelate:[],montepremi_round:0,fase_speciale:0,ultima_azione:'nuovo',ultimo_messaggio:`Inizio Round ${n}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
       }
@@ -2604,9 +2663,24 @@
     }
 
     async function leaveGame(){
-      if(roomId && myId && !isHost) await _supabase.from('giocatori').delete().eq('id', myId);
-      else if(roomId && isHost) await closeRoom();
-      location.reload();
+      if(roomId && myId){
+        if(isHost){
+          if(confirm("Sei l'host! Vuoi chiudere la stanza per tutti?")){
+            await closeRoom();
+          } else {
+            // Host esce ma la stanza rimane aperta - marca come inattivo
+            await _supabase.from('giocatori').update({is_active: false}).eq('id', myId);
+            location.reload();
+          }
+        } else {
+          // Giocatore normale esce - cancellalo effettivamente per non intasare il database
+          // I turni lo salteranno automaticamente perché non sarà più nella lista
+          await _supabase.from('giocatori').delete().eq('id', myId);
+          location.reload();
+        }
+      } else {
+        location.reload();
+      }
     }
     async function closeRoom(){ await _supabase.from('stanze').delete().eq('id', roomId); location.reload(); }
     

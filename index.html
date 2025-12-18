@@ -31,15 +31,18 @@
       if(document.getElementById('airbag-error-box')) return;
       const box = document.createElement('div');
       box.id = 'airbag-error-box';
+      box.setAttribute('role', 'alertdialog');
+      box.setAttribute('aria-labelledby', 'error-title');
       box.style = "position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:rgba(40,0,0,0.95); border:4px solid red; color:white; padding:30px; z-index:99999; font-family:sans-serif; text-align:center; box-shadow:0 0 50px red; border-radius:15px; min-width:300px;";
       box.innerHTML = `
-        <h2 style='margin-top:0; color:#ff5555'>⚠️ ERRORE RILEVATO</h2>
+        <h2 id='error-title' style='margin-top:0; color:#ff5555'>ERRORE RILEVATO</h2>
         <div style="display:flex; flex-direction:column; gap:10px;">
-          <button id="btn-ignore-err" style="padding:15px; background:#444; color:#fff; border:1px solid #fff; font-weight:bold; cursor:pointer; font-size:1.1em;">✖️ IGNORA E CONTINUA</button>
+          <button id="btn-ignore-err" style="padding:15px; background:#444; color:#fff; border:1px solid #fff; font-weight:bold; cursor:pointer; font-size:1.1em;">IGNORA E CONTINUA</button>
           <button onclick="window.location.reload()" style="padding:10px; background:transparent; color:#aaa; border:1px solid #555; cursor:pointer;">Aggiorna Pagina (F5)</button>
         </div>
       `;
       document.body.appendChild(box);
+      setTimeout(() => document.getElementById('btn-ignore-err')?.focus(), 100);
       document.getElementById('btn-ignore-err').onclick = function(){ box.remove(); };
       return true; 
     }
@@ -185,19 +188,19 @@
     
     <label for="inp-name" style="color:#fff; font-size:1.2em; display:block; margin-bottom:5px;">Nome Giocatore:</label>
     <div style="display:flex; gap:10px; align-items:center; width:90%; margin:0 auto;">
-      <input id="inp-name" type="text" placeholder="NOME GIOCATORE" aria-label="Nome giocatore" aria-describedby="inp-name-display" style="flex:1; margin-bottom:0;">
-      <button onclick="document.getElementById('inp-name').value=''; document.getElementById('inp-name-display').textContent='(vuoto)'; document.getElementById('inp-name').focus();" class="action-btn" style="background:#cc0000; padding:10px 15px; min-height:auto; font-size:1em; margin-bottom:0;">X</button>
+      <input id="inp-name" type="text" placeholder="NOME GIOCATORE" aria-label="Nome giocatore" aria-required="true" style="flex:1; margin-bottom:0;">
+      <button onclick="document.getElementById('inp-name').value=''; document.getElementById('inp-name-display').textContent='(vuoto)'; document.getElementById('inp-name').focus();" class="action-btn" aria-label="Cancella nome" style="background:#cc0000; padding:10px 15px; min-height:auto; font-size:1em; margin-bottom:0;">CANC</button>
     </div>
-    <div id="inp-name-display" style="color:#0f0; font-size:1.5em; min-height:1.5em; margin:5px 0 10px 0;" aria-live="polite"></div>
+    <div id="inp-name-display" style="color:#0f0; font-size:1.5em; min-height:1.5em; margin:5px 0 10px 0;" aria-hidden="true"></div>
     
     <label for="inp-code" style="color:#fff; font-size:1.2em; display:block; margin-bottom:5px; margin-top:10px;">
       Codice Stanza: <span style="color:#888; font-size:0.9em;">(lascia vuoto per creare nuova)</span>
     </label>
     <div style="display:flex; gap:10px; align-items:center; width:90%; margin:0 auto;">
-      <input id="inp-code" type="text" placeholder="CODICE PER ENTRARE" aria-label="Codice stanza per entrare in una partita esistente" aria-describedby="inp-code-display" style="flex:1; margin-bottom:0;">
-      <button onclick="document.getElementById('inp-code').value=''; document.getElementById('inp-code-display').textContent='(vuoto)'; document.getElementById('inp-code').focus();" class="action-btn" style="background:#cc0000; padding:10px 15px; min-height:auto; font-size:1em; margin-bottom:0;">X</button>
+      <input id="inp-code" type="text" placeholder="CODICE PER ENTRARE" aria-label="Codice stanza, lascia vuoto per creare nuova stanza" aria-required="false" style="flex:1; margin-bottom:0;">
+      <button onclick="document.getElementById('inp-code').value=''; document.getElementById('inp-code-display').textContent='(vuoto)'; document.getElementById('inp-code').focus();" class="action-btn" aria-label="Cancella codice" style="background:#cc0000; padding:10px 15px; min-height:auto; font-size:1em; margin-bottom:0;">CANC</button>
     </div>
-    <div id="inp-code-display" style="color:#0f0; font-size:1.5em; min-height:1.5em; margin:5px 0 10px 0;" aria-live="polite"></div>
+    <div id="inp-code-display" style="color:#0f0; font-size:1.5em; min-height:1.5em; margin:5px 0 10px 0;" aria-hidden="true"></div>
     
     <div style="text-align:center; color:#aaa; font-size:1em; margin-bottom:15px;">
       <strong style="color:#fff;">Vuoi creare o entrare?</strong><br>
@@ -296,7 +299,7 @@
       <button class="action-btn" onclick="playAudio('snd-boo')" aria-label="Buuu">BUUU</button>
       <button class="action-btn" onclick="playAudio('snd-ooh')" aria-label="Ohhh">OHHH</button>
       <button id="btn-mute" class="action-btn mutebtn" onclick="toggleMute()">AUDIO ON</button>
-      <button id="btn-toggle-audio" class="action-btn mutebtn" onclick="toggleAudio()">🔊 Audio ON</button>
+      <button id="btn-toggle-audio" class="action-btn mutebtn" onclick="toggleAudio()">Audio ON</button>
     </div>
   </div>
 
@@ -362,9 +365,9 @@
         
         <h3 style="color:var(--col-accent);">Settori speciali della ruota:</h3>
         <ul>
-          <li><strong>PERDE TUTTO (☠)</strong> - Perdi tutto il punteggio del round corrente!</li>
+          <li><strong>PERDE TUTTO ([PERDE TUTTO])</strong> - Perdi tutto il punteggio del round corrente!</li>
           <li><strong>PASSA (→)</strong> - Il turno passa automaticamente</li>
-          <li><strong>JOLLY (★)</strong> - Scegli qualsiasi consonante gratis</li>
+          <li><strong>JOLLY ([JOLLY])</strong> - Scegli qualsiasi consonante gratis</li>
           <li><strong>MISTERO (?)</strong> - Scegli se aprire (rischio/opportunità) o prendere 500€ sicuri</li>
         </ul>
         
@@ -465,7 +468,7 @@
     <div class="modal-content">
       <h2 style="color:var(--col-neon); margin-bottom:20px;">RISULTATO</h2>
       <div id="result-text"></div>
-      <button onclick="closeResultPopup()" class="action-btn btn-spin" style="font-size:1.5em; padding:20px 40px; margin-top:20px;">OK ✓</button>
+      <button onclick="closeResultPopup()" class="action-btn btn-spin" style="font-size:1.5em; padding:20px 40px; margin-top:20px;">OK</button>
     </div>
   </div>
 
@@ -518,8 +521,10 @@
     
     // Cleanup variables
     let gameChannel = null;
+    let playersChannel = null; // ✅ CORREZIONE CHATGPT: Channel per subscription giocatori
     let chatChannel = null;
     let turnTimerInterval = null;
+    let pingInterval = null; // ✅ CORREZIONE CHATGPT: Intervallo per ping periodico
     
     
     (function(){
@@ -547,13 +552,13 @@
 
     
     
-    const FREQ_CONS_GROUPS = [
+    const FREQ_CONS_GROUPS = [;
       ['R','T','N'],        
       ['S','L','C'],        
       ['D','P','M'],        
       ['G','B','F','V']     
     ];
-    const FREQ_VOW_GROUPS = [
+    const FREQ_VOW_GROUPS = [;
       ['A','E'],            
       ['I','O'],            
       ['U']                 
@@ -968,7 +973,15 @@
     async function reorganizePlayers(){
       if(!isHost || !roomId) return;
       
-      console.log('reorganizePlayers: inizio');
+      
+      // ✅ UUID: Salva l'UUID del giocatore corrente (non l'indice!)
+      const {data: currentStanza} = await _supabase
+        .from('stanze')
+        .select('id_giocatore_corrente')
+        .eq('id', roomId)
+        .single();
+      
+      const currentPlayerUUID = currentStanza?.id_giocatore_corrente; // Ora è UUID!
       
       // Ottieni tutti i giocatori
       const {data: players, error} = await _supabase
@@ -982,12 +995,13 @@
         return;
       }
       
-      console.log(`reorganizePlayers: trovati ${players.length} giocatori`);
+      
+      // ✅ UUID: Trova il giocatore che aveva il turno (per UUID)
+      const currentPlayer = players.find(p => p.id === currentPlayerUUID);
       
       // Riassegna indici consecutivi 0, 1, 2...
       for(let i = 0; i < players.length; i++){
         if(players[i].indice !== i){
-          console.log(`reorganizePlayers: aggiorno ${players[i].nome} da indice ${players[i].indice} a ${i}`);
           await _supabase
             .from('giocatori')
             .update({indice: i})
@@ -995,18 +1009,26 @@
         }
       }
       
-      // Reset turno a 0
+      // ✅ UUID: Ripristina il turno usando UUID (se il giocatore esiste ancora)
+      let newTurnUUID = null;
+      if(currentPlayer){
+        // Il giocatore è ancora attivo, mantieni il suo UUID
+        newTurnUUID = currentPlayer.id;
+      } else {
+        // Il giocatore è uscito, passa al primo disponibile
+        newTurnUUID = players[0]?.id || null;
+      }
+      
       await _supabase
         .from('stanze')
         .update({
-          id_giocatore_corrente: 0,
+          id_giocatore_corrente: newTurnUUID, // ← UUID invece di indice!
           ultima_azione: 'riorganizza',
           ultimo_messaggio: 'Turni riorganizzati',
           azione_timestamp: new Date().toISOString()
         })
         .eq('id', roomId);
         
-      console.log('reorganizePlayers: completato');
       
       // Refresh
       await fetchFullState();
@@ -1048,7 +1070,7 @@
         const now = new Date();
         const secondsSinceLastPing = lastPing ? Math.floor((now - lastPing) / 1000) : 9999;
         const statusColor = secondsSinceLastPing > 15 ? '#ff4444' : '#00ff00';
-        const statusText = secondsSinceLastPing > 15 ? '⚠️ OFFLINE' : '✅ ONLINE';
+        const statusText = secondsSinceLastPing > 15 ? 'OFFLINE' : 'ONLINE';
         
         row.innerHTML = `<span style="font-size:1.2em;color:#fff;">${p.nome} <span style="color:${statusColor};font-size:0.85em;">${statusText}</span></span>`;
         const delBtn = document.createElement('button');
@@ -1077,7 +1099,7 @@
       if(!players || players.length === 0) return;
       
       const now = new Date();
-      const TIMEOUT_SECONDS = 15; 
+      const TIMEOUT_SECONDS = 45; // ✅ FIX CHATGPT: Da 15s a 45s (ping ogni 10s)
       
       for(const player of players) {
         const lastPing = player.ultimo_ping ? new Date(player.ultimo_ping) : null;
@@ -1086,7 +1108,7 @@
         
         if(secondsSinceLastPing > TIMEOUT_SECONDS) {
           await _supabase.from('giocatori').delete().eq('id', player.id);
-          showFlashMessage(`⚠️ ${player.nome} disconnesso e rimosso`, 'bad');
+          showFlashMessage(`${player.nome} disconnesso e rimosso`, 'bad');
           speak(`${player.nome} si è disconnesso`);
         }
       }
@@ -1104,8 +1126,9 @@
 
     function announceTurn(){
       if(!currentStanza) return;
-      const currentPlayer = currentStanza.giocatori.find(p=>p.indice===currentStanza.id_giocatore_corrente);
-      const isMe = (currentStanza.id_giocatore_corrente === myIndex);
+      // ✅ UUID: Confronta per UUID
+      const currentPlayer = currentStanza.giocatori.find(p=>p.id===currentStanza.id_giocatore_corrente);
+      const isMe = (currentStanza.id_giocatore_corrente === myId);
       const turnMsg = isMe ? "È il tuo turno!" : `Turno di ${currentPlayer?.nome || 'sconosciuto'}`;
       
       
@@ -1284,7 +1307,6 @@
       if(!confirm(`Eliminare ${playerName}?`)) return;
       
       try {
-        console.log(`removePlayer: eliminazione ${playerName} (id: ${playerId})`);
         
         // Elimina il giocatore
         const {error: deleteError} = await _supabase
@@ -1299,7 +1321,6 @@
           return;
         }
         
-        console.log('removePlayer: giocatore eliminato, riorganizzazione');
         
         // Riorganizza tutti i giocatori rimasti
         await reorganizePlayers();
@@ -1526,16 +1547,23 @@
       if(k===' ' && !isInInput){ e.preventDefault(); reopenLastInput(); return; }
       if(k==='i' && !isInInput){ e.preventDefault(); openWordInspector(); return; }
       
-      if(k==='1'){ playSharedAudio('snd-clap', '👏 Applauso'); return; }
-      if(k==='2'){ playSharedAudio('snd-laugh', '😂 Risata'); return; }
-      if(k==='3'){ playSharedAudio('snd-boo', '👎 Fischi'); return; }
-      if(k==='4'){ playSharedAudio('snd-ooh', '😮 Ooh'); return; }
+      if(k==='1'){ playSharedAudio('snd-clap', 'Applauso'); return; }
+      if(k==='2'){ playSharedAudio('snd-laugh', 'Risata'); return; }
+      if(k==='3'){ playSharedAudio('snd-boo', 'Fischi'); return; }
+      if(k==='4'){ playSharedAudio('snd-ooh', 'Ooh'); return; }
       
       
       if((k==='h' && !isInInput) || (e.ctrlKey && k==='h')){ e.preventDefault(); const p=document.getElementById('help-panel'); if(p.classList.contains('hidden')) openHelp(); else closeHelp(); return; }
       if((k==='g' && !isInInput) || (e.ctrlKey && k==='g')){ e.preventDefault(); doSpin(); return; }
       if((k==='v' && !isInInput) || (e.ctrlKey && k==='v')){ e.preventDefault(); tryOpenVowelInput(); return; }
-      if((k==='p' && !isInInput) || (e.ctrlKey && k==='p')){ e.preventDefault(); passTurn(); return; }
+      if((k==='p' && !isInInput) || (e.ctrlKey && k==='p')){ 
+      e.preventDefault(); 
+      // ✅ CORREZIONE CHATGPT: Passa solo se è il tuo turno o sei host
+      if(isMe || isHost){
+        passTurn();
+      } else {
+        speak("Non è il tuo turno");
+      } return; }
       if((k==='r' && !isInInput) || (e.ctrlKey && k==='r')){ e.preventDefault(); openInput('solve'); return; }
       if((k==='t' && !isInInput) || (e.ctrlKey && k==='t')){ e.preventDefault(); announceTurn(); return; }
       if((k==='k' && !isInInput) || (e.ctrlKey && k==='k')){ e.preventDefault(); openChat(); return; }
@@ -1686,6 +1714,13 @@
             return;
           }
           myId=pl.id;
+          
+          // ✅ UUID: Se sono il primo giocatore (host), imposto il mio UUID come turno corrente
+          if(isHost && myIndex === 0){
+            await _supabase.from('stanze').update({
+              id_giocatore_corrente: pl.id // ← UUID del primo giocatore!
+            }).eq('id', roomId);
+          }
         }
 
         document.getElementById('setup-panel').classList.add('hidden');
@@ -1700,6 +1735,21 @@
         }
 
         gameChannel = _supabase.channel('game').on('postgres_changes',{event:'UPDATE',schema:'public',table:'stanze',filter:`id=eq.${roomId}`},fetchFullState).subscribe();
+        
+        // ✅ CORREZIONE CHATGPT: Subscription realtime su giocatori (INSERT, UPDATE, DELETE)
+        playersChannel = _supabase.channel('players').on('postgres_changes',{event:'*',schema:'public',table:'giocatori',filter:`stanza_id=eq.${roomId}`}, async (payload) => {
+          
+          // Ricarica stato completo quando cambia la lista giocatori
+          await fetchFullState();
+          
+          // Annuncia cambiamenti significativi
+          if(payload.eventType === 'INSERT' && payload.new){
+            speak(`${payload.new.nome} è entrato nella stanza`);
+          } else if(payload.eventType === 'DELETE' && payload.old){
+            speak(`${payload.old.nome} ha lasciato la stanza`);
+          }
+        }).subscribe();
+        
         chatChannel = _supabase.channel('chat').on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_messaggi',filter:`stanza_id=eq.${roomId}`},payload=>{
           
           const message = payload.new.messaggio;
@@ -1738,6 +1788,9 @@
 
         fetchFullState();
         turnTimerInterval = setInterval(checkTurnTimer, 1000);
+        
+        // ✅ CORREZIONE CHATGPT: Avvia ping periodico dopo join
+        startPeriodicPing();
         
         
         
@@ -2006,7 +2059,8 @@
         return;
       }
       
-      let currIdx=s.giocatori.findIndex(p=>p.indice===s.id_giocatore_corrente);
+      // ✅ UUID: Trova giocatore corrente per UUID
+      let currIdx=s.giocatori.findIndex(p=>p.id===s.id_giocatore_corrente);
       
       
       if(currIdx === -1) {
@@ -2014,10 +2068,10 @@
       }
       
       let nextIdx = (currIdx + 1) % s.giocatori.length;
-      let nextInd = s.giocatori[nextIdx].indice;
+      let nextPlayerUUID = s.giocatori[nextIdx].id; // ← UUID invece di indice!
       
       
-      _supabase.from('stanze').update({id_giocatore_corrente:nextInd,montepremi_round:0,fase_speciale:0,ultima_azione:'timeout',ultimo_messaggio:'Cambio turno',azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+      _supabase.from('stanze').update({id_giocatore_corrente:nextPlayerUUID,montepremi_round:0,fase_speciale:0,ultima_azione:'timeout',ultimo_messaggio:'Cambio turno',azione_timestamp:new Date().toISOString()}).eq('id', roomId);
     }
 
     function updateUI(s){
@@ -2025,43 +2079,59 @@
       currentStanza=s;
       s.giocatori.sort((a,b)=>a.indice-b.indice);
       
+      // ✅ FIX CHATGPT: Usa is_host dal DB come fonte di verità (non indice 0)
+      if(myId){
+        const me = s.giocatori.find(p => p.id === myId);
+        if(me){
+          myIndex = me.indice;
+          isHost = me.is_host; // ← Usa is_host dal database, non "indice 0"
+        }
+      }
+      
       
       if(previousPlayersList.length > 0) {
         
         const currentIds = s.giocatori.map(p => p.id);
         const previousIds = previousPlayersList.map(p => p.id);
         
+        // ✅ FIX CHATGPT: Annunci rimossi da qui (già gestiti in playersChannel)
+        // Non più showFlashMessage/speak qui per evitare duplicati
         
-        s.giocatori.forEach(player => {
-          if(!previousIds.includes(player.id)) {
-            showFlashMessage(`🟢 ${player.nome} è entrato nella partita!`, 'good');
-            speak(`Nuovo giocatore: ${player.nome} è entrato nella stanza`, true); 
-          }
-        });
-        
-        
-        previousPlayersList.forEach(player => {
-          if(!currentIds.includes(player.id)) {
-            showFlashMessage(`🔴 ${player.nome} ha lasciato la partita`, 'bad');
-            speak(`${player.nome} è uscito dalla stanza`, true);
-          }
-        });
-        
-        
-        
+        // Controlla solo se tutti sono usciti (caso speciale)
         if(s.giocatori.length < 1 && previousPlayersList.length > 0) {
-          showFlashMessage('⚠️ Tutti i giocatori sono usciti. La stanza rimane aperta.', 'info');
+          showFlashMessage('Tutti i giocatori sono usciti. La stanza rimane aperta.', 'info');
         }
       }
       
       
       previousPlayersList = s.giocatori.map(p => ({id: p.id, nome: p.nome}));
       
+      // ✅ FIX CHATGPT: Failover host automatico se l'host esce
+      if(s.giocatori.length > 0){
+        const currentHost = s.giocatori.find(p => p.is_host);
+        
+        // Se nessuno è host, promuovi il primo giocatore
+        if(!currentHost){
+          const newHost = s.giocatori[0];
+          
+          await _supabase.from('giocatori').update({is_host: true}).eq('id', newHost.id);
+          
+          // Se ero io, aggiorno subito localmente
+          if(newHost.id === myId){
+            isHost = true;
+            speak("Sei diventato l'host della stanza");
+          }
+          
+          showFlashMessage(`${newHost.nome} è il nuovo host`, 'info');
+        }
+      }
       
+      
+      // ✅ UUID: Controlla se il giocatore corrente esiste ancora (per UUID)
       if(s.stato === 'gioco' && !s.in_pausa && isHost && s.id_giocatore_corrente !== null && s.id_giocatore_corrente !== undefined) {
-        const currentPlayerExists = s.giocatori.some(p => p.indice === s.id_giocatore_corrente);
+        const currentPlayerExists = s.giocatori.some(p => p.id === s.id_giocatore_corrente);
         if(!currentPlayerExists) {
-          showFlashMessage('⚠️ Il giocatore corrente è uscito. Passaggio automatico del turno.', 'info');
+          showFlashMessage('Il giocatore corrente è uscito. Passaggio automatico del turno.', 'info');
           setTimeout(() => passTurn(), 500); 
         }
       }
@@ -2137,20 +2207,16 @@
 
       document.getElementById('round-indicator').textContent = `R ${s.round_giocati}/10`;
       
-      const currentPlayer = s.giocatori.find(p=>p.indice===s.id_giocatore_corrente);
-      const isMe=(s.id_giocatore_corrente===myIndex);
+      // ✅ UUID: Trova giocatore corrente per UUID (non per indice!)
+      const currentPlayer = s.giocatori.find(p=>p.id===s.id_giocatore_corrente);
+      const isMe=(s.id_giocatore_corrente===myId); // ← Confronta UUID con UUID!
       
-      console.log(`fetchFullState: turno di ${currentPlayer?.nome} (indice ${s.id_giocatore_corrente})`);
-      console.log(`fetchFullState: isHost=${isHost}, currentPlayer exists=${!!currentPlayer}`);
       if(currentPlayer) {
-        console.log(`fetchFullState: currentPlayer.nome="${currentPlayer.nome}", startsWith BOT=${currentPlayer.nome.startsWith("BOT")}`);
       }
       
       if(isHost && currentPlayer && currentPlayer.nome.startsWith("BOT")){
-          console.log('fetchFullState: TRIGGERING playBotTurn');
           playBotTurn(currentPlayer);
       } else {
-          console.log(`fetchFullState: NO bot trigger - isHost=${isHost}, currentPlayer=${!!currentPlayer}, isBot=${currentPlayer?.nome.startsWith("BOT")}`);
       }
 
       if(!wasMyTurn && isMe){ 
@@ -2240,7 +2306,7 @@
         
         
         
-        const showSurrender = isHost && (
+        const showSurrender = isHost && (;
           (s.fase_speciale === 3 && s.azione_timestamp && (new Date().getTime() - new Date(s.azione_timestamp).getTime()) > TURN_LIMIT_SEC * 1000) ||
           (s.fase_speciale === 102) 
         );
@@ -2363,7 +2429,7 @@
         
         addActionToHistory(`${myName} BANCAROTTA! Perde tutto`);
         speak("BANCAROTTA! Hai perso tutto e passi il turno!");
-        showFlashMessage('💀 BANCAROTTA!', 'bad');
+        showFlashMessage('BANCAROTTA!', 'bad');
         
         passTurn();
         return;
@@ -2384,7 +2450,7 @@
         
         addActionToHistory(`${myName} ${label}`);
         speak(`${label}! Passi il turno.`);
-        showFlashMessage(`⏭️ ${label}`, 'bad');
+        showFlashMessage(`⏭ ${label}`, 'bad');
         
         passTurn();
         return;
@@ -2475,45 +2541,49 @@
           showFlashMessage(`🃏 JOLLY ATTIVO! (fino a round ${endR})`, 'good');
         } else if(val === '+1000') {
           speak(`Hai guadagnato mille euro! Ora gira di nuovo!`);
-          showFlashMessage(`💰 +1000€ GUADAGNATI!`, 'good');
+          showFlashMessage(` +1000€ GUADAGNATI!`, 'good');
         } else if(val === 'RADDOPPIA') {
           speak(`Raddoppia attivo! Il prossimo giro vale il doppio. Gira ora!`);
-          showFlashMessage(`⭐ RADDOPPIA ATTIVO!`, 'good');
+          showFlashMessage(`RADDOPPIA ATTIVO!`, 'good');
         }
       }
     }
 
     async function passTurn(){
-      if(isHandlingTimeout) {
-        console.log('passTurn: già in corso, skip');
+      // ✅ CORREZIONE CHATGPT: Protezione - solo host o giocatore di turno possono passare
+      if(!isHost && !isMe){
+        speak("Non puoi passare il turno");
         return;
       }
       
-      console.log('passTurn: inizio cambio turno');
+      if(isHandlingTimeout) {
+        return;
+      }
+      
       isHandlingTimeout=true;
       vowelsBoughtThisTurn=0;
       const s=currentStanza;
       
       if(!s || !s.giocatori || s.giocatori.length === 0) {
-        console.log('passTurn: nessun giocatore');
         isHandlingTimeout=false;
         return;
       }
       
-      let currIdx=s.giocatori.findIndex(p=>p.indice===s.id_giocatore_corrente);
+      // ✅ UUID: Trova giocatore corrente per UUID (non per indice!)
+      let currIdx=s.giocatori.findIndex(p=>p.id===s.id_giocatore_corrente);
       
-      
+      // Se non trovato (UUID non esiste più), torna al primo
       if(currIdx === -1) {
         currIdx = 0;
       }
       
+      // Passa al prossimo giocatore
       let nextIdx = (currIdx + 1) % s.giocatori.length;
-      let nextInd = s.giocatori[nextIdx].indice;
+      let nextPlayerUUID = s.giocatori[nextIdx].id; // ← UUID invece di indice!
       
-      console.log(`passTurn: da giocatore ${currIdx} a giocatore ${nextIdx} (indice ${nextInd})`);
       
       const {error} = await _supabase.from('stanze').update({
-        id_giocatore_corrente:nextInd,
+        id_giocatore_corrente:nextPlayerUUID, // ← UUID invece di indice!
         montepremi_round:0,
         fase_speciale:0,
         ultima_azione:'passa_turno',
@@ -2524,14 +2594,12 @@
       if(error){
         console.error('Errore passTurn:', error);
       } else {
-        console.log('passTurn: update database OK');
       }
       
       isHandlingTimeout=false;
       
       // Forza refresh
       await fetchFullState();
-      console.log('passTurn: completato');
     }
 
     function openInput(mode){
@@ -2843,7 +2911,7 @@
             }
           } else {
             
-            const vowelResultMsg = newFoundIndices.length > 0 
+            const vowelResultMsg = newFoundIndices.length > 0
               ? `Trovate ${newFoundIndices.length} ${char}` 
               : `${char} non presente`;
             speak(vowelResultMsg);
@@ -2875,9 +2943,9 @@
       
       if(isSpinning || isProcessingInput) return;
       
-      
-      
-      const timestampToUse = lastSpinTimestamp || currentStanza.azione_timestamp;
+      // ✅ FIX CHATGPT: Usa SOLO azione_timestamp dal DB (fonte di verità unica)
+      // lastSpinTimestamp locale può "sfasare" se non aggiornato correttamente
+      const timestampToUse = currentStanza.azione_timestamp;
       
       const elapsed=Math.floor((new Date().getTime() - new Date(timestampToUse).getTime())/1000);
       if(isNaN(elapsed) || elapsed > 10000 || elapsed < -100) return;
@@ -2940,7 +3008,7 @@
         if(msgs.length > 1) {
           const hint=document.createElement('p');
           hint.style="color:#888; font-size:0.9em; margin-top:10px; text-align:center;";
-          hint.innerHTML="💡 Usa Shift+Tab dal campo input per vedere tutti i messaggi";
+          hint.innerHTML=" Usa Shift+Tab dal campo input per vedere tutti i messaggi";
           c.appendChild(hint);
         }
       }
@@ -3184,10 +3252,17 @@
     }
 
     async function leaveGame(){
+      // ✅ CORREZIONE CHATGPT: Ferma ping periodico
+      stopPeriodicPing();
+      
       // Cleanup channels and timers
       if(gameChannel) {
         await gameChannel.unsubscribe();
         gameChannel = null;
+      }
+      if(playersChannel) { // ✅ CORREZIONE CHATGPT
+        await playersChannel.unsubscribe();
+        playersChannel = null;
       }
       if(chatChannel) {
         await chatChannel.unsubscribe();
@@ -3268,7 +3343,6 @@
     async function resetGame(){
       if(!confirm("Reset partita? Tutti i punteggi saranno azzerati.")) return;
       
-      console.log('resetGame: inizio');
       
       // Reset punteggi
       await _supabase.from('giocatori').update({
@@ -3284,12 +3358,10 @@
         fase_speciale: 0
       }).eq('id', roomId);
       
-      console.log('resetGame: riorganizzazione giocatori');
       
       // Riorganizza giocatori e turni
       await reorganizePlayers();
       
-      console.log('resetGame: avvio nuovo round');
       
       // Avvia nuovo round
       await startNewRound();
@@ -3358,10 +3430,36 @@
       audioEnabled = !audioEnabled;
       const btn = document.getElementById('btn-toggle-audio');
       if (btn) {
-        btn.textContent = audioEnabled ? '🔊 Audio ON' : '🔇 Audio OFF';
+        btn.textContent = audioEnabled ? 'Audio ON' : 'Audio OFF';
       }
       if (audioEnabled) {
         playSound(440, 100);
+      }
+    }
+    
+    // ✅ CORREZIONE CHATGPT: Sistema ping periodico per tracciare giocatori online
+    function startPeriodicPing(){
+      if(pingInterval) clearInterval(pingInterval);
+      
+      pingInterval = setInterval(async () => {
+        if(!myId || !roomId) return;
+        
+        try {
+          await _supabase
+            .from('giocatori')
+            .update({ultimo_ping: new Date().toISOString()})
+            .eq('id', myId);
+          
+        } catch(e) {
+          console.error('Errore ping:', e);
+        }
+      }, 10000); // Ogni 10 secondi
+    }
+    
+    function stopPeriodicPing(){
+      if(pingInterval){
+        clearInterval(pingInterval);
+        pingInterval = null;
       }
     }
   </script>

@@ -695,22 +695,16 @@
         multipleHitsTimeouts.forEach(timeout => clearTimeout(timeout));
         multipleHitsTimeouts = [];
         
-        // ✅ FIX: Riproduci un singolo suono "consolidato" invece di uno per ogni lettera
-        // Questo evita sovrapposizioni caotiche quando vengono trovate molte lettere
-        if(count === 1) {
-            // Una sola lettera: suono normale
-            playAudio('snd-hit');
-        } else if(count === 2) {
-            // Due lettere: due beep ravvicinati
-            playAudio('snd-hit');
-            const timeout1 = setTimeout(() => playAudio('snd-hit'), 200);
-            multipleHitsTimeouts.push(timeout1);
-        } else if(count >= 3) {
-            // Tre o più lettere: suono "successo multiplo" (tripletta di beep veloci)
-            playAudio('snd-hit');
-            const timeout1 = setTimeout(() => playAudio('snd-hit'), 150);
-            const timeout2 = setTimeout(() => playAudio('snd-hit'), 300);
-            multipleHitsTimeouts.push(timeout1, timeout2);
+        // ✅ FIX: Riproduci UN beep per OGNI lettera trovata
+        // Il primo beep parte subito, poi uno ogni 250ms
+        if(count >= 1) {
+            playAudio('snd-hit'); // Primo beep immediato
+            
+            // Beep successivi con delay
+            for(let i = 1; i < count; i++) {
+                const timeout = setTimeout(() => playAudio('snd-hit'), i * 250);
+                multipleHitsTimeouts.push(timeout);
+            }
         }
     }
     function toggleMute(){
@@ -762,8 +756,23 @@
     }
 
     function toggleContrast(){ document.body.classList.toggle('high-contrast'); speak("Contrasto cambiato"); }
-    function openHelp(){ document.getElementById('help-panel').classList.remove('hidden'); speak("Aiuto aperto"); }
-    function closeHelp(){ document.getElementById('help-panel').classList.add('hidden'); }
+    function openHelp(){ 
+      const panel = document.getElementById('help-panel');
+      panel.classList.remove('hidden'); 
+      // ✅ FIX: Rendi il pannello focusable e dai il focus
+      panel.setAttribute('tabindex', '0');
+      panel.setAttribute('role', 'dialog');
+      panel.setAttribute('aria-modal', 'true');
+      panel.setAttribute('aria-label', 'Aiuto e tasti rapidi');
+      setTimeout(() => {
+        panel.focus();
+        speak("Aiuto aperto. Usa frecce per scorrere, ESC o bottone Chiudi per uscire.");
+      }, 100);
+    }
+    function closeHelp(){ 
+      document.getElementById('help-panel').classList.add('hidden'); 
+      speak("Aiuto chiuso");
+    }
     function addActionToHistory(txt){
       actionHistory.unshift({text:txt, time:new Date().toLocaleTimeString()});
       if(actionHistory.length>50) actionHistory.pop();
@@ -953,9 +962,7 @@
       
       // ✅ VERIFICA POST-MODIFICA: assicurati che non sia cambiata la parola
       if(navWordIdx !== savedWordIdx) {
-        // ERRORE CRITICO: qualcosa ha cambiato la parola!
-        console.error("🚨 BUG: navWordIdx è cambiato durante moveNav!", {savedWordIdx, navWordIdx});
-        navWordIdx = savedWordIdx; // Ripristina
+        navWordIdx = savedWordIdx; // Ripristina se qualcosa ha cambiato la parola
       }
       
       highlightNav();
@@ -1586,6 +1593,12 @@
       
       const k=e.key.toLowerCase();
       
+      // ✅ FIX: I tasti rapidi di gioco funzionano SOLO quando sei nella stanza
+      // Non interferire con i campi di input nella schermata di setup
+      const isInSetup = !document.getElementById('game-panel').classList.contains('hidden') === false;
+      const setupPanel = document.getElementById('setup-panel');
+      const isInSetupScreen = setupPanel && !setupPanel.classList.contains('hidden');
+      
       // ESC deve funzionare SEMPRE, anche in input mode
       if(k === 'escape'){
          e.preventDefault();
@@ -1610,6 +1623,13 @@
 
       const isInInput = document.activeElement && document.activeElement.tagName==='INPUT';
       
+      // ✅ FIX: Se sei nella schermata di setup (prima di entrare in stanza),
+      // NON intercettare i tasti - lascia funzionare tutto normalmente (Ctrl+A, ecc)
+      if(isInSetupScreen && !e.key.toLowerCase().startsWith('f')) {
+        // Permetti solo F5 e simili, tutto il resto passa al browser
+        return;
+      }
+      
       if(isMysteryModalOpen){
         const btn1 = document.getElementById('btn-mystery-open');
         const btn2 = document.getElementById('btn-mystery-500');
@@ -1628,6 +1648,15 @@
       if(isInInput && ['arrowleft','arrowright','arrowup','arrowdown','home','end'].includes(k)){
         // Lascia che il browser gestisca normalmente la navigazione nel campo input
         return; // Non fare e.preventDefault(), lascia funzionare normalmente
+      }
+      
+      // ✅ FIX: Se il pannello aiuto è aperto, permetti frecce per scorrere
+      const helpPanel = document.getElementById('help-panel');
+      if(helpPanel && !helpPanel.classList.contains('hidden')) {
+        if(['arrowup','arrowdown','pageup','pagedown','home','end'].includes(k)){
+          // Lascia che il browser scrolli il pannello normalmente
+          return;
+        }
       }
 
       if(k==='arrowup'){ e.preventDefault(); moveWordNav(-1); return; }
@@ -1791,8 +1820,25 @@
         localStorage.setItem('lastPlayerName', nm);
 
         const {data:exist}=await _supabase.from('giocatori').select('*').eq('stanza_id',roomId).eq('nome',nm).maybeSingle();
-        if(exist){ myId=exist.id; myIndex=exist.indice; isHost=exist.is_host; }
+        if(exist){ 
+          myId=exist.id; 
+          myIndex=exist.indice; 
+          isHost=exist.is_host;
+          
+          // Verifica che myId sia un UUID valido
+          if(typeof myId === 'number') {
+            alert("ERRORE DATABASE: Il tuo ID giocatore è un numero vecchio. Devi ricreare la stanza!");
+          }
+        }
         else{
+          // ✅ CONTROLLO LIMITE: Massimo 3 giocatori per stanza
+          const {data:allPlayers}=await _supabase.from('giocatori').select('id').eq('stanza_id',roomId);
+          if(allPlayers && allPlayers.length >= 3){
+            alert("Stanza piena! Massimo 3 giocatori.");
+            speak("Stanza piena. Massimo tre giocatori.");
+            return;
+          }
+          
           const {data:mx}=await _supabase.from('giocatori').select('indice').eq('stanza_id',roomId).order('indice',{ascending:false}).limit(1).maybeSingle();
           myIndex=(mx)?mx.indice+1:0; isHost=(myIndex===0);
           const {data:pl, error:plError}=await _supabase.from('giocatori').insert({
@@ -1947,7 +1993,6 @@
     async function consumeJolly(){ await _supabase.from('giocatori').update({scadenza_jolly:0}).eq('id', myId); }
 
     async function tryUseJollyToAvoid(kindLabel){
-      
       const {data:freshStanza} = await _supabase.from('stanze').select('*, giocatori(*)').eq('id', roomId).maybeSingle();
       if(!freshStanza) return false;
       
@@ -2310,15 +2355,7 @@
       }
       
       if(isHost && currentPlayer && currentPlayer.nome.startsWith("BOT")){
-          console.log("🤖 BOT RILEVATO:", {
-            nome: currentPlayer.nome,
-            id: currentPlayer.id,
-            indice: currentPlayer.indice,
-            timestamp_creazione: currentPlayer.created_at,
-            tutti_giocatori: s.giocatori.map(p => ({nome: p.nome, id: p.id}))
-          });
-          
-          // ✅ Avvisa l'utente che c'è un bot (potrebbe essere non voluto)
+          // Avvisa l'utente che c'è un bot (potrebbe essere non voluto)
           const botWarning = `Rilevato ${currentPlayer.nome}. Se non l'hai aggiunto tu, puoi eliminarlo dal pannello Giocatori (tasto S).`;
           showFlashMessage(botWarning, 'warning');
           speak(`Turno del bot: ${currentPlayer.nome}`);
@@ -2358,7 +2395,7 @@
         if(specialVowelsPhase){
           specialInd.textContent=`ROUND SPECIALE - FASE VOCALI (${specialVowelsGiven}/3) - Frase ${specialPhraseIndex + 1}/4`;
         } else {
-          specialInd.textContent=`ROUND SPECIALE - CONSONANTI (${specialConsonantsUsed}/12) - Frase ${specialPhraseIndex + 1}/4`;
+          specialInd.textContent=`ROUND SPECIALE - CONSONANTI (${specialConsonantsUsed}/10) - Frase ${specialPhraseIndex + 1}/4`;
         }
         specialInd.classList.remove('hidden');
       } else {
@@ -2382,13 +2419,13 @@
           canPass = false;
         } else {
           
-          canSpin = isMe && !isSpinning && !inputMode && s.montepremi_round===0 && specialConsonantsUsed < 12;
+          canSpin = isMe && !isSpinning && !inputMode && s.montepremi_round===0 && specialConsonantsUsed < 10;
           canVowel = false; 
           canSolve = isMe && !isSpinning && !inputMode;
           canPass = false; 
           
           
-          if(specialConsonantsUsed >= 12 || s.fase_speciale === 102){
+          if(specialConsonantsUsed >= 10 || s.fase_speciale === 102){
             canSpin = false;
             canSolve = !isSpinning && !inputMode; 
           }
@@ -3018,8 +3055,8 @@ const showSurrender = isHost && (
         
         
         if(isSpecialRound && !specialVowelsPhase && mode==='letter'){
-          if(specialConsonantsUsed >= 12){
-            alert("Limite 12 consonanti raggiunto! Tutti possono risolvere o l'host si arrende.");
+          if(specialConsonantsUsed >= 10){
+            alert("Limite 10 consonanti raggiunto! Tutti possono risolvere o l'host si arrende.");
             isProcessingInput=false;
             return;
           }
@@ -3100,14 +3137,33 @@ const showSurrender = isHost && (
             if(isSpecialRound && !specialVowelsPhase){
               specialConsonantsUsed++;
               
+              // ✅ LOGICA CONSONANTE AUTOMATICA: Se 3 giocatori e 9 consonanti, il sistema rivela la 10ª
+              if(specialConsonantsUsed === 9 && s.giocatori.length === 3){
+                // Aggiorna database con le lettere correnti
+                await _supabase.from('stanze').update({
+                  lettere_rivelate:newRev,
+                  montepremi_round:0,
+                  ultima_azione:'chiama_lettera',
+                  ultimo_messaggio:`${myName}: Trovate ${newFoundIndices.length} ${char} (${specialConsonantsUsed}/10 consonanti)`,
+                  azione_timestamp:new Date().toISOString()
+                }).eq('id', roomId);
+                
+                // Aspetta un attimo, poi il sistema rivela la 10ª consonante
+                setTimeout(async () => {
+                  await revealAutomaticConsonant();
+                }, 1500);
+                
+                isProcessingInput=false;
+                return; // Non passare il turno, lo farà revealAutomaticConsonant
+              }
               
-              if(specialConsonantsUsed >= 12){
+              if(specialConsonantsUsed >= 10){
                 await _supabase.from('stanze').update({
                   lettere_rivelate:newRev,
                   montepremi_round:0,
                   fase_speciale:102, 
-                  ultima_azione:'consonante_12',
-                  ultimo_messaggio:`${myName}: ${char} - 12 CONSONANTI USATE! Tutti possono risolvere o l'host si arrende`,
+                  ultima_azione:'consonante_10',
+                  ultimo_messaggio:`${myName}: ${char} - 10 CONSONANTI USATE! Tutti possono risolvere o l'host si arrende`,
                   azione_timestamp:new Date().toISOString()
                 }).eq('id', roomId);
               } else {
@@ -3115,7 +3171,7 @@ const showSurrender = isHost && (
                   lettere_rivelate:newRev,
                   montepremi_round:0,
                   ultima_azione:'chiama_lettera',
-                  ultimo_messaggio:`${myName}: Trovate ${newFoundIndices.length} ${char} (${specialConsonantsUsed}/12 consonanti)`,
+                  ultimo_messaggio:`${myName}: Trovate ${newFoundIndices.length} ${char} (${specialConsonantsUsed}/10 consonanti)`,
                   azione_timestamp:new Date().toISOString()
                 }).eq('id', roomId);
               }
@@ -3363,6 +3419,92 @@ const showSurrender = isHost && (
       return "Fase vocali";
     }
     
+    async function revealAutomaticConsonant(){
+      // ✅ Sistema rivela automaticamente la 10ª consonante (la più frequente rimasta)
+      const s = currentStanza;
+      if(!s || !currentPuzzleText) return;
+      
+      // Conta frequenza di ogni consonante NON ancora completamente rivelata
+      const consonantCounts = {}; // Quante volte appare nella frase
+      const revealedCounts = {};  // Quante sono già rivelate
+      
+      let gIdx = 0;
+      currentPuzzleText.toUpperCase().split('').forEach(c => {
+        if(c.match(/[A-Z]/)){
+          if(!"AEIOU".includes(c)){
+            // È una consonante
+            consonantCounts[c] = (consonantCounts[c] || 0) + 1;
+            
+            if(s.lettere_rivelate.includes(gIdx)){
+              revealedCounts[c] = (revealedCounts[c] || 0) + 1;
+            }
+          }
+          gIdx++;
+        }
+      });
+      
+      // Trova la consonante con più occorrenze NON ancora rivelate
+      let mostFrequent = null;
+      let maxUnrevealed = 0;
+      
+      for(let cons in consonantCounts){
+        const totalCount = consonantCounts[cons];
+        const alreadyRevealed = revealedCounts[cons] || 0;
+        const unrevealed = totalCount - alreadyRevealed;
+        
+        if(unrevealed > 0 && unrevealed > maxUnrevealed){
+          mostFrequent = cons;
+          maxUnrevealed = unrevealed;
+        }
+      }
+      
+      if(!mostFrequent){
+        // Non ci sono più consonanti da rivelare (non dovrebbe succedere)
+        speak("Errore: nessuna consonante da rivelare");
+        await passTurn();
+        return;
+      }
+      
+      // Trova tutti gli indici NON rivelati di questa consonante nella frase
+      const foundIndices = [];
+      gIdx = 0;
+      currentPuzzleText.toUpperCase().split('').forEach(c => {
+        if(c.match(/[A-Z]/)){
+          if(c === mostFrequent && !s.lettere_rivelate.includes(gIdx)){
+            foundIndices.push(gIdx);
+          }
+          gIdx++;
+        }
+      });
+      
+      // Aggiungi alle lettere rivelate
+      const newRev = [...new Set([...(s.lettere_rivelate || []), ...foundIndices])];
+      
+      // Incrementa contatore
+      specialConsonantsUsed++;
+      
+      // Aggiorna database
+      await _supabase.from('stanze').update({
+        lettere_rivelate: newRev,
+        montepremi_round: 0,
+        fase_speciale: 102, // Tutte le consonanti usate
+        ultima_azione: 'sistema_consonante',
+        ultimo_messaggio: `Il sistema rivela: ${mostFrequent} - Trovate ${foundIndices.length}! (10/10 consonanti)`,
+        azione_timestamp: new Date().toISOString()
+      }).eq('id', roomId);
+      
+      // Suona i beep in base a quante lettere trovate
+      playMultipleHits(foundIndices.length);
+      speak(`Il sistema rivela: ${NATO[mostFrequent] || mostFrequent}. Trovate ${foundIndices.length} lettere.`);
+      addActionToHistory(`SISTEMA: ${mostFrequent} - Trovate ${foundIndices.length}`);
+      
+      // Passa il turno dopo un attimo
+      setTimeout(() => {
+        passTurn();
+      }, 1000);
+    }
+
+    
     async function handleSpecialVowel(char, playerName, stanza){
       const numPlayers = stanza.giocatori.length;
       
@@ -3406,7 +3548,7 @@ const showSurrender = isHost && (
         specialVowelsPhase = false;
         await _supabase.from('stanze').update({
           fase_speciale:101, 
-          ultimo_messaggio:`Vocali complete! Fase consonanti: 12 consonanti totali da chiamare`,
+          ultimo_messaggio:`Vocali complete! Fase consonanti: 10 consonanti totali da chiamare`,
           azione_timestamp:new Date().toISOString()
         }).eq('id', roomId);
       } else {

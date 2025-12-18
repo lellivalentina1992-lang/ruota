@@ -767,13 +767,25 @@
 
     async function preResumeCheck() {
       if(!isHost) return;
+      
+      // Prima rimuovi automaticamente i giocatori disconnessi
+      await checkAndRemoveDisconnectedPlayers();
+      
       const { data: pl } = await _supabase.from('giocatori').select('*').eq('stanza_id', roomId).order('indice');
       const listDiv = document.getElementById('player-check-list');
       listDiv.innerHTML = "";
       pl.forEach(p => {
         const row = document.createElement('div');
         row.style = "display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #555;padding:10px;";
-        row.innerHTML = `<span style="font-size:1.2em;color:#fff;">${p.nome}</span>`;
+        
+        // Calcola da quanto tempo non fa ping
+        const lastPing = p.ultimo_ping ? new Date(p.ultimo_ping) : null;
+        const now = new Date();
+        const secondsSinceLastPing = lastPing ? Math.floor((now - lastPing) / 1000) : 9999;
+        const statusColor = secondsSinceLastPing > 15 ? '#ff4444' : '#00ff00';
+        const statusText = secondsSinceLastPing > 15 ? '⚠️ OFFLINE' : '✅ ONLINE';
+        
+        row.innerHTML = `<span style="font-size:1.2em;color:#fff;">${p.nome} <span style="color:${statusColor};font-size:0.85em;">${statusText}</span></span>`;
         const delBtn = document.createElement('button');
         delBtn.textContent = "ELIMINA";
         delBtn.className = "action-btn";
@@ -782,14 +794,38 @@
           if(confirm("Eliminare " + p.nome + "?")) {
             await _supabase.from('giocatori').delete().eq('id', p.id);
             row.remove();
+            speak(`${p.nome} eliminato`);
           }
         };
         row.appendChild(delBtn);
         listDiv.appendChild(row);
       });
       document.getElementById('player-check-overlay').classList.remove('hidden');
-      speak("Controllo presenze. Verifica i giocatori e conferma.");
+      speak("Controllo presenze. I giocatori offline sono stati rimossi automaticamente. Verifica e conferma.");
       setTimeout(() => document.getElementById('btn-confirm-resume').focus(), 150);
+    }
+    
+    async function checkAndRemoveDisconnectedPlayers() {
+      if(!isHost || !roomId) return;
+      
+      const { data: players } = await _supabase.from('giocatori').select('*').eq('stanza_id', roomId);
+      if(!players || players.length === 0) return;
+      
+      const now = new Date();
+      const TIMEOUT_SECONDS = 15; // Considera disconnesso dopo 15 secondi
+      
+      for(const player of players) {
+        const lastPing = player.ultimo_ping ? new Date(player.ultimo_ping) : null;
+        const secondsSinceLastPing = lastPing ? Math.floor((now - lastPing) / 1000) : 9999;
+        
+        // Se il giocatore non fa ping da più di TIMEOUT_SECONDS, rimuovilo
+        if(secondsSinceLastPing > TIMEOUT_SECONDS) {
+          console.log(`[DISCONNECT] Rimuovo ${player.nome} - ultimo ping ${secondsSinceLastPing}s fa`);
+          await _supabase.from('giocatori').delete().eq('id', player.id);
+          showMessage(`⚠️ ${player.nome} disconnesso e rimosso`, '#ff9900');
+          speak(`${player.nome} si è disconnesso`);
+        }
+      }
     }
 
     async function confirmResumeGame() {
@@ -1276,7 +1312,13 @@
         else{
           const {data:mx}=await _supabase.from('giocatori').select('indice').eq('stanza_id',roomId).order('indice',{ascending:false}).limit(1).maybeSingle();
           myIndex=(mx)?mx.indice+1:0; isHost=(myIndex===0);
-          const {data:pl}=await _supabase.from('giocatori').insert({stanza_id:roomId,nome:nm,indice:myIndex,is_host:isHost}).select().single();
+          const {data:pl}=await _supabase.from('giocatori').insert({
+            stanza_id:roomId,
+            nome:nm,
+            indice:myIndex,
+            is_host:isHost,
+            ultimo_ping: new Date().toISOString()
+          }).select().single();
           myId=pl.id;
         }
 
@@ -1293,12 +1335,35 @@
 
         _supabase.channel('game').on('postgres_changes',{event:'UPDATE',schema:'public',table:'stanze',filter:`id=eq.${roomId}`},fetchFullState).subscribe();
         _supabase.channel('chat').on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_messaggi',filter:`stanza_id=eq.${roomId}`},payload=>{
-          if(payload.new.giocatore_nome !== nm) speakChat(`${payload.new.giocatore_nome} scrive, ${payload.new.messaggio}`);
-          fetchChat();
+          // Annuncia SOLO il nuovo messaggio in tempo reale (non tutto lo storico)
+          if(payload.new.giocatore_nome !== nm) {
+            speakChat(`${payload.new.giocatore_nome} scrive: ${payload.new.messaggio}`);
+          }
+          // Aggiorna visivamente SOLO se la chat è aperta
+          const chatOverlay = document.getElementById('chat-overlay');
+          if(chatOverlay && !chatOverlay.classList.contains('hidden')) {
+            fetchChat(false); // Aggiorna mostrando solo l'ultimo messaggio
+          }
         }).subscribe();
 
         fetchFullState();
         setInterval(checkTurnTimer, 1000);
+        
+        // SISTEMA HEARTBEAT: aggiorna ultimo_ping ogni 3 secondi
+        setInterval(async () => {
+          if(myId && roomId) {
+            await _supabase.from('giocatori').update({
+              ultimo_ping: new Date().toISOString()
+            }).eq('id', myId);
+          }
+        }, 3000);
+        
+        // CONTROLLO DISCONNESSIONI: ogni 10 secondi controlla chi è offline
+        if(isHost) {
+          setInterval(async () => {
+            await checkAndRemoveDisconnectedPlayers();
+          }, 10000);
+        }
       } catch(e){
         console.error(e);
         speak("Errore connessione.");
@@ -1360,7 +1425,13 @@
       const name = botNames.find(n => !usedNames.includes(n)) || "BOT " + Math.floor(Math.random()*100);
       const lastInd = freshStanza.giocatori[freshStanza.giocatori.length-1].indice;
       
-      await _supabase.from('giocatori').insert({stanza_id:roomId, nome:name, indice:lastInd+1, is_host:false});
+      await _supabase.from('giocatori').insert({
+        stanza_id:roomId, 
+        nome:name, 
+        indice:lastInd+1, 
+        is_host:false,
+        ultimo_ping: new Date().toISOString()
+      });
       speak("Bot aggiunto: " + name);
       
       // FORZA il refresh immediato dello stato
@@ -1371,6 +1442,11 @@
        if(isBotThinking) return;
        isBotThinking = true;
        console.log("Bot playing:", botPlayer.nome);
+       
+       // Aggiorna il ping del bot per segnalare che è attivo
+       await _supabase.from('giocatori').update({
+         ultimo_ping: new Date().toISOString()
+       }).eq('id', botPlayer.id);
 
        // TEMPI DI RIFLESSIONE VARIABILI (più umano: 2-4 secondi)
        const thinkTime = 2000 + Math.random() * 2000;
@@ -1547,7 +1623,8 @@
         s.giocatori.forEach(player => {
           if(!previousIds.includes(player.id)) {
             showMessage(`🟢 ${player.nome} è entrato nella partita!`, '#00ff00');
-            speak(`${player.nome} è entrato`);
+            speak(`Nuovo giocatore: ${player.nome} è entrato nella stanza`, true); // true = priorità alta
+            console.log(`[ANNUNCIO] ${player.nome} è entrato`); // Debug
           }
         });
         
@@ -1555,7 +1632,8 @@
         previousPlayersList.forEach(player => {
           if(!currentIds.includes(player.id)) {
             showMessage(`🔴 ${player.nome} ha lasciato la partita`, '#ff4444');
-            speak(`${player.nome} è uscito`);
+            speak(`${player.nome} è uscito dalla stanza`, true);
+            console.log(`[ANNUNCIO] ${player.nome} è uscito`); // Debug
           }
         });
         
@@ -1904,6 +1982,14 @@
       document.getElementById('input-area').classList.remove('hidden');
       const inp=document.getElementById('game-input');
       
+      // IMPORTANTE: Ri-aggiungi l'event listener per Enter ogni volta che si apre
+      inp.onkeydown = (e) => {
+        if(e.key === 'Enter') {
+          e.preventDefault();
+          submitInput();
+        }
+      };
+      
       if(mode==='solve') {
         // PRECOMPILA con lettere rivelate + asterischi
         let template = "";
@@ -2126,32 +2212,76 @@
       if(left===0 && isHost && !isHandlingTimeout) passTurn();
     }
 
-    async function fetchChat(){
+    async function fetchChat(showAll = false){
       const {data:msgs}=await _supabase.from('chat_messaggi').select('*').eq('stanza_id', roomId).order('created_at',{ascending:true}).limit(50);
-      if(!msgs) return;
-      const c=document.getElementById('chat-messages'); c.innerHTML="";
-      msgs.forEach(m=>{
+      if(!msgs || msgs.length === 0) {
+        const c=document.getElementById('chat-messages');
+        c.innerHTML="<p style='color:#777;text-align:center;'>Nessun messaggio</p>";
+        return;
+      }
+      
+      const c=document.getElementById('chat-messages'); 
+      c.innerHTML="";
+      
+      if(showAll) {
+        // Mostra tutti i messaggi
+        msgs.forEach(m=>{
+          const d=document.createElement('div');
+          d.style="border-bottom:1px solid #333; margin-bottom:5px; padding:8px;";
+          d.tabIndex = 0;
+          d.innerHTML=`<strong style="color:var(--col-accent);">${m.giocatore_nome}:</strong> ${m.messaggio}`;
+          c.appendChild(d);
+        });
+        c.scrollTop=c.scrollHeight;
+      } else {
+        // Mostra solo l'ultimo messaggio
+        const lastMsg = msgs[msgs.length - 1];
         const d=document.createElement('div');
-        d.style="border-bottom:1px solid #333; margin-bottom:5px;";
-        d.innerHTML=`<strong style="color:var(--col-accent);">${m.giocatore_nome}:</strong> ${m.messaggio}`;
+        d.style="border-bottom:1px solid #333; margin-bottom:5px; padding:8px; font-size:1.1em;";
+        d.tabIndex = 0;
+        d.innerHTML=`<strong style="color:var(--col-accent);">${lastMsg.giocatore_nome}:</strong> ${lastMsg.messaggio}`;
         c.appendChild(d);
-      });
-      c.scrollTop=c.scrollHeight;
+        
+        // Aggiungi indicazione se ci sono altri messaggi
+        if(msgs.length > 1) {
+          const hint=document.createElement('p');
+          hint.style="color:#888; font-size:0.9em; margin-top:10px; text-align:center;";
+          hint.innerHTML="💡 Usa Shift+Tab dal campo input per vedere tutti i messaggi";
+          c.appendChild(hint);
+        }
+      }
     }
     
     function openChat(){ 
        document.getElementById('chat-overlay').classList.remove('hidden'); 
-       fetchChat(); 
+       fetchChat(false); // Mostra solo l'ultimo messaggio
        
-       // Leggi solo l'ultimo messaggio (non tutti!)
-       setTimeout(async () => {
-         const {data:msgs}=await _supabase.from('chat_messaggi').select('*').eq('stanza_id', roomId).order('created_at',{ascending:false}).limit(1).single();
-         if(msgs) {
-           speak(`Chat aperta. Ultimo messaggio: ${msgs.giocatore_nome} dice ${msgs.messaggio}`);
-         } else {
-           speak("Chat aperta. Nessun messaggio.");
-         }
-         document.getElementById('chat-input').focus();
+       // Annuncia solo che la chat è aperta, NON leggere i messaggi
+       setTimeout(() => {
+         speak("Chat aperta. Premi Shift Tab per vedere la cronologia completa.");
+         
+         const chatInput = document.getElementById('chat-input');
+         chatInput.focus();
+         
+         // Rimuovi event listener precedente se esiste
+         chatInput.onkeydown = null;
+         
+         // Aggiungi gestione Shift+Tab per vedere tutti i messaggi
+         chatInput.addEventListener('keydown', (e) => {
+           if(e.key === 'Tab' && e.shiftKey) {
+             e.preventDefault();
+             fetchChat(true); // Mostra tutti i messaggi
+             speak("Visualizzazione cronologia completa. Usa le frecce per navigare tra i messaggi.");
+             // Focus sul container dei messaggi per permettere la navigazione
+             setTimeout(() => {
+               const firstMsg = document.getElementById('chat-messages').querySelector('div[tabindex="0"]');
+               if(firstMsg) firstMsg.focus();
+             }, 100);
+           } else if(e.key === 'Enter') {
+             e.preventDefault();
+             sendChatMessage();
+           }
+         });
        }, 150);
     }
     
@@ -2160,7 +2290,8 @@
       if(!t) return;
       await _supabase.from('chat_messaggi').insert({stanza_id:roomId, giocatore_nome:document.getElementById('inp-name').value, messaggio:t});
       document.getElementById('chat-input').value="";
-      fetchChat();
+      fetchChat(false); // Torna a mostrare solo l'ultimo messaggio
+      document.getElementById('chat-input').focus();
     }
 
     async function startNewRound(){

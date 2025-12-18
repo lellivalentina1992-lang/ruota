@@ -903,7 +903,7 @@
     }
 
     async function togglePause() {
-      if(!isHost) return;
+      if(!isHost || !currentStanza) return;
       const newState = !currentStanza.in_pausa;
       await _supabase.from('stanze').update({in_pausa: newState, ultimo_messaggio: newState ? "GIOCO IN PAUSA" : "GIOCO RIPRESO", azione_timestamp: new Date().toISOString()}).eq('id', roomId);
       fetchFullState();
@@ -1324,8 +1324,8 @@
          return;
       }
       
-      // Blocca altri tasti se sei in input mode
-      if(inputMode) return;
+      // Blocca altri tasti se sei in input mode, MA permetti Ctrl+Tasto
+      if(inputMode && !e.ctrlKey) return;
 
       const isInInput = document.activeElement && document.activeElement.tagName==='INPUT';
       
@@ -2106,7 +2106,7 @@
     }
 
     async function doSpin(){
-      if(isBtnDisabled('btn-spin')) return;
+      if(isBtnDisabled('btn-spin') || !currentStanza) return;
       
       isSpinning=true;
       

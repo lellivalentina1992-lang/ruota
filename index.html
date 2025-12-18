@@ -381,15 +381,7 @@
   </div>
 
   <script>
-    const SUPABASE_URL = 'https://azcwkpdjbysnivknnino.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Y3drcGRqYnlzbml2a25uaW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MzAwNDksImV4cCI6MjA3OTIwNjA0OX0.R8wkMJEmsP8cTVUUOcWtD4Rrg_ZhuOE-PYBJ56eGqMU';
-    
-    let _supabase;
-    if (typeof window.supabase !== 'undefined') {
-      _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    } else {
-      console.error('Supabase library not loaded');
-    }
+    // _supabase già inizializzato all'inizio del documento (riga 11)
 
     const NATO = {
       'A':'Ancona','B':'Bologna','C':'Como','D':'Domodossola','E':'Empoli','F':'Firenze','G':'Genova','H':'Hotel','I':'Imola',

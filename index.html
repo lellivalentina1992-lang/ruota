@@ -2265,6 +2265,12 @@
           if(mode==='letter'){
             const me=s.giocatori.find(p=>p.id===myId);
             const gain = (s.fase_speciale===3) ? (s.montepremi_round||0) : ((s.montepremi_round||0) * foundIndices.length);
+            
+            // ANNUNCIO IMMEDIATO per NVDA
+            const resultMsg = `Trovate ${foundIndices.length} ${char}! Guadagni ${gain} euro`;
+            speak(resultMsg);
+            console.log('[DEBUG] 📢 ANNUNCIO:', resultMsg);
+            
             await _supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)+gain}).eq('id', myId);
             
             // ROUND SPECIALI: Incrementa contatore consonanti
@@ -2298,6 +2304,10 @@
             await _supabase.from('stanze').update({lettere_rivelate:newRev,ultima_azione:'chiama_lettera',ultimo_messaggio:`${myName}: Trovate ${foundIndices.length} ${char}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
           }
         } else {
+          // ANNUNCIO IMMEDIATO per NVDA - lettera non trovata
+          speak(`${char} non trovata! Passi il turno`);
+          console.log('[DEBUG] 📢 ANNUNCIO: Lettera non trovata');
+          
           await _supabase.from('stanze').update({ultima_azione:'errore',ultimo_messaggio:`${myName}: ${char} assente`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
           passTurn();
         }

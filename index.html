@@ -462,6 +462,8 @@
     
     
     (function(){
+      const originalLog = console.log;
+      console.log = function(...args){
         const filtered = args.map(arg => {
           if(typeof arg === 'string' && arg.length > 10 && arg === currentPuzzleText) {
             return '[SOLUZIONE NASCOSTA]';

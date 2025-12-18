@@ -549,9 +549,19 @@
       const savedName = localStorage.getItem('lastPlayerName');
       if(savedCode) {
         document.getElementById('inp-code').value = savedCode;
+        document.getElementById('inp-code-display').textContent = savedCode;
       }
       if(savedName) {
         document.getElementById('inp-name').value = savedName;
+        document.getElementById('inp-name-display').textContent = savedName;
+      }
+      
+      // Inizializza display anche se vuoti
+      if(!savedName) {
+        document.getElementById('inp-name-display').textContent = '(vuoto)';
+      }
+      if(!savedCode) {
+        document.getElementById('inp-code-display').textContent = '(vuoto)';
       }
       
       document.getElementById('btn-create-room')?.addEventListener('click', () => askPrivacy());
@@ -926,11 +936,69 @@
       }
     }
 
+    async function reorganizePlayers(){
+      if(!isHost || !roomId) return;
+      
+      console.log('reorganizePlayers: inizio');
+      
+      // Ottieni tutti i giocatori
+      const {data: players, error} = await _supabase
+        .from('giocatori')
+        .select('*')
+        .eq('stanza_id', roomId)
+        .order('indice');
+        
+      if(error || !players || players.length === 0){
+        console.error('reorganizePlayers: errore o nessun giocatore', error);
+        return;
+      }
+      
+      console.log(`reorganizePlayers: trovati ${players.length} giocatori`);
+      
+      // Riassegna indici consecutivi 0, 1, 2...
+      for(let i = 0; i < players.length; i++){
+        if(players[i].indice !== i){
+          console.log(`reorganizePlayers: aggiorno ${players[i].nome} da indice ${players[i].indice} a ${i}`);
+          await _supabase
+            .from('giocatori')
+            .update({indice: i})
+            .eq('id', players[i].id);
+        }
+      }
+      
+      // Reset turno a 0
+      await _supabase
+        .from('stanze')
+        .update({
+          id_giocatore_corrente: 0,
+          ultima_azione: 'riorganizza',
+          ultimo_messaggio: 'Turni riorganizzati',
+          azione_timestamp: new Date().toISOString()
+        })
+        .eq('id', roomId);
+        
+      console.log('reorganizePlayers: completato');
+      
+      // Refresh
+      await fetchFullState();
+    }
+
     async function togglePause() {
       if(!isHost || !currentStanza) return;
       const newState = !currentStanza.in_pausa;
-      await _supabase.from('stanze').update({in_pausa: newState, ultimo_messaggio: newState ? "GIOCO IN PAUSA" : "GIOCO RIPRESO", azione_timestamp: new Date().toISOString()}).eq('id', roomId);
-      fetchFullState();
+      
+      await _supabase.from('stanze').update({
+        in_pausa: newState, 
+        ultimo_messaggio: newState ? "GIOCO IN PAUSA" : "GIOCO RIPRESO", 
+        azione_timestamp: new Date().toISOString()
+      }).eq('id', roomId);
+      
+      // Se togli la pausa, riorganizza i giocatori
+      if(!newState){
+        await reorganizePlayers();
+      } else {
+        await fetchFullState();
+      }
     }
 
     async function preResumeCheck() {
@@ -1187,7 +1255,9 @@
       if(!confirm(`Eliminare ${playerName}?`)) return;
       
       try {
-        // Elimina il giocatore (usa sia stanza_id che id per sicurezza)
+        console.log(`removePlayer: eliminazione ${playerName} (id: ${playerId})`);
+        
+        // Elimina il giocatore
         const {error: deleteError} = await _supabase
           .from('giocatori')
           .delete()
@@ -1200,29 +1270,15 @@
           return;
         }
         
-        // Riorganizza gli indici
-        const {data: remainingPlayers} = await _supabase.from('giocatori').select('*').eq('stanza_id', roomId).order('indice');
-        if(remainingPlayers && remainingPlayers.length > 0){
-          for(let i=0; i<remainingPlayers.length; i++){
-            await _supabase.from('giocatori').update({indice: i}).eq('id', remainingPlayers[i].id);
-          }
-          
-          // Reset turno corrente
-          await _supabase.from('stanze').update({
-            id_giocatore_corrente: 0,
-            ultima_azione: 'elimina_giocatore',
-            ultimo_messaggio: `${playerName} eliminato`,
-            azione_timestamp: new Date().toISOString()
-          }).eq('id', roomId);
-        }
+        console.log('removePlayer: giocatore eliminato, riorganizzazione');
         
-        speak(`${playerName} eliminato. Turni resettati.`);
+        // Riorganizza tutti i giocatori rimasti
+        await reorganizePlayers();
         
-        // Aggiorna subito lo stato
-        await fetchFullState();
+        speak(`${playerName} eliminato. Turni riorganizzati.`);
         
         // Riapri il pannello giocatori aggiornato
-        setTimeout(() => openPlayersPanel(), 300);
+        setTimeout(() => openPlayersPanel(), 500);
         
       } catch(e){
         console.error('Errore removePlayer:', e);
@@ -2390,14 +2446,18 @@
     }
 
     async function passTurn(){
-      if(isHandlingTimeout) return;
-      if(Date.now() - lastAutoPassTime < 5000) return; 
-      lastAutoPassTime = Date.now();
+      if(isHandlingTimeout) {
+        console.log('passTurn: già in corso, skip');
+        return;
+      }
+      
+      console.log('passTurn: inizio cambio turno');
       isHandlingTimeout=true;
       vowelsBoughtThisTurn=0;
       const s=currentStanza;
       
       if(!s || !s.giocatori || s.giocatori.length === 0) {
+        console.log('passTurn: nessun giocatore');
         isHandlingTimeout=false;
         return;
       }
@@ -2412,6 +2472,7 @@
       let nextIdx = (currIdx + 1) % s.giocatori.length;
       let nextInd = s.giocatori[nextIdx].indice;
       
+      console.log(`passTurn: da giocatore ${currIdx} a giocatore ${nextIdx} (indice ${nextInd})`);
       
       const {error} = await _supabase.from('stanze').update({
         id_giocatore_corrente:nextInd,
@@ -2424,12 +2485,15 @@
       
       if(error){
         console.error('Errore passTurn:', error);
+      } else {
+        console.log('passTurn: update database OK');
       }
       
       isHandlingTimeout=false;
       
       // Forza refresh
       await fetchFullState();
+      console.log('passTurn: completato');
     }
 
     function openInput(mode){
@@ -3164,12 +3228,35 @@
     }
     
     async function resetGame(){
-      if(confirm("Reset partita?")){
-        
-        await _supabase.from('giocatori').update({punteggio_totale:0, punteggio_round:0}).eq('stanza_id', roomId);
-        await _supabase.from('stanze').update({round_giocati:0, lettere_rivelate:[]}).eq('id', roomId);
-        startNewRound();
-      }
+      if(!confirm("Reset partita? Tutti i punteggi saranno azzerati.")) return;
+      
+      console.log('resetGame: inizio');
+      
+      // Reset punteggi
+      await _supabase.from('giocatori').update({
+        punteggio_totale: 0, 
+        punteggio_round: 0
+      }).eq('stanza_id', roomId);
+      
+      // Reset stanza
+      await _supabase.from('stanze').update({
+        round_giocati: 0, 
+        lettere_rivelate: [],
+        montepremi_round: 0,
+        fase_speciale: 0
+      }).eq('id', roomId);
+      
+      console.log('resetGame: riorganizzazione giocatori');
+      
+      // Riorganizza giocatori e turni
+      await reorganizePlayers();
+      
+      console.log('resetGame: avvio nuovo round');
+      
+      // Avvia nuovo round
+      await startNewRound();
+      
+      speak("Partita resettata. Nuovo round iniziato.");
     }
     
     

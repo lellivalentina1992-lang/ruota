@@ -1896,10 +1896,13 @@
         specialInd.classList.add('hidden');
       }
 
-      let canSpin=isMe && !isSpinning && !inputMode && s.montepremi_round===0;
-      let canSolve=isMe && !isSpinning && !inputMode;
-      let canPass=isMe && !isSpinning;
-      let canVowel=isMe && !isSpinning && !inputMode;
+      let canSpin=isMe && !isSpinning && !inputMode && s.montepremi_round===0 && !isProcessingInput;
+      let canSolve=isMe && !isSpinning && !inputMode && !isProcessingInput;
+      let canPass=isMe && !isSpinning && !isProcessingInput;
+      let canVowel=isMe && !isSpinning && !inputMode && !isProcessingInput;
+      
+      console.log(`[BTN_STATE] isMe=${isMe}, isSpinning=${isSpinning}, inputMode=${inputMode}, montepremi=${s.montepremi_round}, isProcessingInput=${isProcessingInput}`);
+      console.log(`[BTN_STATE] canSpin=${canSpin}, canVowel=${canVowel}, canSolve=${canSolve}`);
       
       if(isRaddoppiaActive && isMe) canSpin=true;
       
@@ -2000,8 +2003,14 @@
 
     async function doSpin(){
       console.log('========== INIZIO DOSPIN ==========');
+      console.log('[DOSPIN] isSpinning:', isSpinning);
+      console.log('[DOSPIN] inputMode:', inputMode);
+      console.log('[DOSPIN] isProcessingInput:', isProcessingInput);
+      console.log('[DOSPIN] btn-spin disabled:', isBtnDisabled('btn-spin'));
       
       if(isBtnDisabled('btn-spin')) {
+        console.log('[DOSPIN] ❌ PULSANTE DISABILITATO!');
+        speak("Il pulsante gira è disabilitato");
         return;
       }
       
@@ -2118,6 +2127,13 @@
       // AGGIORNA il timestamp dell'ultimo giro per il timer
       lastSpinTimestamp = new Date().toISOString();
       
+      console.log('[DOSPIN] Aggiornamento database con:', {
+        montepremi_round: finalPrize,
+        fase_speciale: nextFaseSpeciale,
+        ultima_azione: 'gira_ruota',
+        ultimo_messaggio: msg
+      });
+      
       const updateResult = await _supabase.from('stanze').update({
         montepremi_round:finalPrize,
         fase_speciale:nextFaseSpeciale,
@@ -2126,11 +2142,19 @@
         azione_timestamp:new Date().toISOString()
       }).eq('id', roomId);
       
+      console.log('[DOSPIN] Risultato update:', updateResult);
       
       if(updateResult.error) {
-        console.error('[DEBUG] ❌ ERRORE NELL\'UPDATE!', updateResult.error);
-        alert('ERRORE: ' + updateResult.error.message);
+        console.error('[DOSPIN] ❌ ERRORE NELL\'UPDATE!', updateResult.error);
+        alert('ERRORE UPDATE DATABASE: ' + updateResult.error.message);
+        speak('Errore aggiornamento database: ' + updateResult.error.message);
+        return; // Ferma tutto se c'è errore
       } else {
+        console.log('[DOSPIN] ✅ Update completato con successo');
+        addActionToHistory(msg); // Aggiungi subito allo storico locale
+        
+        // FORZA aggiornamento immediato dell'UI
+        await fetchFullState();
       }
       
       // APERTURA AUTOMATICA: Se ho girato un numero, apri subito la chiamata consonante
@@ -2147,6 +2171,18 @@
         
         openInput('letter');
       } else {
+        // Casi speciali: JOLLY, +1000, RADDOPPIA - dai feedback chiaro!
+        if(val === 'JOLLY') {
+          const endR = currentStanza.round_giocati + 4;
+          speak(`Hai pescato il JOLLY! Protegge da bancarotta e passa turno fino al round ${endR}. Ora gira di nuovo!`);
+          showFlashMessage(`🃏 JOLLY ATTIVO! (fino a round ${endR})`, 'good');
+        } else if(val === '+1000') {
+          speak(`Hai guadagnato mille euro! Ora gira di nuovo!`);
+          showFlashMessage(`💰 +1000€ GUADAGNATI!`, 'good');
+        } else if(val === 'RADDOPPIA') {
+          speak(`Raddoppia attivo! Il prossimo giro vale il doppio. Gira ora!`);
+          showFlashMessage(`⭐ RADDOPPIA ATTIVO!`, 'good');
+        }
       }
     }
 
@@ -2490,6 +2526,12 @@
         }
       }
       isProcessingInput=false;
+      
+      // RESET esplicito per sicurezza - forza aggiornamento UI
+      setTimeout(() => {
+        isProcessingInput = false;
+        if(roomId) fetchFullState();
+      }, 500);
     }
 
     function checkTurnTimer(){

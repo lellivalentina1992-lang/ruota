@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>La Ruota (V7 - Shortcut Bot)</title>
+  <title>La Ruota</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-  // --- INIZIALIZZAZIONE SUPABASE ---
+  
   const _supabase = supabase.createClient(
     'https://azcwkpdjbysnivknnino.supabase.co',
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Y3drcGRqYnlzbml2a25uaW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MzAwNDksImV4cCI6MjA3OTIwNjA0OX0.R8wkMJEmsP8cTVUUOcWtD4Rrg_ZhuOE-PYBJ56eGqMU'
   );
 
-  // --- LOGIN ANONIMO AUTOMATICO ---
+  
   (async () => {
     const { data: { session } } = await _supabase.auth.getSession();
     if (!session) {
@@ -22,7 +22,7 @@
     }
   })();
 
-  // --- PROTEZIONE AIRBAG EVOLUTA ---
+  
   window.onerror = function(msg, url, line) {
     if (!msg || typeof msg !== 'string') return false;
     if(msg.includes('ResizeObserver')) return false;
@@ -413,7 +413,7 @@
   </div>
 
   <script>
-    // _supabase già inizializzato all'inizio del documento (riga 11)
+    
 
     const NATO = {
       'A':'Ancona','B':'Bologna','C':'Como','D':'Domodossola','E':'Empoli','F':'Firenze','G':'Genova','H':'Hotel','I':'Imola',
@@ -443,27 +443,25 @@
     let lastInputMode = null;
     let spellingTimer = null;
     let nextRoundSec = 15;
-    let lastSpinTimestamp = null; // Traccia l'ultimo giro di ruota per il timer
+    let lastSpinTimestamp = null; 
     
     let specialPhase = 0; 
     let lastAutoPassTime = 0;
     let isBotThinking = false;
-    let previousPlayersList = []; // Traccia giocatori per rilevare entrate/uscite
+    let previousPlayersList = []; 
     
-    // VARIABILI ROUND SPECIALI (4, 7, 10)
+    
     let isSpecialRound = false;
-    let specialPhraseIndex = 0; // 0-3 (quale delle 4 frasi)
-    let specialPhraseIds = []; // Array con gli ID delle 4 frasi
-    let specialConsonantsUsed = 0; // Quante consonanti chiamate (max 12)
-    let specialVowelsPhase = true; // true = fase vocali, false = fase consonanti
-    let specialVowelsGiven = 0; // Quante vocali date/chiamate
-    let lettersCalledThisRound = []; // Tutte le lettere chiamate nel round (per i bot)
+    let specialPhraseIndex = 0; 
+    let specialPhraseIds = []; 
+    let specialConsonantsUsed = 0; 
+    let specialVowelsPhase = true; 
+    let specialVowelsGiven = 0; 
+    let lettersCalledThisRound = []; 
     
-    // PROTEZIONE: Impedisce l'accesso diretto dalla console
-    // Override console.log per nascondere dati sensibili
+    
+    
     (function(){
-      const originalLog = console.log;
-      console.log = function(...args){
         const filtered = args.map(arg => {
           if(typeof arg === 'string' && arg.length > 10 && arg === currentPuzzleText) {
             return '[SOLUZIONE NASCOSTA]';
@@ -473,7 +471,7 @@
         originalLog.apply(console, filtered);
       };
       
-      // Impedisce l'accesso diretto alle variabili dal debugger
+      
       Object.defineProperty(window, 'currentPuzzleText', {
         get: function(){ return '***'; },
         set: function(v){ currentPuzzleText = v; }
@@ -484,22 +482,22 @@
       });
     })(); 
 
-    // FREQUENZA LETTERE (Per AI dei Bot) - Gruppi con frequenza simile
-    // Il bot sceglie random all'interno di ogni gruppo per sembrare più umano
+    
+    
     const FREQ_CONS_GROUPS = [
-      ['R','T','N'],        // GRUPPO 1: Altissima frequenza
-      ['S','L','C'],        // GRUPPO 2: Alta frequenza  
-      ['D','P','M'],        // GRUPPO 3: Media frequenza
-      ['G','B','F','V']     // GRUPPO 4: Bassa frequenza
+      ['R','T','N'],        
+      ['S','L','C'],        
+      ['D','P','M'],        
+      ['G','B','F','V']     
     ];
     const FREQ_VOW_GROUPS = [
-      ['A','E'],            // Vocali più comuni
-      ['I','O'],            // Vocali medie
-      ['U']                 // Vocale meno comune
+      ['A','E'],            
+      ['I','O'],            
+      ['U']                 
     ];
 
     document.addEventListener('DOMContentLoaded', () => {
-      // PRE-COMPILA codice e nome se salvati in localStorage
+      
       const savedCode = localStorage.getItem('lastRoomCode');
       const savedName = localStorage.getItem('lastPlayerName');
       if(savedCode) {
@@ -513,11 +511,11 @@
       document.getElementById('btn-join-room')?.addEventListener('click', () => joinGame(false));
       document.getElementById('btn-refresh-rooms')?.addEventListener('click', () => fetchPublicRooms());
 
-      // INVIO nei campi di setup
+      
       document.getElementById('inp-name')?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
-          // Sposta focus al campo codice se il nome è valido
+          
           const name = document.getElementById('inp-name').value.trim();
           if (name) {
             document.getElementById('inp-code')?.focus();
@@ -528,7 +526,7 @@
       document.getElementById('inp-code')?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
-          // Se c'è un codice, entra nella stanza, altrimenti crea nuova
+          
           const code = document.getElementById('inp-code').value.trim();
           if (code) {
             joinGame(false);
@@ -551,12 +549,12 @@
         }
       });
       
-      // GESTIONE LINK CONDIVISI: Leggi l'hash URL
+      
       const hash = window.location.hash;
       if(hash && hash.startsWith('#stanza=')){
         const roomCode = hash.replace('#stanza=', '').toUpperCase();
         if(roomCode){
-          // Pre-compila il codice stanza
+          
           document.getElementById('inp-code').value = roomCode;
           speak(`Link rilevato: stanza ${roomCode}. Inserisci il tuo nome e premi Entra.`);
         }
@@ -596,7 +594,7 @@
     }
     function cleanStr(s){ return (s && typeof s === 'string') ? s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"") : ""; }
     
-    // Helper per scegliere lettere in modo umano (randomizza all'interno dei gruppi)
+    
     function getNextConsonantHuman(alreadyRevealed){
       for(let group of FREQ_CONS_GROUPS){
         const shuffled = [...group].sort(() => Math.random() - 0.5);
@@ -638,15 +636,14 @@
     function addActionToHistory(txt){
       actionHistory.unshift({text:txt, time:new Date().toLocaleTimeString()});
       if(actionHistory.length>50) actionHistory.pop();
-      console.log('[HISTORY] Aggiunta azione:', txt);
     }
     
-    // POPUP RISULTATO
+    
     function showResultPopup(message, speakMessage = null){
       document.getElementById('result-text').textContent = message;
       document.getElementById('result-popup').classList.remove('hidden');
       speak(speakMessage || message);
-      addActionToHistory(message); // Aggiungi allo storico
+      addActionToHistory(message); 
       setTimeout(() => {
         const btn = document.getElementById('result-popup').querySelector('button');
         if(btn) btn.focus();
@@ -719,7 +716,7 @@
     async function readRevealedLetters(){
       if(!currentStanza) return;
       
-      // MOSTRA TUTTE LE LETTERE CHIAMATE (presenti o meno)
+      
       if(!lettersCalledThisRound || lettersCalledThisRound.length === 0) {
         speak("Nessuna lettera chiamata ancora in questo round.");
         return;
@@ -727,7 +724,7 @@
       
       const list = [...lettersCalledThisRound].sort();
       
-      // SPELLING con pause 500ms tra lettere - SOLO VOCALE, NIENTE POPUP
+      
       clearSpeechQueue();
       speak(`Lettere chiamate: ${list.length}`);
       
@@ -792,9 +789,9 @@
       const c = parsedBoard[navWordIdx].chars[navCharIdx];
       if(!c) return;
       
-      // Conta quante lettere totali nella parola
+      
       const totalLetters = parsedBoard[navWordIdx].chars.length;
-      const position = navCharIdx + 1; // +1 perché parte da 0
+      const position = navCharIdx + 1; 
       
       const charText = c.isLetter && !c.isRevealed ? "Asterisco" : (NATO[c.char] || c.char);
       speak(`${charText}, ${position} di ${totalLetters}`);
@@ -852,7 +849,7 @@
     async function preResumeCheck() {
       if(!isHost) return;
       
-      // Prima rimuovi automaticamente i giocatori disconnessi
+      
       await checkAndRemoveDisconnectedPlayers();
       
       const { data: pl } = await _supabase.from('giocatori').select('*').eq('stanza_id', roomId).order('indice');
@@ -862,7 +859,7 @@
         const row = document.createElement('div');
         row.style = "display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #555;padding:10px;";
         
-        // Calcola da quanto tempo non fa ping
+        
         const lastPing = p.ultimo_ping ? new Date(p.ultimo_ping) : null;
         const now = new Date();
         const secondsSinceLastPing = lastPing ? Math.floor((now - lastPing) / 1000) : 9999;
@@ -896,15 +893,14 @@
       if(!players || players.length === 0) return;
       
       const now = new Date();
-      const TIMEOUT_SECONDS = 15; // Considera disconnesso dopo 15 secondi
+      const TIMEOUT_SECONDS = 15; 
       
       for(const player of players) {
         const lastPing = player.ultimo_ping ? new Date(player.ultimo_ping) : null;
         const secondsSinceLastPing = lastPing ? Math.floor((now - lastPing) / 1000) : 9999;
         
-        // Se il giocatore non fa ping da più di TIMEOUT_SECONDS, rimuovilo
+        
         if(secondsSinceLastPing > TIMEOUT_SECONDS) {
-          console.log(`[DISCONNECT] Rimuovo ${player.nome} - ultimo ping ${secondsSinceLastPing}s fa`);
           await _supabase.from('giocatori').delete().eq('id', player.id);
           showFlashMessage(`⚠️ ${player.nome} disconnesso e rimosso`, 'bad');
           speak(`${player.nome} si è disconnesso`);
@@ -928,7 +924,7 @@
       const isMe = (currentStanza.id_giocatore_corrente === myIndex);
       const turnMsg = isMe ? "È il tuo turno!" : `Turno di ${currentPlayer?.nome || 'sconosciuto'}`;
       
-      // Calcola statistiche tabellone
+      
       let totalWords = parsedBoard.length;
       let totalLetters = 0;
       let revealedLetters = 0;
@@ -954,13 +950,13 @@
       const list = document.getElementById('players-list');
       list.innerHTML = '<p style="color:#888; text-align:center; padding:20px;">Caricamento...</p>';
       
-      // RICARICA dati freschi dal database
+      
       if(roomId){
         const {data: freshStanza} = await _supabase.from('stanze').select('*, giocatori(*)').eq('id', roomId).maybeSingle();
         if(freshStanza && freshStanza.giocatori && freshStanza.giocatori.length > 0){
           list.innerHTML = '<h3 style="color:var(--col-accent); margin-bottom:15px;">CLASSIFICA</h3>';
           
-          // Classifica ordinata per punteggio
+          
           const sorted = [...freshStanza.giocatori].sort((a,b) => (b.punteggio_totale||0) - (a.punteggio_totale||0));
           sorted.forEach((p, i) => {
             const div = document.createElement('div');
@@ -971,12 +967,12 @@
             info.innerHTML = `<strong style="color:var(--col-accent);">${i+1}.</strong> ${p.nome} - <strong>${p.punteggio_totale||0}€</strong> (Giro: ${p.punteggio_round||0}€)`;
             div.appendChild(info);
             
-            // PULSANTI HOST (solo per host e non per se stesso)
+            
             if(isHost && p.id !== myId){
               const btnContainer = document.createElement('div');
               btnContainer.style = 'display:flex; gap:5px; flex-wrap:wrap;';
               
-              // Pulsante PASSA HOST
+              
               const btnHost = document.createElement('button');
               btnHost.textContent = 'PASSA HOST';
               btnHost.className = 'action-btn';
@@ -984,7 +980,7 @@
               btnHost.onclick = () => transferHost(p.id, p.nome);
               btnContainer.appendChild(btnHost);
               
-              // Pulsante ELIMINA
+              
               const btnDel = document.createElement('button');
               btnDel.textContent = 'ELIMINA';
               btnDel.className = 'action-btn';
@@ -1000,7 +996,7 @@
           
           speak("Pannello giocatori aperto");
           
-          // CONTROLLI HOST (se sei host)
+          
           if(isHost){
             const hostControls = document.createElement('div');
             hostControls.style = 'margin-top:25px; padding-top:20px; border-top:2px solid #444;';
@@ -1009,7 +1005,7 @@
             const controlsGrid = document.createElement('div');
             controlsGrid.style = 'display:grid; grid-template-columns:1fr 1fr; gap:10px;';
             
-            // Pulsante CONDIVIDI LINK
+            
             const btnShare = document.createElement('button');
             btnShare.textContent = 'CONDIVIDI LINK';
             btnShare.className = 'action-btn';
@@ -1017,7 +1013,7 @@
             btnShare.onclick = shareRoom;
             controlsGrid.appendChild(btnShare);
             
-            // Pulsante AGGIUNGI BOT
+            
             const btnBot = document.createElement('button');
             btnBot.textContent = 'AGGIUNGI BOT (B)';
             btnBot.className = 'action-btn';
@@ -1025,7 +1021,7 @@
             btnBot.onclick = () => { addBot(); closePlayers(); };
             controlsGrid.appendChild(btnBot);
             
-            // Pulsante PAUSA
+            
             const btnPause = document.createElement('button');
             btnPause.textContent = 'PAUSA';
             btnPause.className = 'action-btn';
@@ -1033,7 +1029,7 @@
             btnPause.onclick = () => { togglePause(); closePlayers(); };
             controlsGrid.appendChild(btnPause);
             
-            // Pulsante RESET
+            
             const btnReset = document.createElement('button');
             btnReset.textContent = 'RESET PARTITA';
             btnReset.className = 'action-btn';
@@ -1041,7 +1037,7 @@
             btnReset.onclick = () => { resetGame(); closePlayers(); };
             controlsGrid.appendChild(btnReset);
             
-            // Pulsante CHIUDI STANZA
+            
             const btnClose = document.createElement('button');
             btnClose.textContent = 'CHIUDI STANZA';
             btnClose.className = 'action-btn';
@@ -1053,7 +1049,7 @@
             list.appendChild(hostControls);
           }
           
-          // FOCUS automatico sul primo pulsante (elimina o chiudi)
+          
           setTimeout(() => {
             const firstBtn = list.querySelector('button') || panel.querySelector('button');
             if(firstBtn) firstBtn.focus();
@@ -1077,23 +1073,23 @@
       if(!isHost) return;
       if(!confirm(`Eliminare ${playerName}?`)) return;
       
-      // Elimina il giocatore
+      
       await _supabase.from('giocatori').delete().eq('id', playerId);
       
-      // Resetta gli indici per evitare problemi di turno
+      
       const {data: remainingPlayers} = await _supabase.from('giocatori').select('*').eq('stanza_id', roomId).order('indice');
       if(remainingPlayers && remainingPlayers.length > 0){
         for(let i=0; i<remainingPlayers.length; i++){
           await _supabase.from('giocatori').update({indice: i}).eq('id', remainingPlayers[i].id);
         }
-        // Resetta anche il turno al primo giocatore
+        
         await _supabase.from('stanze').update({id_giocatore_corrente: 0}).eq('id', roomId);
       }
       
       speak(`${playerName} eliminato. Turni resettati.`);
       closePlayers();
       
-      // FORZA il refresh immediato dello stato
+      
       await fetchFullState();
     }
 
@@ -1101,19 +1097,19 @@
       if(!isHost) return;
       if(!confirm(`Passare il controllo della stanza a ${newHostName}?`)) return;
       
-      // Rimuovi host dal vecchio host (te)
+      
       await _supabase.from('giocatori').update({is_host: false}).eq('id', myId);
       
-      // Dai host al nuovo giocatore
+      
       await _supabase.from('giocatori').update({is_host: true}).eq('id', newHostId);
       
-      // Aggiorna la variabile locale
+      
       isHost = false;
       
       speak(`${newHostName} è ora l'host della stanza.`);
       closePlayers();
       
-      // FORZA il refresh immediato dello stato
+      
       await fetchFullState();
     }
 
@@ -1123,9 +1119,9 @@
       const roomCode = currentStanza.codice;
       const shareUrl = `${window.location.origin}${window.location.pathname}#stanza=${roomCode}`;
       
-      // Controlla se ha l'API di condivisione nativa (smartphone)
+      
       if(navigator.share){
-        // SMARTPHONE: usa solo condivisione nativa
+        
         try {
           await navigator.share({
             title: 'La Ruota - Unisciti alla partita!',
@@ -1134,19 +1130,19 @@
           });
           speak("Link condiviso");
         } catch(e){
-          // Utente ha annullato, va bene
+          
           if(e.name !== 'AbortError') {
             speak("Condivisione annullata");
           }
         }
       } else {
-        // PC: copia negli appunti
+        
         try {
           await navigator.clipboard.writeText(shareUrl);
           speak("Link copiato negli appunti!");
           alert(`Link della stanza copiato!\n\n${shareUrl}\n\nCondividilo con altri giocatori.`);
         } catch(e){
-          // Fallback: mostra il link in un prompt
+          
           speak("Copia questo link");
           prompt("Copia questo link per condividere la stanza:", shareUrl);
         }
@@ -1277,7 +1273,7 @@
       if(k==='3'){ playAudio('snd-boo'); return; }
       if(k==='4'){ playAudio('snd-ooh'); return; }
       
-      // TASTI RAPIDI (con supporto Ctrl)
+      
       if(k==='h' || (e.ctrlKey && k==='h')){ e.preventDefault(); const p=document.getElementById('help-panel'); if(p.classList.contains('hidden')) openHelp(); else closeHelp(); }
       if(k==='g' || (e.ctrlKey && k==='g')){ e.preventDefault(); doSpin(); }
       if(k==='v' || (e.ctrlKey && k==='v')){ e.preventDefault(); openInput('vowel'); }
@@ -1287,7 +1283,6 @@
       if(k==='k' || (e.ctrlKey && k==='k')){ e.preventDefault(); openChat(); }
       if(k==='s' || (e.ctrlKey && k==='s')){ 
         e.preventDefault(); 
-        console.log("S premuto! Chiamando openPlayersPanel...");
         openPlayersPanel(); 
       }
       if(k==='l' || (e.ctrlKey && k==='l')){ e.preventDefault(); readRevealedLetters(); }
@@ -1368,13 +1363,13 @@
       try{
         let st;
         if(cr){
-          // IMPORTANTE: Prima creazione - MAI situazioni quotidiane (sono solo per round 4,7,10)
+          
           const {data:fr}=await _supabase.from('frasi').select('id,categoria').neq('categoria','SITUAZIONI QUOTIDIANE').limit(500);
           if(!fr || fr.length === 0){
             speak("Errore: nessuna frase disponibile");
             return;
           }
-          // Doppio controllo: escludi qualsiasi frase con categoria SITUAZIONI QUOTIDIANE
+          
           const validPhrases = fr.filter(f => f.categoria !== 'SITUAZIONI QUOTIDIANE');
           if(validPhrases.length === 0){
             speak("Errore: tutte le frasi sono SITUAZIONI QUOTIDIANE");
@@ -1396,19 +1391,15 @@
           }).select().maybeSingle();
           st=data;
         } else {
-          console.log('[JOIN] Tentativo di entrare in stanza con codice:', cd);
           const {data}=await _supabase.from('stanze').select('*').eq('codice',cd).maybeSingle();
-          console.log('[JOIN] Risultato query stanza:', data);
           if(!data) {
-            console.log('[JOIN] Stanza non trovata nel database!');
             return speak("Stanza inesistente");
           }
-          console.log('[JOIN] Stanza trovata! ID:', data.id, 'Stato:', data.stato);
           st=data;
         }
         roomId=st.id;
         
-        // SALVA il codice stanza in localStorage per poter rientrare dopo
+        
         localStorage.setItem('lastRoomCode', cd);
         localStorage.setItem('lastPlayerName', nm);
 
@@ -1438,7 +1429,7 @@
         document.getElementById('btn-host-next').classList.toggle('hidden', !isHost);
         document.getElementById('btn-resume-host').classList.toggle('hidden', !isHost);
         
-        // Aggiorna testo pulsante CLASSIFICA in base a isHost
+        
         const btnManagement = document.getElementById('btn-management');
         if(btnManagement) {
           btnManagement.textContent = isHost ? 'CONTROLLI E CLASSIFICA (S)' : 'CLASSIFICA (S)';
@@ -1446,31 +1437,22 @@
 
         _supabase.channel('game').on('postgres_changes',{event:'UPDATE',schema:'public',table:'stanze',filter:`id=eq.${roomId}`},fetchFullState).subscribe();
         _supabase.channel('chat').on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_messaggi',filter:`stanza_id=eq.${roomId}`},payload=>{
-          // Annuncia SOLO il nuovo messaggio in tempo reale (non tutto lo storico)
+          
           if(payload.new.giocatore_nome !== nm) {
             speakChat(`${payload.new.giocatore_nome} scrive: ${payload.new.messaggio}`);
           }
-          // Aggiorna visivamente SOLO se la chat è aperta
+          
           const chatOverlay = document.getElementById('chat-overlay');
           if(chatOverlay && !chatOverlay.classList.contains('hidden')) {
-            fetchChat(false); // Aggiorna mostrando solo l'ultimo messaggio
+            fetchChat(false); 
           }
         }).subscribe();
 
         fetchFullState();
         setInterval(checkTurnTimer, 1000);
         
-        // SISTEMA HEARTBEAT DISABILITATO
-        /* setInterval(async () => {
-          if(myId && roomId) {
-            const result = await _supabase.from('giocatori').update({
-              ultimo_ping: new Date().toISOString()
-            }).eq('id', myId);
-          } else {
-          }
-        }, 3000); */
         
-        // CONTROLLO DISCONNESSIONI DISABILITATO
+        
         /* if(isHost) {
           setInterval(async () => {
             await checkAndRemoveDisconnectedPlayers();
@@ -1503,7 +1485,7 @@
     async function consumeJolly(){ await _supabase.from('giocatori').update({scadenza_jolly:0}).eq('id', myId); }
 
     async function tryUseJollyToAvoid(kindLabel){
-      // Ricarica stato fresco per avere i dati aggiornati del giocatore
+      
       const {data:freshStanza} = await _supabase.from('stanze').select('*, giocatori(*)').eq('id', roomId).maybeSingle();
       if(!freshStanza) return false;
       
@@ -1518,15 +1500,15 @@
       return true;
     }
 
-    // --- LOGICA BOT UMANO (AVVERSARIO REALE) ---
+    
     async function addBot(){
       if(!isHost || !roomId) return;
       
-      // RICARICA lo stato aggiornato dal database
+      
       const {data: freshStanza} = await _supabase.from('stanze').select('*, giocatori(*)').eq('id', roomId).maybeSingle();
       if(!freshStanza) return;
       
-      // CONTROLLO LIMITE GIOCATORI (sul dato fresco!)
+      
       if(freshStanza.giocatori.length >= MAX_PLAYERS) {
         speak("Stanza piena! Massimo " + MAX_PLAYERS + " giocatori.");
         return;
@@ -1546,21 +1528,20 @@
       });
       speak("Bot aggiunto: " + name);
       
-      // FORZA il refresh immediato dello stato
+      
       await fetchFullState();
     }
 
     async function playBotTurn(botPlayer){
        if(isBotThinking) return;
        isBotThinking = true;
-       console.log("Bot playing:", botPlayer.nome);
        
-       // Aggiorna il ping del bot per segnalare che è attivo
+       
        await _supabase.from('giocatori').update({
          ultimo_ping: new Date().toISOString()
        }).eq('id', botPlayer.id);
 
-       // TEMPI DI RIFLESSIONE VARIABILI (più umano: 2-4 secondi)
+       
        const thinkTime = 2000 + Math.random() * 2000;
        await new Promise(r => setTimeout(r, thinkTime));
 
@@ -1569,23 +1550,23 @@
        const revealedIndices = s.lettere_rivelate || [];
        const ratio = revealedIndices.length / totalLetters;
 
-       // 1. IL BOT PROVA A RISOLVERE? (Comportamento umano: quando è quasi sicuro, 90-95% scoperto)
+       
        if(ratio >= 0.90 && Math.random() > 0.3) {
-          // Piccola probabilità di errore (10%) - anche gli umani sbagliano quando digitano veloce!
+          
           if(Math.random() < 0.10) {
              await _supabase.from('stanze').update({ultima_azione: 'errore', ultimo_messaggio: `${botPlayer.nome} tenta ma sbaglia la soluzione!`, azione_timestamp: new Date().toISOString()}).eq('id', roomId);
              passTurnBot();
              isBotThinking = false;
              return;
           }
-          // RISOLVE!
+          
           await _supabase.from('giocatori').update({punteggio_totale:(botPlayer.punteggio_totale||0)+(botPlayer.punteggio_round||0)+1000, punteggio_round:0}).eq('id', botPlayer.id);
           await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${botPlayer.nome} HA RISOLTO LA FRASE!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
           isBotThinking = false;
           return;
        }
 
-       // ERRORE UMANO OCCASIONALE (7%): richiama una lettera già chiamata (distrazione/non se la ricorda)
+       
        if(Math.random() < 0.07 && lettersCalledThisRound.length > 3) {
           const errorChar = lettersCalledThisRound[Math.floor(Math.random()*lettersCalledThisRound.length)];
           await _supabase.from('stanze').update({ultima_azione: 'errore', ultimo_messaggio: `${botPlayer.nome} richiama la "${errorChar}" già provata!`, azione_timestamp: new Date().toISOString()}).eq('id', roomId);
@@ -1594,41 +1575,41 @@
           return;
        }
 
-       // 2. LOGICA DI GIOCO
+       
        let chosenChar = null;
        let isVowel = false;
        const costVowel = getVowelCost();
        const botMoney = botPlayer.punteggio_round || 0;
 
-       // Strategia vocali: compra se ha i soldi E il tabellone è poco chiaro (<65%)
-       // Non serve "margine di sicurezza" - se ha i soldi e serve, la compra!
+       
+       
        if(botMoney >= costVowel && ratio < 0.65 && Math.random() < 0.35) {
-           // Usa i gruppi randomizzati per le vocali
-           // IMPORTANTE: Non richiamare lettere già chiamate!
+           
+           
            chosenChar = getNextVowelHuman(lettersCalledThisRound);
            if(chosenChar) isVowel = true;
        }
 
        if(s.montepremi_round === 0 && !isVowel) {
-           // GIRA LA RUOTA
+           
            let val = WHEEL_VALUES[Math.floor(Math.random()*WHEEL_VALUES.length)];
            
-           // COMPORTAMENTO MISTERO UMANO CORRETTO:
-           // Pochi soldi = prende i sicuri (ne ha bisogno!)
-           // Tanti soldi = rischia (può permetterselo!)
+           
+           
+           
            if(val === 'MISTERO') {
-              let takeSafe = 0.5; // Default 50/50
+              let takeSafe = 0.5; 
               if(botMoney < 500) {
-                 takeSafe = 0.80; // Pochi soldi → 80% prende i 500 sicuri
+                 takeSafe = 0.80; 
               } else if(botMoney > 1500) {
-                 takeSafe = 0.30; // Tanti soldi → 70% apre il mistero (rischia!)
+                 takeSafe = 0.30; 
               }
               
               if(Math.random() < takeSafe) {
-                 val = 500; // Prende i 500 sicuri
+                 val = 500; 
               } else {
-                 // Apre il mistero! (per ora simulato come 500, ma andrebbe gestito il vero mistero)
-                 val = 500; // Semplificato
+                 
+                 val = 500; 
               }
            }
 
@@ -1642,7 +1623,7 @@
 
            let prize = (typeof val === 'number') ? val : 0;
            
-           // PAUSA TATTICA: dopo un ottimo colpo (>1000), pausa extra per "gioire"
+           
            if(prize >= 1000) {
                await new Promise(r => setTimeout(r, 800));
            }
@@ -1651,16 +1632,16 @@
            isBotThinking = false; 
            return; 
        } else {
-           // CHIAMA LETTERA (Consonante o Vocale comprata)
+           
            if(!chosenChar) {
-               // Usa i gruppi randomizzati per le consonanti
-               // IMPORTANTE: Non richiamare lettere già chiamate (presenti o assenti!)
+               
+               
                chosenChar = getNextConsonantHuman(lettersCalledThisRound);
            }
 
-           if(!chosenChar) chosenChar = "Z"; // Fallback rarissimo
+           if(!chosenChar) chosenChar = "Z"; 
 
-           // Verifica reale senza barare (il bot non sa la soluzione in anticipo)
+           
            let foundIndices = []; let gIdx = 0;
            const sol = currentPuzzleText.toUpperCase();
            const cleanChar = cleanStr(chosenChar);
@@ -1685,9 +1666,9 @@
            } else {
                if(isVowel) await _supabase.from('giocatori').update({punteggio_round:(botPlayer.punteggio_round||0)-costVowel}).eq('id', botPlayer.id);
                await _supabase.from('stanze').update({ultima_azione:'errore',ultimo_messaggio:`${botPlayer.nome}: La "${chosenChar}" è assente.`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
-               isBotThinking = false; // IMPORTANTE: Reset PRIMA del passTurnBot
+               isBotThinking = false; 
                passTurnBot();
-               return; // IMPORTANTE: Esce subito per evitare che continui a giocare
+               return; 
            }
        }
        isBotThinking = false;
@@ -1708,22 +1689,19 @@
     function passTurnBot(){
       const s=currentStanza;
       if(!s || !s.giocatori || s.giocatori.length === 0) {
-        console.log('[PASS_TURN_BOT] Nessun giocatore disponibile');
         return;
       }
       
       let currIdx=s.giocatori.findIndex(p=>p.indice===s.id_giocatore_corrente);
       
-      // Se il giocatore corrente non esiste più, parte dal primo
+      
       if(currIdx === -1) {
-        console.log('[PASS_TURN_BOT] Giocatore corrente non trovato, reset a primo giocatore');
         currIdx = 0;
       }
       
       let nextIdx = (currIdx + 1) % s.giocatori.length;
       let nextInd = s.giocatori[nextIdx].indice;
       
-      console.log(`[PASS_TURN_BOT] Da giocatore index ${currIdx} a index ${nextIdx} (indice ${nextInd})`);
       
       _supabase.from('stanze').update({id_giocatore_corrente:nextInd,montepremi_round:0,fase_speciale:0,ultima_azione:'timeout',ultimo_messaggio:'Cambio turno',azione_timestamp:new Date().toISOString()}).eq('id', roomId);
     }
@@ -1733,48 +1711,44 @@
       currentStanza=s;
       s.giocatori.sort((a,b)=>a.indice-b.indice);
       
-      // NOTIFICHE ENTRATA/USCITA GIOCATORI
+      
       if(previousPlayersList.length > 0) {
-        // Controlla nuovi giocatori (entrati)
+        
         const currentIds = s.giocatori.map(p => p.id);
         const previousIds = previousPlayersList.map(p => p.id);
         
-        // Trova chi è entrato
+        
         s.giocatori.forEach(player => {
           if(!previousIds.includes(player.id)) {
             showFlashMessage(`🟢 ${player.nome} è entrato nella partita!`, 'good');
-            speak(`Nuovo giocatore: ${player.nome} è entrato nella stanza`, true); // true = priorità alta
-            console.log(`[ANNUNCIO] ${player.nome} è entrato`); // Debug
+            speak(`Nuovo giocatore: ${player.nome} è entrato nella stanza`, true); 
           }
         });
         
-        // Trova chi è uscito
+        
         previousPlayersList.forEach(player => {
           if(!currentIds.includes(player.id)) {
             showFlashMessage(`🔴 ${player.nome} ha lasciato la partita`, 'bad');
             speak(`${player.nome} è uscito dalla stanza`, true);
-            console.log(`[ANNUNCIO] ${player.nome} è uscito`); // Debug
           }
         });
         
-        // Controlla se rimangono abbastanza giocatori
-        // NOTA: Non chiudiamo MAI la stanza automaticamente! Solo l'host può farlo manualmente.
+        
+        
         if(s.giocatori.length < 1 && previousPlayersList.length > 0) {
           showFlashMessage('⚠️ Tutti i giocatori sono usciti. La stanza rimane aperta.', 'info');
-          console.log('[SAFETY] Stanza vuota, ma NON viene chiusa automaticamente');
         }
       }
       
-      // Aggiorna lista precedente (copia profonda degli ID e nomi)
+      
       previousPlayersList = s.giocatori.map(p => ({id: p.id, nome: p.nome}));
       
-      // CONTROLLO CRITICO: Se il giocatore corrente non esiste più nella lista, forza il passaggio del turno
+      
       if(s.stato === 'gioco' && !s.in_pausa && isHost && s.id_giocatore_corrente !== null && s.id_giocatore_corrente !== undefined) {
         const currentPlayerExists = s.giocatori.some(p => p.indice === s.id_giocatore_corrente);
         if(!currentPlayerExists) {
-          console.log('[SAFETY CHECK] Giocatore corrente non esiste più! Forzo passaggio turno');
           showFlashMessage('⚠️ Il giocatore corrente è uscito. Passaggio automatico del turno.', 'info');
-          setTimeout(() => passTurn(), 500); // Piccolo delay per evitare conflitti
+          setTimeout(() => passTurn(), 500); 
         }
       }
 
@@ -1788,7 +1762,7 @@
         const l=document.getElementById('ranking-list'); l.innerHTML="";
         [...s.giocatori].sort((a,b)=>b.punteggio_totale-a.punteggio_totale).forEach((p,i)=> l.innerHTML+=`<li>${i+1}. ${p.nome}: €${p.punteggio_totale}</li>`);
         
-        // Mostra pulsante NUOVA PARTITA solo per l'host
+        
         document.getElementById('btn-new-game').classList.toggle('hidden', !isHost);
         
         return;
@@ -1825,12 +1799,12 @@
         currentFrase=s.frasi;
         fullSolutionText=currentFrase.soluzione;
         
-        // Per SITUAZIONI QUOTIDIANE, l'hint è un campo separato
+        
         if(currentFrase.hint){
           currentHintText = currentFrase.hint;
           currentPuzzleText = fullSolutionText;
         }
-        // Per le altre frasi, l'hint è nella soluzione con " - "
+        
         else if(fullSolutionText.includes(" - ")){
           const p=fullSolutionText.split(" - ");
           currentHintText=p[0].trim();
@@ -1858,7 +1832,7 @@
 
       if(!wasMyTurn && isMe){ 
         vowelsBoughtThisTurn=0; 
-        lastSpinTimestamp = new Date().toISOString(); // Reset timer all'inizio del turno
+        lastSpinTimestamp = new Date().toISOString(); 
         speak("Tocca a te."); 
         playAudio('snd-turn'); 
       }
@@ -1881,7 +1855,7 @@
         jInd.classList.remove('hidden');
       } else jInd.classList.add('hidden');
       
-      // INDICATORE ROUND SPECIALE
+      
       const specialInd=document.getElementById('special-round-indicator');
       if(isSpecialRound){
         if(specialVowelsPhase){
@@ -1899,34 +1873,31 @@
       let canPass=isMe && !isSpinning && !isProcessingInput;
       let canVowel=isMe && !isSpinning && !inputMode && !isProcessingInput;
       
-      console.log(`[BTN_STATE] isMe=${isMe}, isSpinning=${isSpinning}, inputMode=${inputMode}, montepremi=${s.montepremi_round}, isProcessingInput=${isProcessingInput}`);
-      console.log(`[BTN_STATE] canSpin=${canSpin}, canVowel=${canVowel}, canSolve=${canSolve}`);
-      
       if(isRaddoppiaActive && isMe) canSpin=true;
       
-      // ROUND SPECIALI: Override logica pulsanti
+      
       if(isSpecialRound){
         if(specialVowelsPhase){
-          // FASE VOCALI: Solo chiamata vocale attiva
+          
           canSpin = false;
           canVowel = isMe && !isSpinning && !inputMode;
-          canSolve = false; // Non si può risolvere durante fase vocali
+          canSolve = false; 
           canPass = false;
         } else {
-          // FASE CONSONANTI: Gira + chiama consonante
-          canSpin = isMe && !isSpinning && !inputMode && s.montepremi_round===0 && specialConsonantsUsed < 12;
-          canVowel = false; // Non si comprano vocali nei round speciali
-          canSolve = isMe && !isSpinning && !inputMode;
-          canPass = false; // Nei round speciali non si passa, solo arrendersi
           
-          // Dopo 12 consonanti: TUTTI possono risolvere
+          canSpin = isMe && !isSpinning && !inputMode && s.montepremi_round===0 && specialConsonantsUsed < 12;
+          canVowel = false; 
+          canSolve = isMe && !isSpinning && !inputMode;
+          canPass = false; 
+          
+          
           if(specialConsonantsUsed >= 12 || s.fase_speciale === 102){
             canSpin = false;
-            canSolve = !isSpinning && !inputMode; // TUTTI possono risolvere
+            canSolve = !isSpinning && !inputMode; 
           }
         }
       } else {
-        // ROUND NORMALE
+        
         if(myRoundMoney < vCost) canVowel=false;
         if(vowelsBoughtThisTurn>=1) canVowel=false;
         if(isRaddoppiaActive) canVowel=false;
@@ -1943,12 +1914,12 @@
       document.getElementById('btn-manual-cons').classList.add('hidden'); 
       const btnSurrender = document.getElementById('btn-surrender');
       if(btnSurrender) {
-        // Mostra ARRENDITI se:
-        // 1. Fase speciale 3 (mystery flat) dopo timeout, OPPURE
-        // 2. Round speciale dopo 12 consonanti (fase_speciale === 102)
+        
+        
+        
         const showSurrender = isHost && (
           (s.fase_speciale === 3 && s.azione_timestamp && (new Date().getTime() - new Date(s.azione_timestamp).getTime()) > TURN_LIMIT_SEC * 1000) ||
-          (s.fase_speciale === 102) // 12 consonanti usate nei round speciali
+          (s.fase_speciale === 102) 
         );
         btnSurrender.classList.toggle('hidden', !showSurrender);
       }
@@ -1959,11 +1930,9 @@
       if(me){
         const roundScore = me.punteggio_round||0;
         const totalScore = me.punteggio_totale||0;
-        console.log(`[SCORE] Round: €${roundScore}, Total: €${totalScore}`);
         document.getElementById('score-round').textContent=roundScore;
         document.getElementById('score-total').textContent=totalScore;
       } else {
-        console.log('[SCORE] Giocatore non trovato!');
         document.getElementById('score-round').textContent='?';
         document.getElementById('score-total').textContent='?';
       }
@@ -1986,7 +1955,7 @@
         speak(s.ultimo_messaggio);
       }
       
-      // Aggiorna testo pulsante CLASSIFICA in base a isHost
+      
       const btnManagement = document.getElementById('btn-management');
       if(btnManagement) {
         btnManagement.textContent = isHost ? 'CONTROLLI E CLASSIFICA (S)' : 'CLASSIFICA (S)';
@@ -2000,20 +1969,10 @@
     }
 
     async function doSpin(){
-      console.log('========== INIZIO DOSPIN ==========');
-      console.log('[DOSPIN] isSpinning:', isSpinning);
-      console.log('[DOSPIN] inputMode:', inputMode);
-      console.log('[DOSPIN] isProcessingInput:', isProcessingInput);
-      console.log('[DOSPIN] btn-spin disabled:', isBtnDisabled('btn-spin'));
-      
-      if(isBtnDisabled('btn-spin')) {
-        console.log('[DOSPIN] ❌ PULSANTE DISABILITATO!');
-        speak("Il pulsante gira è disabilitato");
-        return;
-      }
+      if(isBtnDisabled('btn-spin')) return;
       
       isSpinning=true;
-      // RIMOSSO: vowelsBoughtThisTurn=0; - si resetta solo con consonante corretta!
+      
       speak("Giro la ruota...");
       playAudio('snd-spin');
       animateWheelSpin();
@@ -2037,7 +1996,7 @@
         } else {
           val = MISTERO_VALUES[Math.floor(Math.random()*MISTERO_VALUES.length)];
           
-          // Annuncia risultato mistero
+          
           let mysteryResultText = "";
           if(val === 'BANCAROTTA') mysteryResultText = "BANCAROTTA!";
           else if(val === 'RADDOPPIA') mysteryResultText = "RADDOPPIA!";
@@ -2054,11 +2013,11 @@
       if(val==='BANCAROTTA'){
         isSpinning=false;
         
-        // Controlla se può usare il jolly (sia round normale che speciale)
+        
         const saved=await tryUseJollyToAvoid("BANCAROTTA");
         if(saved) return;
         
-        // ROUND SPECIALI: Rigiro obbligatorio dopo BANCAROTTA
+        
         if(isSpecialRound && !specialVowelsPhase){
           await _supabase.from('giocatori').update({punteggio_round:0}).eq('id', myId);
           await _supabase.from('stanze').update({
@@ -2066,13 +2025,23 @@
             azione_timestamp:new Date().toISOString()
           }).eq('id', roomId);
           speak("BANCAROTTA! Devi rigirare!");
-          // Non passa turno, il giocatore DEVE rigirare
+          
           return;
         }
         
-        // Round normale
+        
         await _supabase.from('giocatori').update({punteggio_round:0, punteggio_totale:0}).eq('id', myId);
-        await _supabase.from('stanze').update({fase_speciale:0}).eq('id', roomId);
+        await _supabase.from('stanze').update({
+          fase_speciale:0,
+          ultima_azione:'gira_ruota',
+          ultimo_messaggio:`${myName} becca BANCAROTTA! Perde tutto!`,
+          azione_timestamp:new Date().toISOString()
+        }).eq('id', roomId);
+        
+        addActionToHistory(`${myName} BANCAROTTA! Perde tutto`);
+        speak("BANCAROTTA! Hai perso tutto e passi il turno!");
+        showFlashMessage('💀 BANCAROTTA!', 'bad');
+        
         passTurn();
         return;
       }
@@ -2082,7 +2051,18 @@
         const label=(val==='PASSA_AVVERSARIO') ? "PASSA ALL'AVVERSARIO" : "PASSA TURNO";
         const saved=await tryUseJollyToAvoid(label);
         if(saved) return;
-        await _supabase.from('stanze').update({fase_speciale:0}).eq('id', roomId);
+        
+        await _supabase.from('stanze').update({
+          fase_speciale:0,
+          ultima_azione:'gira_ruota',
+          ultimo_messaggio:`${myName} becca ${label}!`,
+          azione_timestamp:new Date().toISOString()
+        }).eq('id', roomId);
+        
+        addActionToHistory(`${myName} ${label}`);
+        speak(`${label}! Passi il turno.`);
+        showFlashMessage(`⏭️ ${label}`, 'bad');
+        
         passTurn();
         return;
       }
@@ -2114,34 +2094,25 @@
       } else if(val==='JOLLY'){
         const startR=currentStanza.round_giocati;
         
-        // JOLLY ACCUMULABILI: Se hai già un jolly attivo, estendi la scadenza
+        
         const currentJollyEnd = me && me.scadenza_jolly ? me.scadenza_jolly : startR;
-        const newEndR = Math.max(currentJollyEnd, startR) + 5; // Aggiungi 5 round
+        const newEndR = Math.max(currentJollyEnd, startR) + 5; 
         
         await _supabase.from('giocatori').update({scadenza_jolly:newEndR}).eq('id', myId);
         finalPrize=0;
         
         if(currentJollyEnd > startR) {
-          // Aveva già un jolly attivo
+          
           msg=`${myName} pesca un altro JOLLY! Scadenza estesa al round ${newEndR}`;
         } else {
-          // Primo jolly
+          
           msg=`${myName} pesca il JOLLY! Attivo dal round ${startR} al round ${newEndR} (5 round)`;
         }
         nextFaseSpeciale=0;
       }
 
       isSpinning=false;
-      
-      // AGGIORNA il timestamp dell'ultimo giro per il timer
       lastSpinTimestamp = new Date().toISOString();
-      
-      console.log('[DOSPIN] Aggiornamento database con:', {
-        montepremi_round: finalPrize,
-        fase_speciale: nextFaseSpeciale,
-        ultima_azione: 'gira_ruota',
-        ultimo_messaggio: msg
-      });
       
       const updateResult = await _supabase.from('stanze').update({
         montepremi_round:finalPrize,
@@ -2151,26 +2122,20 @@
         azione_timestamp:new Date().toISOString()
       }).eq('id', roomId);
       
-      console.log('[DOSPIN] Risultato update:', updateResult);
-      
       if(updateResult.error) {
-        console.error('[DOSPIN] ❌ ERRORE NELL\'UPDATE!', updateResult.error);
-        alert('ERRORE UPDATE DATABASE: ' + updateResult.error.message);
-        speak('Errore aggiornamento database: ' + updateResult.error.message);
-        return; // Ferma tutto se c'è errore
-      } else {
-        console.log('[DOSPIN] ✅ Update completato con successo');
-        addActionToHistory(msg); // Aggiungi subito allo storico locale
-        
-        // FORZA aggiornamento immediato dell'UI
-        await fetchFullState();
+        console.error('Errore update database:', updateResult.error);
+        alert('ERRORE: ' + updateResult.error.message);
+        return;
       }
       
-      // APERTURA AUTOMATICA: Se ho girato un numero, apri subito la chiamata consonante
+      addActionToHistory(msg);
+      await fetchFullState();
+      
+      
       if(finalPrize > 0 && !mysterySafeFlat) {
         
-        // WORKAROUND: Aggiorna manualmente currentStanza invece di fare fetchFullState
-        // (problema con RLS che non vede subito l'update)
+        
+        
         if(currentStanza) {
           currentStanza.montepremi_round = finalPrize;
           currentStanza.fase_speciale = nextFaseSpeciale;
@@ -2180,7 +2145,7 @@
         
         openInput('letter');
       } else {
-        // Casi speciali: JOLLY, +1000, RADDOPPIA - dai feedback chiaro!
+        
         if(val === 'JOLLY') {
           const endR = currentStanza.round_giocati + 4;
           speak(`Hai pescato il JOLLY! Protegge da bancarotta e passa turno fino al round ${endR}. Ora gira di nuovo!`);
@@ -2204,23 +2169,20 @@
       const s=currentStanza;
       
       if(!s || !s.giocatori || s.giocatori.length === 0) {
-        console.log('[PASS_TURN] Nessun giocatore disponibile');
         isHandlingTimeout=false;
         return;
       }
       
       let currIdx=s.giocatori.findIndex(p=>p.indice===s.id_giocatore_corrente);
       
-      // Se il giocatore corrente non esiste più, parte dal primo
+      
       if(currIdx === -1) {
-        console.log('[PASS_TURN] Giocatore corrente non trovato, reset a primo giocatore');
         currIdx = 0;
       }
       
       let nextIdx = (currIdx + 1) % s.giocatori.length;
       let nextInd = s.giocatori[nextIdx].indice;
       
-      console.log(`[PASS_TURN] Da giocatore index ${currIdx} (indice ${s.id_giocatore_corrente}) a index ${nextIdx} (indice ${nextInd})`);
       
       _supabase.from('stanze').update({id_giocatore_corrente:nextInd,montepremi_round:0,fase_speciale:0,ultima_azione:'timeout',ultimo_messaggio:'Cambio turno',azione_timestamp:new Date().toISOString()}).eq('id', roomId).then(()=>{ isHandlingTimeout=false; });
     }
@@ -2231,7 +2193,7 @@
       document.getElementById('input-area').classList.remove('hidden');
       const inp=document.getElementById('game-input');
       
-      // IMPORTANTE: Ri-aggiungi l'event listener per Enter ogni volta che si apre
+      
       inp.onkeydown = (e) => {
         if(e.key === 'Enter') {
           e.preventDefault();
@@ -2240,14 +2202,14 @@
       };
       
       if(mode==='solve') {
-        // PRECOMPILA con lettere rivelate + asterischi
+        
         let template = "";
         for(let i=0; i<currentPuzzleText.length; i++){
           const char = currentPuzzleText[i].toUpperCase();
           if(!char.match(/[A-ZÀ-Ù]/)){
-            template += char; // Spazi, punteggiatura
+            template += char; 
           } else {
-            // È una lettera: controlla se è rivelata
+            
             let gIdx = 0;
             for(let j=0; j<=i; j++){
               if(currentPuzzleText[j].match(/[A-ZÀ-Ù]/)){
@@ -2255,25 +2217,25 @@
                 gIdx++;
               }
             }
-            // Verifica se questo indice è rivelato
+            
             const isRevealed = currentStanza?.lettere_rivelate?.includes(gIdx);
             template += isRevealed ? char : '*';
           }
         }
         inp.value = template;
         
-        // TYPING INTERATTIVO: Quando scrivo, sostituisco il primo asterisco
+        
         inp.addEventListener('input', function handleInteractiveTyping(e) {
           const currentValue = e.target.value.toUpperCase();
           const templateValue = template.toUpperCase();
           
-          // Se l'utente ha digitato più caratteri del template
+          
           if(currentValue.length > templateValue.length) {
             e.target.value = currentValue.substring(0, templateValue.length);
             return;
           }
           
-          // Trova la prima posizione dove differiscono
+          
           let diffPos = -1;
           for(let i = 0; i < currentValue.length; i++) {
             if(currentValue[i] !== templateValue[i]) {
@@ -2282,16 +2244,16 @@
             }
           }
           
-          // Se l'utente ha digitato su un asterisco, sostituiscilo
+          
           if(diffPos !== -1 && templateValue[diffPos] === '*') {
             const newChar = currentValue[diffPos];
             if(newChar.match(/[A-ZÀ-Ù]/)) {
-              // Sostituisci l'asterisco con la lettera
+              
               const newTemplate = template.substring(0, diffPos) + newChar + template.substring(diffPos + 1);
               template = newTemplate;
               e.target.value = newTemplate;
               
-              // CURSORE RIMANE FERMO - l'utente continua a leggere da lì
+              
               setTimeout(() => {
                 e.target.setSelectionRange(diffPos + 1, diffPos + 1);
               }, 0);
@@ -2310,7 +2272,7 @@
     }
     function closeInput(){ 
       const inp = document.getElementById('game-input');
-      // Rimuovi tutti gli event listener clonando e sostituendo l'elemento
+      
       const newInp = inp.cloneNode(true);
       inp.parentNode.replaceChild(newInp, inp);
       
@@ -2328,13 +2290,13 @@
       const myName=document.getElementById('inp-name').value;
       const s=currentStanza;
       
-      // GESTIONE ROUND SPECIALI - FASE VOCALI
+      
       if(isSpecialRound && specialVowelsPhase && mode==='vowel'){
         const char=txt.charAt(0);
         const isVowel="AEIOU".includes(char);
         if(!isVowel){ alert("Devi inserire una VOCALE"); isProcessingInput=false; return; }
         
-        // Controlla se questa vocale è già stata chiamata
+        
         if(lettersCalledThisRound.includes(char)){
           alert(`La vocale ${char} è già stata chiamata! Scegli un'altra vocale.`);
           isProcessingInput=false;
@@ -2348,29 +2310,29 @@
 
       if(mode==='solve'){
         if(cleanStr(txt)===cleanStr(currentPuzzleText)){
-          playAudio('snd-win'); // SUONO VITTORIA
+          playAudio('snd-win'); 
           const me=s.giocatori.find(p=>p.id===myId);
           
           addActionToHistory(`${myName} HA RISOLTO! Soluzione: ${txt}`);
           
-          // ROUND SPECIALI: +1000 per ogni frase risolta
+          
           if(isSpecialRound){
             await _supabase.from('giocatori').update({punteggio_totale:(me.punteggio_totale||0)+(me.punteggio_round||0)+1000,punteggio_round:0}).eq('id', myId);
             
-            // Passa alla frase successiva (se ce ne sono)
+            
             if(specialPhraseIndex < 3){
               await nextSpecialPhrase(myName);
             } else {
-              // Fine round speciale (tutte e 4 frasi completate)
+              
               await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${myName} HA COMPLETATO IL ROUND SPECIALE!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
             }
           } else {
-            // Round normale
+            
             await _supabase.from('giocatori').update({punteggio_totale:(me.punteggio_totale||0)+(me.punteggio_round||0)+1000,punteggio_round:0}).eq('id', myId);
             await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${myName} HA RISOLTO!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
           }
         } else {
-          playAudio('snd-miss'); // SUONO SOLUZIONE SBAGLIATA
+          playAudio('snd-miss'); 
           addActionToHistory(`${myName}: Soluzione SBAGLIATA - ${txt}`);
           passTurn();
         }
@@ -2385,7 +2347,7 @@
           const me=s.giocatori.find(p=>p.id===myId);
           const myRoundMoney = me ? (me.punteggio_round||0) : 0;
           
-          // CONTROLLO CRITICO: Controlla se hai abbastanza soldi
+          
           if(myRoundMoney < cost){
             playAudio('snd-miss');
             speak(`Non hai abbastanza soldi! Servono €${cost}, hai €${myRoundMoney}`);
@@ -2394,7 +2356,7 @@
             return;
           }
           
-          // CONTROLLO: Limite 1 vocale per giro
+          
           if(vowelsBoughtThisTurn >= 1){
             playAudio('snd-miss');
             speak("Hai già comprato una vocale! Devi girare la ruota prima di comprarne un'altra.");
@@ -2407,9 +2369,9 @@
           await _supabase.from('giocatori').update({punteggio_round:myRoundMoney-cost}).eq('id', myId);
           addActionToHistory(`${myName}: Vocale ${char} comprata per €${cost}`);
         }
-        // RIMOSSO: vowelsBoughtThisTurn=0 qui, lo resettiamo solo se la consonante è CORRETTA
         
-        // ROUND SPECIALI - FASE CONSONANTI: Controlla limite 12
+        
+        
         if(isSpecialRound && !specialVowelsPhase && mode==='letter'){
           if(specialConsonantsUsed >= 12){
             alert("Limite 12 consonanti raggiunto! Tutti possono risolvere o l'host si arrende.");
@@ -2421,7 +2383,7 @@
         let foundIndices=[]; let gIdx=0;
         const sol=currentPuzzleText.toUpperCase();
         
-        // CONTROLLO CRITICO: Se questa lettera è già stata chiamata in questo round, errore!
+        
         if(lettersCalledThisRound.includes(char)) {
           playAudio('snd-miss');
           speak(`${char} già chiamata in questo round!`);
@@ -2436,7 +2398,7 @@
           return;
         }
         
-        // TRACCIA la lettera chiamata (per i bot)
+        
         lettersCalledThisRound.push(char);
         
         for(let i=0;i<sol.length;i++){
@@ -2451,12 +2413,12 @@
           }
         }
         if(foundIndices.length>0){
-          // CALCOLA SOLO LE NUOVE LETTERE TROVATE (escludendo quelle già rivelate)
+          
           const newFoundIndices = foundIndices.filter(idx => !(s.lettere_rivelate||[]).includes(idx));
           
-          // Se tutte le lettere erano già state rivelate, consideralo come errore
+          
           if(newFoundIndices.length === 0){
-            playAudio('snd-miss'); // SUONO LETTERA GIÀ RIVELATA
+            playAudio('snd-miss'); 
             speak(`${char} già rivelata!`);
             addActionToHistory(`${myName}: ${char} già rivelata!`);
             await _supabase.from('stanze').update({
@@ -2469,35 +2431,35 @@
             return;
           }
           
-          // SUONA una volta per ogni lettera trovata
+          
           playMultipleHits(newFoundIndices.length);
           
           const newRev=[...new Set([...(s.lettere_rivelate||[]), ...foundIndices])];
           if(mode==='letter'){
-            // RESET contatore vocali: hai chiamato una consonante con premio, quindi puoi comprare un'altra vocale
+            
             vowelsBoughtThisTurn = 0;
             
             const me=s.giocatori.find(p=>p.id===myId);
-            // USA newFoundIndices.length invece di foundIndices.length per il guadagno
+            
             const gain = (s.fase_speciale===3) ? (s.montepremi_round||0) : ((s.montepremi_round||0) * newFoundIndices.length);
             
-            // ANNUNCIO IMMEDIATO per NVDA
+            
             const resultMsg = `Trovate ${newFoundIndices.length} ${char}! Guadagni ${gain} euro`;
             speak(resultMsg);
             addActionToHistory(`${myName}: ${char} - Trovate ${newFoundIndices.length}, guadagno €${gain}`);
             
             await _supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)+gain}).eq('id', myId);
             
-            // ROUND SPECIALI: Incrementa contatore consonanti
+            
             if(isSpecialRound && !specialVowelsPhase){
               specialConsonantsUsed++;
               
-              // Se raggiunta la 12ª, tutti possono risolvere
+              
               if(specialConsonantsUsed >= 12){
                 await _supabase.from('stanze').update({
                   lettere_rivelate:newRev,
                   montepremi_round:0,
-                  fase_speciale:102, // Marker: 12 consonanti usate, tutti possono risolvere
+                  fase_speciale:102, 
                   ultima_azione:'consonante_12',
                   ultimo_messaggio:`${myName}: ${char} - 12 CONSONANTI USATE! Tutti possono risolvere o l'host si arrende`,
                   azione_timestamp:new Date().toISOString()
@@ -2512,11 +2474,11 @@
                 }).eq('id', roomId);
               }
             } else {
-              // Round normale
+              
               await _supabase.from('stanze').update({lettere_rivelate:newRev,montepremi_round:0,fase_speciale:0,ultima_azione:'chiama_lettera',ultimo_messaggio:`${myName}: Trovate ${newFoundIndices.length} ${char}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
             }
           } else {
-            // VOCALE - Annuncia risultato
+            
             const vowelResultMsg = newFoundIndices.length > 0 
               ? `Trovate ${newFoundIndices.length} ${char}` 
               : `${char} non presente`;
@@ -2525,8 +2487,8 @@
             await _supabase.from('stanze').update({lettere_rivelate:newRev,ultima_azione:'chiama_lettera',ultimo_messaggio:`${myName}: Trovate ${newFoundIndices.length} ${char}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
           }
         } else {
-          playAudio('snd-miss'); // SUONO LETTERA NON TROVATA
-          // ANNUNCIO IMMEDIATO per NVDA - lettera non trovata
+          playAudio('snd-miss'); 
+          
           speak(`${char} non trovata! Passi il turno`);
           addActionToHistory(`${myName}: ${char} NON PRESENTE`);
           
@@ -2536,7 +2498,7 @@
       }
       isProcessingInput=false;
       
-      // RESET esplicito per sicurezza - forza aggiornamento UI
+      
       setTimeout(() => {
         isProcessingInput = false;
         if(roomId) fetchFullState();
@@ -2546,11 +2508,11 @@
     function checkTurnTimer(){
       if(!currentStanza || currentStanza.in_pausa || currentStanza.stato!=='gioco') return;
       
-      // NON far scattare il timeout se si sta girando la ruota o processando input
+      
       if(isSpinning || isProcessingInput) return;
       
-      // USA lastSpinTimestamp per il timer (si resetta solo quando giri o inizia il turno)
-      // Se non è impostato, usa azione_timestamp come fallback
+      
+      
       const timestampToUse = lastSpinTimestamp || currentStanza.azione_timestamp;
       
       const elapsed=Math.floor((new Date().getTime() - new Date(timestampToUse).getTime())/1000);
@@ -2572,7 +2534,7 @@
       c.innerHTML="";
       
       if(showAll) {
-        // Mostra tutti i messaggi
+        
         msgs.forEach(m=>{
           const d=document.createElement('div');
           d.style="border-bottom:1px solid #333; margin-bottom:5px; padding:8px;";
@@ -2582,7 +2544,7 @@
         });
         c.scrollTop=c.scrollHeight;
       } else {
-        // Mostra solo l'ultimo messaggio
+        
         const lastMsg = msgs[msgs.length - 1];
         const d=document.createElement('div');
         d.style="border-bottom:1px solid #333; margin-bottom:5px; padding:8px; font-size:1.1em;";
@@ -2590,7 +2552,7 @@
         d.innerHTML=`<strong style="color:var(--col-accent);">${lastMsg.giocatore_nome}:</strong> ${lastMsg.messaggio}`;
         c.appendChild(d);
         
-        // Aggiungi indicazione se ci sono altri messaggi
+        
         if(msgs.length > 1) {
           const hint=document.createElement('p');
           hint.style="color:#888; font-size:0.9em; margin-top:10px; text-align:center;";
@@ -2602,25 +2564,25 @@
     
     function openChat(){ 
        document.getElementById('chat-overlay').classList.remove('hidden'); 
-       fetchChat(false); // Mostra solo l'ultimo messaggio
+       fetchChat(false); 
        
-       // Annuncia solo che la chat è aperta, NON leggere i messaggi
+       
        setTimeout(() => {
          speak("Chat aperta. Premi Shift Tab per vedere la cronologia completa.");
          
          const chatInput = document.getElementById('chat-input');
          chatInput.focus();
          
-         // Rimuovi event listener precedente se esiste
+         
          chatInput.onkeydown = null;
          
-         // Aggiungi gestione Shift+Tab per vedere tutti i messaggi
+         
          chatInput.addEventListener('keydown', (e) => {
            if(e.key === 'Tab' && e.shiftKey) {
              e.preventDefault();
-             fetchChat(true); // Mostra tutti i messaggi
+             fetchChat(true); 
              speak("Visualizzazione cronologia completa. Usa le frecce per navigare tra i messaggi.");
-             // Focus sul container dei messaggi per permettere la navigazione
+             
              setTimeout(() => {
                const firstMsg = document.getElementById('chat-messages').querySelector('div[tabindex="0"]');
                if(firstMsg) firstMsg.focus();
@@ -2638,7 +2600,7 @@
       if(!t) return;
       await _supabase.from('chat_messaggi').insert({stanza_id:roomId, giocatore_nome:document.getElementById('inp-name').value, messaggio:t});
       document.getElementById('chat-input').value="";
-      fetchChat(false); // Torna a mostrare solo l'ultimo messaggio
+      fetchChat(false); 
       document.getElementById('chat-input').focus();
     }
 
@@ -2647,15 +2609,15 @@
       let n=currentStanza.round_giocati + 1;
       if(n>10){ await _supabase.from('stanze').update({stato:'terminata'}).eq('id', roomId); return; }
       
-      // RESET tracking lettere chiamate
+      
       lettersCalledThisRound = [];
       
-      // ROUND SPECIALI: 4, 7, 10
+      
       const isSpecial = (n === 4 || n === 7 || n === 10);
       
       if(isSpecial){
-        // Carica UN tema casuale e TUTTE le sue 4 frasi
-        // Prima ottieni tutti i temi disponibili (hint distinti)
+        
+        
         const {data:themes}=await _supabase.from('frasi').select('hint').eq('categoria','SITUAZIONI QUOTIDIANE');
         
         if(!themes || themes.length === 0){
@@ -2663,13 +2625,13 @@
           return;
         }
         
-        // Trova tutti i temi unici
+        
         const uniqueThemes = [...new Set(themes.map(t => t.hint))];
         
-        // Scegli un tema a caso
+        
         const selectedTheme = uniqueThemes[Math.floor(Math.random() * uniqueThemes.length)];
         
-        // Prendi TUTTE le frasi di questo tema
+        
         const {data:fr}=await _supabase.from('frasi').select('id,hint,soluzione').eq('categoria','SITUAZIONI QUOTIDIANE').eq('hint', selectedTheme);
         
         if(!fr || fr.length < 4){
@@ -2677,7 +2639,7 @@
           return;
         }
         
-        // Salva gli ID delle 4 frasi
+        
         specialPhraseIds = fr.map(f => f.id);
         isSpecialRound = true;
         specialPhraseIndex = 0;
@@ -2685,7 +2647,7 @@
         specialVowelsPhase = true;
         specialVowelsGiven = 0;
         
-        // Inizia con la prima frase
+        
         const firstPhraseId = specialPhraseIds[0];
         await _supabase.from('giocatori').update({punteggio_round:0}).eq('stanza_id', roomId);
         await _supabase.from('stanze').update({
@@ -2694,21 +2656,21 @@
           round_giocati:n,
           lettere_rivelate:[],
           montepremi_round:0,
-          fase_speciale:100, // Marker per round speciale
+          fase_speciale:100, 
           ultima_azione:'round_speciale_start',
           ultimo_messaggio:`ROUND SPECIALE ${n} - Tema: ${selectedTheme}! Fase vocali: ${getSpecialVowelInstructions()}`,
           azione_timestamp:new Date().toISOString()
         }).eq('id', roomId);
         
       } else {
-        // Round normale - MAI situazioni quotidiane (sono solo per round 4,7,10)
+        
         isSpecialRound = false;
         const {data:fr}=await _supabase.from('frasi').select('id,categoria').neq('categoria','SITUAZIONI QUOTIDIANE').limit(500);
         if(!fr || fr.length === 0){
           speak("Errore: nessuna frase disponibile");
           return;
         }
-        // Doppio controllo: escludi qualsiasi frase con categoria SITUAZIONI QUOTIDIANE
+        
         const validPhrases = fr.filter(f => f.categoria !== 'SITUAZIONI QUOTIDIANE');
         if(validPhrases.length === 0){
           speak("Errore: tutte le frasi sono SITUAZIONI QUOTIDIANE");
@@ -2731,12 +2693,12 @@
     async function handleSpecialVowel(char, playerName, stanza){
       const numPlayers = stanza.giocatori.length;
       
-      // TRACCIA questa vocale come "chiamata dai giocatori"
+      
       if(!lettersCalledThisRound.includes(char)) {
         lettersCalledThisRound.push(char);
       }
       
-      // Rivela la vocale sul tabellone (se presente)
+      
       let foundIndices=[]; let gIdx=0;
       const sol=currentPuzzleText.toUpperCase();
       for(let i=0;i<sol.length;i++){
@@ -2750,13 +2712,13 @@
         const newRev=[...new Set([...(stanza.lettere_rivelate||[]), ...foundIndices])];
         await _supabase.from('stanze').update({lettere_rivelate:newRev,ultimo_messaggio:`${playerName} chiama vocale: ${char}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
       } else {
-        // Vocale assente, ma conta comunque come "chiamata"
+        
         await _supabase.from('stanze').update({ultimo_messaggio:`${playerName} chiama vocale: ${char} (assente)`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
       }
       
       specialVowelsGiven++;
       
-      // Controlla se dobbiamo regalare vocali
+      
       let systemVowels = 0;
       if(numPlayers === 1) systemVowels = 2;
       else if(numPlayers === 2 && specialVowelsGiven === 2) systemVowels = 1;
@@ -2765,12 +2727,12 @@
         await giveSystemVowels(systemVowels, stanza);
       }
       
-      // Se abbiamo 3 vocali totali chiamate (non importa se presenti), passa alla fase consonanti
+      
       const totalVowels = specialVowelsGiven + systemVowels;
       if(totalVowels >= 3 || (numPlayers === 3 && specialVowelsGiven === 3)){
         specialVowelsPhase = false;
         await _supabase.from('stanze').update({
-          fase_speciale:101, // Marker fase consonanti
+          fase_speciale:101, 
           ultimo_messaggio:`Vocali complete! Fase consonanti: 12 consonanti totali da chiamare`,
           azione_timestamp:new Date().toISOString()
         }).eq('id', roomId);
@@ -2780,23 +2742,23 @@
     }
     
     async function giveSystemVowels(count, stanza){
-      const vowelsOrder = ['E','A','I','O','U']; // Ordine corretto di frequenza italiana
+      const vowelsOrder = ['E','A','I','O','U']; 
       
-      // Trova quali vocali sono state CHIAMATE dai giocatori (presenti o assenti nella frase)
+      
       const calledVowels = lettersCalledThisRound.filter(c => 'AEIOU'.includes(c));
       
-      // Regala le vocali più frequenti NON ancora chiamate
+      
       for(let v of vowelsOrder){
         if(count === 0) break;
         
-        // Questa vocale NON deve essere stata chiamata dai giocatori
+        
         if(!calledVowels.includes(v)){
-          // Traccia come chiamata
+          
           if(!lettersCalledThisRound.includes(v)) {
             lettersCalledThisRound.push(v);
           }
           
-          // Rivela questa vocale sul tabellone (se presente)
+          
           let foundIndices=[]; let gIdx=0;
           const sol=currentPuzzleText.toUpperCase();
           for(let i=0;i<sol.length;i++){
@@ -2811,7 +2773,7 @@
             await _supabase.from('stanze').update({lettere_rivelate:newRev,ultimo_messaggio:`Sistema regala vocale: ${v}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
             stanza.lettere_rivelate = newRev;
           } else {
-            // Vocale non presente nella frase, ma conta comunque come "data"
+            
             await _supabase.from('stanze').update({ultimo_messaggio:`Sistema regala vocale: ${v} (non presente)`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
           }
           
@@ -2831,7 +2793,7 @@
         frase_corrente_id: nextPhraseId,
         lettere_rivelate:[],
         montepremi_round:0,
-        fase_speciale:100, // Torna alla fase vocali
+        fase_speciale:100, 
         ultimo_messaggio:`${solverName} risolve! Frase ${specialPhraseIndex + 1}/4 - ${getSpecialVowelInstructions()}`,
         azione_timestamp:new Date().toISOString()
       }).eq('id', roomId);
@@ -2844,27 +2806,27 @@
             await closeRoom();
             return;
           } else {
-            // Host esce ma la stanza rimane aperta
+            
             await _supabase.from('giocatori').delete().eq('id', myId);
           }
         } else {
-          // Giocatore normale esce - cancellalo dal database
+          
           await _supabase.from('giocatori').delete().eq('id', myId);
         }
       }
       
-      // Non fare location.reload() per non perdere i dati!
-      // Torna alla schermata iniziale ma mantieni il codice salvato
+      
+      
       document.getElementById('game-panel').classList.add('hidden');
       document.getElementById('setup-panel').classList.remove('hidden');
       
-      // Pre-compila il codice e nome dalla memoria
+      
       const savedCode = localStorage.getItem('lastRoomCode');
       const savedName = localStorage.getItem('lastPlayerName');
       if(savedCode) document.getElementById('inp-code').value = savedCode;
       if(savedName) document.getElementById('inp-name').value = savedName;
       
-      // Reset variabili
+      
       roomId = null;
       myId = null;
       myIndex = null;
@@ -2883,7 +2845,7 @@
     async function surrenderPhrase(){
       if(!isHost) return;
       
-      // ROUND SPECIALI: Passa alla frase successiva invece di finire il round
+      
       if(isSpecialRound && specialPhraseIndex < 3){
         if(confirm("Arrenditi e passa alla frase successiva?")){
           await nextSpecialPhrase("HOST");
@@ -2891,7 +2853,7 @@
         return;
       }
       
-      // ROUND SPECIALI: Ultima frase (4/4) - finisce il round
+      
       if(isSpecialRound && specialPhraseIndex === 3){
         if(confirm("Arrenditi? Finirà il round speciale.")){
           await _supabase.from('stanze').update({stato:'finito',ultima_azione:'arresa',ultimo_messaggio:'HOST SI È ARRESO - ROUND SPECIALE CONCLUSO',azione_timestamp:new Date().toISOString()}).eq('id', roomId);
@@ -2899,7 +2861,7 @@
         return;
       }
       
-      // Round normale
+      
       if(confirm("Arrenditi?")){
         await _supabase.from('stanze').update({stato:'finito',ultima_azione:'arresa',ultimo_messaggio:'HOST SI È ARRESO',azione_timestamp:new Date().toISOString()}).eq('id', roomId);
       }
@@ -2907,14 +2869,14 @@
     
     async function resetGame(){
       if(confirm("Reset partita?")){
-        // Usiamo 'await' per assicurarci che il reset avvenga PRIMA di iniziare il nuovo round
+        
         await _supabase.from('giocatori').update({punteggio_totale:0, punteggio_round:0}).eq('stanza_id', roomId);
         await _supabase.from('stanze').update({round_giocati:0, lettere_rivelate:[]}).eq('id', roomId);
         startNewRound();
       }
     }
     
-    // === SISTEMA AUDIO ===
+    
     let audioEnabled = true;
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
     
@@ -2936,13 +2898,12 @@
         oscillator.start(audioContext.currentTime);
         oscillator.stop(audioContext.currentTime + duration / 1000);
       } catch(e) {
-        console.log('Audio error:', e);
       }
     }
     
     function playRandomCorrectSound() {
       if (!audioEnabled) return;
-      const frequencies = [523.25, 587.33, 659.25, 783.99]; // C5, D5, E5, G5
+      const frequencies = [523.25, 587.33, 659.25, 783.99]; 
       const randomFreq = frequencies[Math.floor(Math.random() * frequencies.length)];
       playSound(randomFreq, 100, 'sine');
       setTimeout(() => playSound(randomFreq * 1.5, 150, 'sine'), 120);

@@ -2311,10 +2311,11 @@
         
         
         
-        const showSurrender = isHost && (;
+const showSurrender = isHost && (
           (s.fase_speciale === 3 && s.azione_timestamp && (new Date().getTime() - new Date(s.azione_timestamp).getTime()) > TURN_LIMIT_SEC * 1000) ||
           (s.fase_speciale === 102) 
         );
+
         btnSurrender.classList.toggle('hidden', !showSurrender);
       }
       if(canManual && !inputMode) openInput('letter');

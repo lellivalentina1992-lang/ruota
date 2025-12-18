@@ -17,11 +17,8 @@
   (async () => {
     const { data: { session } } = await _supabase.auth.getSession();
     if (!session) {
-      console.log('[AUTH] Nessuna sessione, faccio login anonimo...');
       await _supabase.auth.signInAnonymously();
-      console.log('[AUTH] Login anonimo completato');
     } else {
-      console.log('[AUTH] Sessione già attiva:', session.user.id);
     }
   })();
 
@@ -1368,13 +1365,10 @@
         // SISTEMA HEARTBEAT DISABILITATO
         /* setInterval(async () => {
           if(myId && roomId) {
-            console.log('[HEARTBEAT] Aggiorno ping per myId:', myId);
             const result = await _supabase.from('giocatori').update({
               ultimo_ping: new Date().toISOString()
             }).eq('id', myId);
-            console.log('[HEARTBEAT] Risultato update:', result);
           } else {
-            console.log('[HEARTBEAT] SKIP - myId:', myId, 'roomId:', roomId);
           }
         }, 3000); */
         
@@ -1877,14 +1871,8 @@
 
     async function doSpin(){
       console.log('========== INIZIO DOSPIN ==========');
-      console.log('[DEBUG] doSpin chiamato');
-      console.log('[DEBUG] isBtnDisabled:', isBtnDisabled('btn-spin'));
-      console.log('[DEBUG] myId:', myId);
-      console.log('[DEBUG] roomId:', roomId);
-      console.log('[DEBUG] currentStanza:', currentStanza);
       
       if(isBtnDisabled('btn-spin')) {
-        console.log('[DEBUG] USCITA: btn-spin è disabilitato');
         return;
       }
       
@@ -1895,13 +1883,10 @@
       animateWheelSpin();
       await new Promise(r=>setTimeout(r,3000));
       let val=WHEEL_VALUES[Math.floor(Math.random()*WHEEL_VALUES.length)];
-      console.log('[DEBUG] Valore girato:', val);
       
       const myName=document.getElementById('inp-name').value;
-      console.log('[DEBUG] myName:', myName);
       
       const me=currentStanza.giocatori.find(p=>p.id===myId);
-      console.log('[DEBUG] me (giocatore):', me);
       
       const activeMultiplier=(currentStanza.fase_speciale===2) ? 2 : 1;
       let nextFaseSpeciale=0;
@@ -1987,12 +1972,6 @@
 
       isSpinning=false;
       
-      console.log('[DEBUG] ========== AGGIORNAMENTO DATABASE ==========');
-      console.log('[DEBUG] finalPrize:', finalPrize);
-      console.log('[DEBUG] nextFaseSpeciale:', nextFaseSpeciale);
-      console.log('[DEBUG] msg:', msg);
-      console.log('[DEBUG] roomId:', roomId);
-      console.log('[DEBUG] Tentativo di aggiornare stanze...');
       
       const updateResult = await _supabase.from('stanze').update({
         montepremi_round:finalPrize,
@@ -2002,25 +1981,18 @@
         azione_timestamp:new Date().toISOString()
       }).eq('id', roomId);
       
-      console.log('[DEBUG] Risultato update stanze:', updateResult);
-      console.log('[DEBUG] Update error:', updateResult.error);
-      console.log('[DEBUG] Update data:', updateResult.data);
       
       if(updateResult.error) {
         console.error('[DEBUG] ❌ ERRORE NELL\'UPDATE!', updateResult.error);
         alert('ERRORE: ' + updateResult.error.message);
       } else {
-        console.log('[DEBUG] ✅ Update riuscito!');
       }
       
       // APERTURA AUTOMATICA: Se ho girato un numero, apri subito la chiamata consonante
-      console.log('[DEBUG] Controllo apertura automatica: finalPrize=', finalPrize, 'mysterySafeFlat=', mysterySafeFlat);
       if(finalPrize > 0 && !mysterySafeFlat) {
-        console.log('[DEBUG] ✅ Apertura automatica consonante...');
         
         // WORKAROUND: Aggiorna manualmente currentStanza invece di fare fetchFullState
         // (problema con RLS che non vede subito l'update)
-        console.log('[DEBUG] Aggiorno manualmente currentStanza.montepremi_round da', currentStanza?.montepremi_round, 'a', finalPrize);
         if(currentStanza) {
           currentStanza.montepremi_round = finalPrize;
           currentStanza.fase_speciale = nextFaseSpeciale;
@@ -2028,12 +2000,9 @@
           currentStanza.ultimo_messaggio = msg;
         }
         
-        console.log('[DEBUG] Stato aggiornato manualmente, currentStanza.montepremi_round:', currentStanza?.montepremi_round);
         openInput('letter');
       } else {
-        console.log('[DEBUG] ⚠️ NON apro finestra consonante (finalPrize=0 o mysterySafeFlat)');
       }
-      console.log('[DEBUG] ========== FINE DOSPIN ==========');
     }
 
     function passTurn(){
@@ -2157,7 +2126,6 @@
       if(isProcessingInput) return;
       isProcessingInput=true;
       const txt=document.getElementById('game-input').value.trim().toUpperCase();
-      console.log('[DEBUG] submitInput chiamato, txt:', txt, 'mode:', inputMode);
       if(!txt){ isProcessingInput=false; return; }
       const mode=inputMode;
       closeInput();
@@ -2230,15 +2198,6 @@
 
         let foundIndices=[]; let gIdx=0;
         const sol=currentPuzzleText.toUpperCase();
-        console.log('[DEBUG] ===== CHIAMATA CONSONANTE =====');
-        console.log('[DEBUG] char chiamato:', char);
-        console.log('[DEBUG] currentPuzzleText:', currentPuzzleText);
-        console.log('[DEBUG] currentPuzzleText.toUpperCase():', sol);
-        console.log('[DEBUG] currentPuzzleText.length:', currentPuzzleText.length);
-        console.log('[DEBUG] Frase completa (fullSolutionText):', fullSolutionText);
-        console.log('[DEBUG] Hint:', currentHintText);
-        console.log('[DEBUG] montepremi_round:', s.montepremi_round);
-        console.log('[DEBUG] mode:', mode);
         
         // TRACCIA la lettera chiamata (per i bot)
         if(!lettersCalledThisRound.includes(char)) {
@@ -2252,13 +2211,10 @@
             const cleanInputChar = cleanStr(char);
             if(cleanSolChar === cleanInputChar) {
               foundIndices.push(gIdx);
-              console.log('[DEBUG] MATCH trovato! posizione:', i, 'indice:', gIdx, 'carattere:', solChar);
             }
             gIdx++;
           }
         }
-        console.log('[DEBUG] Totale match trovati:', foundIndices.length);
-        console.log('[DEBUG] foundIndices:', foundIndices);
         if(foundIndices.length>0){
           // NON resettiamo più vowelsBoughtThisTurn qui - si resetta a ogni turno
           const newRev=[...new Set([...(s.lettere_rivelate||[]), ...foundIndices])];
@@ -2269,7 +2225,6 @@
             // ANNUNCIO IMMEDIATO per NVDA
             const resultMsg = `Trovate ${foundIndices.length} ${char}! Guadagni ${gain} euro`;
             speak(resultMsg);
-            console.log('[DEBUG] 📢 ANNUNCIO:', resultMsg);
             
             await _supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)+gain}).eq('id', myId);
             
@@ -2301,12 +2256,17 @@
               await _supabase.from('stanze').update({lettere_rivelate:newRev,montepremi_round:0,fase_speciale:0,ultima_azione:'chiama_lettera',ultimo_messaggio:`${myName}: Trovate ${foundIndices.length} ${char}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
             }
           } else {
+            // VOCALE - Annuncia risultato
+            const vowelResultMsg = foundIndices.length > 0 
+              ? `Trovate ${foundIndices.length} ${char}` 
+              : `${char} non presente`;
+            speak(vowelResultMsg);
+            
             await _supabase.from('stanze').update({lettere_rivelate:newRev,ultima_azione:'chiama_lettera',ultimo_messaggio:`${myName}: Trovate ${foundIndices.length} ${char}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
           }
         } else {
           // ANNUNCIO IMMEDIATO per NVDA - lettera non trovata
           speak(`${char} non trovata! Passi il turno`);
-          console.log('[DEBUG] 📢 ANNUNCIO: Lettera non trovata');
           
           await _supabase.from('stanze').update({ultima_azione:'errore',ultimo_messaggio:`${myName}: ${char} assente`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
           passTurn();

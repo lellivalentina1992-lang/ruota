@@ -478,6 +478,16 @@
     ];
 
     document.addEventListener('DOMContentLoaded', () => {
+      // PRE-COMPILA codice e nome se salvati in localStorage
+      const savedCode = localStorage.getItem('lastRoomCode');
+      const savedName = localStorage.getItem('lastPlayerName');
+      if(savedCode) {
+        document.getElementById('inp-code').value = savedCode;
+      }
+      if(savedName) {
+        document.getElementById('inp-name').value = savedName;
+      }
+      
       document.getElementById('btn-create-room')?.addEventListener('click', () => askPrivacy());
       document.getElementById('btn-join-room')?.addEventListener('click', () => joinGame(false));
       document.getElementById('btn-refresh-rooms')?.addEventListener('click', () => fetchPublicRooms());
@@ -1349,11 +1359,21 @@
           }).select().maybeSingle();
           st=data;
         } else {
+          console.log('[JOIN] Tentativo di entrare in stanza con codice:', cd);
           const {data}=await _supabase.from('stanze').select('*').eq('codice',cd).maybeSingle();
-          if(!data) return speak("Stanza inesistente");
+          console.log('[JOIN] Risultato query stanza:', data);
+          if(!data) {
+            console.log('[JOIN] Stanza non trovata nel database!');
+            return speak("Stanza inesistente");
+          }
+          console.log('[JOIN] Stanza trovata! ID:', data.id, 'Stato:', data.stato);
           st=data;
         }
         roomId=st.id;
+        
+        // SALVA il codice stanza in localStorage per poter rientrare dopo
+        localStorage.setItem('lastRoomCode', cd);
+        localStorage.setItem('lastPlayerName', nm);
 
         const {data:exist}=await _supabase.from('giocatori').select('*').eq('stanza_id',roomId).eq('nome',nm).maybeSingle();
         if(exist){ myId=exist.id; myIndex=exist.indice; isHost=exist.is_host; }
@@ -1701,15 +1721,10 @@
         });
         
         // Controlla se rimangono abbastanza giocatori
-        if(s.giocatori.length < 1) {
-          showFlashMessage('⚠️ Nessun giocatore rimasto! La partita terminerà.', 'bad');
-          if(isHost) {
-            setTimeout(() => {
-              if(confirm('Non ci sono abbastanza giocatori. Terminare la partita?')) {
-                closeRoom();
-              }
-            }, 1000);
-          }
+        // NOTA: Non chiudiamo MAI la stanza automaticamente! Solo l'host può farlo manualmente.
+        if(s.giocatori.length < 1 && previousPlayersList.length > 0) {
+          showFlashMessage('⚠️ Tutti i giocatori sono usciti. La stanza rimane aperta.', 'info');
+          console.log('[SAFETY] Stanza vuota, ma NON viene chiusa automaticamente');
         }
       }
       
@@ -1735,6 +1750,10 @@
         document.getElementById('end-panel').classList.remove('hidden');
         const l=document.getElementById('ranking-list'); l.innerHTML="";
         [...s.giocatori].sort((a,b)=>b.punteggio_totale-a.punteggio_totale).forEach((p,i)=> l.innerHTML+=`<li>${i+1}. ${p.nome}: €${p.punteggio_totale}</li>`);
+        
+        // Mostra pulsante NUOVA PARTITA solo per l'host
+        document.getElementById('btn-new-game').classList.toggle('hidden', !isHost);
+        
         return;
       }
 
@@ -1898,8 +1917,15 @@
       parseAndRenderBoard(currentPuzzleText, s.lettere_rivelate);
       if(isAccessibleMode) updateAccessibleBoard();
       if(me){
-        document.getElementById('score-round').textContent=me.punteggio_round||0;
-        document.getElementById('score-total').textContent=me.punteggio_totale||0;
+        const roundScore = me.punteggio_round||0;
+        const totalScore = me.punteggio_totale||0;
+        console.log(`[SCORE] Round: €${roundScore}, Total: €${totalScore}`);
+        document.getElementById('score-round').textContent=roundScore;
+        document.getElementById('score-total').textContent=totalScore;
+      } else {
+        console.log('[SCORE] Giocatore non trovato!');
+        document.getElementById('score-round').textContent='?';
+        document.getElementById('score-total').textContent='?';
       }
       let statusTxt="";
       if(s.montepremi_round>0) statusTxt = isMysteryFlat ? `IN PALIO: €${s.montepremi_round} (Piatto)` : `IN PALIO: €${s.montepremi_round}`;
@@ -2254,10 +2280,30 @@
         if(mode==='letter' && isVowel){ alert("Devi inserire una CONSONANTE"); isProcessingInput=false; return; }
 
         if(mode==='vowel'){
-          vowelsBoughtThisTurn++;
           const cost=getVowelCost();
           const me=s.giocatori.find(p=>p.id===myId);
-          await _supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)-cost}).eq('id', myId);
+          const myRoundMoney = me ? (me.punteggio_round||0) : 0;
+          
+          // CONTROLLO CRITICO: Controlla se hai abbastanza soldi
+          if(myRoundMoney < cost){
+            playAudio('snd-miss');
+            speak(`Non hai abbastanza soldi! Servono €${cost}, hai €${myRoundMoney}`);
+            alert(`Non hai abbastanza soldi per la vocale!\nCosto: €${cost}\nHai: €${myRoundMoney}`);
+            isProcessingInput=false;
+            return;
+          }
+          
+          // CONTROLLO: Limite 1 vocale per giro
+          if(vowelsBoughtThisTurn >= 1){
+            playAudio('snd-miss');
+            speak("Hai già comprato una vocale! Devi girare la ruota prima di comprarne un'altra.");
+            alert("Hai già comprato una vocale in questo giro!\nGira la ruota prima di comprarne un'altra.");
+            isProcessingInput=false;
+            return;
+          }
+          
+          vowelsBoughtThisTurn++;
+          await _supabase.from('giocatori').update({punteggio_round:myRoundMoney-cost}).eq('id', myId);
         }
         // RIMOSSO: vowelsBoughtThisTurn=0 qui, lo resettiamo solo se la consonante è CORRETTA
         
@@ -2273,10 +2319,22 @@
         let foundIndices=[]; let gIdx=0;
         const sol=currentPuzzleText.toUpperCase();
         
-        // TRACCIA la lettera chiamata (per i bot)
-        if(!lettersCalledThisRound.includes(char)) {
-          lettersCalledThisRound.push(char);
+        // CONTROLLO CRITICO: Se questa lettera è già stata chiamata in questo round, errore!
+        if(lettersCalledThisRound.includes(char)) {
+          playAudio('snd-miss');
+          speak(`${char} già chiamata in questo round!`);
+          await _supabase.from('stanze').update({
+            ultima_azione:'errore',
+            ultimo_messaggio:`${myName}: ${char} già chiamata!`,
+            azione_timestamp:new Date().toISOString()
+          }).eq('id', roomId);
+          passTurn();
+          isProcessingInput=false;
+          return;
         }
+        
+        // TRACCIA la lettera chiamata (per i bot)
+        lettersCalledThisRound.push(char);
         
         for(let i=0;i<sol.length;i++){
           if(sol[i].match(/[A-ZÀ-Ù]/)){
@@ -2669,22 +2727,43 @@
         if(isHost){
           if(confirm("Sei l'host! Vuoi chiudere la stanza per tutti?")){
             await closeRoom();
+            return;
           } else {
-            // Host esce ma la stanza rimane aperta - marca come inattivo
-            await _supabase.from('giocatori').update({is_active: false}).eq('id', myId);
-            location.reload();
+            // Host esce ma la stanza rimane aperta
+            await _supabase.from('giocatori').delete().eq('id', myId);
           }
         } else {
-          // Giocatore normale esce - cancellalo effettivamente per non intasare il database
-          // I turni lo salteranno automaticamente perché non sarà più nella lista
+          // Giocatore normale esce - cancellalo dal database
           await _supabase.from('giocatori').delete().eq('id', myId);
-          location.reload();
         }
-      } else {
-        location.reload();
       }
+      
+      // Non fare location.reload() per non perdere i dati!
+      // Torna alla schermata iniziale ma mantieni il codice salvato
+      document.getElementById('game-panel').classList.add('hidden');
+      document.getElementById('setup-panel').classList.remove('hidden');
+      
+      // Pre-compila il codice e nome dalla memoria
+      const savedCode = localStorage.getItem('lastRoomCode');
+      const savedName = localStorage.getItem('lastPlayerName');
+      if(savedCode) document.getElementById('inp-code').value = savedCode;
+      if(savedName) document.getElementById('inp-name').value = savedName;
+      
+      // Reset variabili
+      roomId = null;
+      myId = null;
+      myIndex = null;
+      isHost = false;
+      currentStanza = null;
+      
+      speak("Sei uscito dalla stanza. Puoi rientrare usando lo stesso codice.");
     }
-    async function closeRoom(){ await _supabase.from('stanze').delete().eq('id', roomId); location.reload(); }
+    async function closeRoom(){ 
+      await _supabase.from('stanze').delete().eq('id', roomId); 
+      localStorage.removeItem('lastRoomCode');
+      localStorage.removeItem('lastPlayerName');
+      location.reload(); 
+    }
     
     async function surrenderPhrase(){
       if(!isHost) return;

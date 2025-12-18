@@ -132,7 +132,7 @@
     .inspector-tile{width:50px;height:70px;display:flex;align-items:center;justify-content:center;font-size:2em;font-weight:bold;background:#fff;color:#000;border-radius:8px;box-shadow:0 4px 8px rgba(0,0,0,.5);}
     .inspector-tile.empty{background:#333;color:#777;}
     .inspector-char-btn{display:flex;flex-direction:column;align-items:center;gap:5px;padding:15px;background:#222;border:2px solid #555;border-radius:8px;cursor:pointer;transition:all .2s;}
-    .inspector-char-btn:hover,.inspector-char-btn:focus{background:#333;border-color:var(--col-neon);transform:scale(1.05);}
+    .inspector-char-btn:hover, .inspector-char-btn:focus{background:#333;border-color:var(--col-neon);transform:scale(1.05);}
     input[type=text]{font-size:2em;padding:10px;text-align:center;width:90%;background:#000;color:#fff;border:2px solid #555;border-radius:8px;margin-bottom:20px;font-family:var(--font-main);text-transform:uppercase;}
     .history-item{display:block;width:100%;text-align:left;background:#111;color:#ddd;border:1px solid #333;border-radius:10px;padding:10px;margin:8px 0;font-size:1.05em;}
     .history-item strong{color:var(--col-accent);}
@@ -262,6 +262,7 @@
       <button class="action-btn" onclick="playAudio('snd-boo')" aria-label="Buuu">BUUU</button>
       <button class="action-btn" onclick="playAudio('snd-ooh')" aria-label="Ohhh">OHHH</button>
       <button id="btn-mute" class="action-btn mutebtn" onclick="toggleMute()">AUDIO ON</button>
+      <button id="btn-toggle-audio" class="action-btn mutebtn" onclick="toggleAudio()">🔊 Audio ON</button>
     </div>
   </div>
 
@@ -269,8 +270,9 @@
     <div class="modal-content">
       <h2 id="input-title" style="color:var(--col-accent);">INSERISCI</h2>
       <input id="game-input" type="text" autocomplete="off">
-      <div class="controls-grid" style="grid-template-columns:1fr 1fr;">
+      <div class="controls-grid" style="grid-template-columns:1fr 1fr 1fr;">
         <button onclick="submitInput()" class="action-btn btn-spin">OK</button>
+        <button onclick="document.getElementById('game-input').value=''; document.getElementById('game-input').focus();" class="action-btn" style="background:linear-gradient(180deg,#ff8800,#cc6600); border-color:#ff8800;">SVUOTA</button>
         <button onclick="closeInput()" class="action-btn btn-pass">ANNULLA</button>
       </div>
     </div>
@@ -479,6 +481,31 @@
       document.getElementById('btn-join-room')?.addEventListener('click', () => joinGame(false));
       document.getElementById('btn-refresh-rooms')?.addEventListener('click', () => fetchPublicRooms());
 
+      // INVIO nei campi di setup
+      document.getElementById('inp-name')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          // Sposta focus al campo codice se il nome è valido
+          const name = document.getElementById('inp-name').value.trim();
+          if (name) {
+            document.getElementById('inp-code')?.focus();
+          }
+        }
+      });
+      
+      document.getElementById('inp-code')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          // Se c'è un codice, entra nella stanza, altrimenti crea nuova
+          const code = document.getElementById('inp-code').value.trim();
+          if (code) {
+            joinGame(false);
+          } else {
+            askPrivacy();
+          }
+        }
+      });
+
       document.getElementById('game-input').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -641,18 +668,20 @@
 
     async function readRevealedLetters(){
       if(!currentStanza) return;
-      let letters=new Set();
-      parsedBoard.forEach(w=>w.chars.forEach(c=>{ if(c.isLetter && c.isRevealed) letters.add(c.char); }));
-      const list=Array.from(letters).sort();
       
-      if(!list.length) {
-        speak("Nessuna lettera uscita.");
+      // MOSTRA TUTTE LE LETTERE CHIAMATE (presenti o meno)
+      if(!lettersCalledThisRound || lettersCalledThisRound.length === 0) {
+        speak("Nessuna lettera chiamata ancora in questo round.");
+        alert("Nessuna lettera chiamata ancora in questo round.");
         return;
       }
       
+      const list = [...lettersCalledThisRound].sort();
+      
       // SPELLING con pause 500ms tra lettere
       clearSpeechQueue();
-      speak("Lettere uscite:");
+      speak(`${list.length} lettere chiamate:`);
+      alert(`Lettere chiamate (${list.length}): ${list.join(', ')}`);
       
       for(let i=0; i<list.length; i++){
         await new Promise(r => setTimeout(r, 500));
@@ -2589,6 +2618,75 @@
         await _supabase.from('giocatori').update({punteggio_totale:0, punteggio_round:0}).eq('stanza_id', roomId);
         await _supabase.from('stanze').update({round_giocati:0, lettere_rivelate:[]}).eq('id', roomId);
         startNewRound();
+      }
+    }
+    
+    // === SISTEMA AUDIO ===
+    let audioEnabled = true;
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    
+    function playSound(frequency, duration = 150, type = 'sine') {
+      if (!audioEnabled) return;
+      try {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = frequency;
+        oscillator.type = type;
+        
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration / 1000);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + duration / 1000);
+      } catch(e) {
+        console.log('Audio error:', e);
+      }
+    }
+    
+    function playRandomCorrectSound() {
+      if (!audioEnabled) return;
+      const frequencies = [523.25, 587.33, 659.25, 783.99]; // C5, D5, E5, G5
+      const randomFreq = frequencies[Math.floor(Math.random() * frequencies.length)];
+      playSound(randomFreq, 100, 'sine');
+      setTimeout(() => playSound(randomFreq * 1.5, 150, 'sine'), 120);
+    }
+    
+    function playIncorrectSound() {
+      if (!audioEnabled) return;
+      playSound(200, 80, 'sawtooth');
+      setTimeout(() => playSound(150, 120, 'sawtooth'), 90);
+    }
+    
+    function playWheelSpinSound() {
+      if (!audioEnabled) return;
+      let freq = 400;
+      const spinInterval = setInterval(() => {
+        playSound(freq, 50, 'square');
+        freq += 50;
+        if (freq > 800) freq = 400;
+      }, 100);
+      setTimeout(() => clearInterval(spinInterval), 2000);
+    }
+    
+    function playSuccessSound() {
+      if (!audioEnabled) return;
+      playSound(523.25, 100);
+      setTimeout(() => playSound(659.25, 100), 120);
+      setTimeout(() => playSound(783.99, 150), 240);
+    }
+    
+    function toggleAudio() {
+      audioEnabled = !audioEnabled;
+      const btn = document.getElementById('btn-toggle-audio');
+      if (btn) {
+        btn.textContent = audioEnabled ? '🔊 Audio ON' : '🔇 Audio OFF';
+      }
+      if (audioEnabled) {
+        playSound(440, 100);
       }
     }
   </script>

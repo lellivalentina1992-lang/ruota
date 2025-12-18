@@ -1312,13 +1312,19 @@
         else{
           const {data:mx}=await _supabase.from('giocatori').select('indice').eq('stanza_id',roomId).order('indice',{ascending:false}).limit(1).maybeSingle();
           myIndex=(mx)?mx.indice+1:0; isHost=(myIndex===0);
-          const {data:pl}=await _supabase.from('giocatori').insert({
+          const {data:pl, error:plError}=await _supabase.from('giocatori').insert({
             stanza_id:roomId,
             nome:nm,
             indice:myIndex,
             is_host:isHost,
             ultimo_ping: new Date().toISOString()
           }).select().single();
+          
+          if(plError || !pl) {
+            console.error('Errore inserimento giocatore:', plError);
+            speak('Errore database: ' + (plError?.message || 'Controlla che il campo ultimo_ping esista nella tabella giocatori'));
+            return;
+          }
           myId=pl.id;
         }
 

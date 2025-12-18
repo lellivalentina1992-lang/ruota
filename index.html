@@ -565,38 +565,18 @@
     ];
 
     document.addEventListener('DOMContentLoaded', () => {
-      
-      const savedCode = localStorage.getItem('lastRoomCode');
-      const savedName = localStorage.getItem('lastPlayerName');
+      // ✅ FIX: Non pre-compilare i campi automaticamente
+      // Gli utenti con screen reader preferiscono campi vuoti
+      // I valori vengono comunque salvati quando si entra in una stanza
       
       const inpName = document.getElementById('inp-name');
       const inpCode = document.getElementById('inp-code');
       const displayName = document.getElementById('inp-name-display');
       const displayCode = document.getElementById('inp-code-display');
       
-      if(savedName && inpName) {
-        inpName.value = savedName;
-        if(displayName) displayName.textContent = savedName;
-      } else if(displayName) {
-        displayName.textContent = '(vuoto)';
-      }
-      
-      if(savedCode && inpCode) {
-        inpCode.value = savedCode;
-        if(displayCode) displayCode.textContent = savedCode;
-      } else if(displayCode) {
-        displayCode.textContent = '(vuoto)';
-      }
-      
-      // Force sync after a delay to ensure DOM is ready
-      setTimeout(() => {
-        if(inpName && displayName) {
-          displayName.textContent = inpName.value || '(vuoto)';
-        }
-        if(inpCode && displayCode) {
-          displayCode.textContent = inpCode.value || '(vuoto)';
-        }
-      }, 100);
+      // Inizializza i display come vuoti
+      if(displayName) displayName.textContent = '(vuoto)';
+      if(displayCode) displayCode.textContent = '(vuoto)';
       
       document.getElementById('btn-create-room')?.addEventListener('click', () => askPrivacy());
       document.getElementById('btn-join-room')?.addEventListener('click', () => joinGame(false));
@@ -974,7 +954,7 @@
       // ✅ VERIFICA POST-MODIFICA: assicurati che non sia cambiata la parola
       if(navWordIdx !== savedWordIdx) {
         // ERRORE CRITICO: qualcosa ha cambiato la parola!
-        console.error("BUG: navWordIdx è cambiato durante moveNav!", {savedWordIdx, navWordIdx});
+        console.error("🚨 BUG: navWordIdx è cambiato durante moveNav!", {savedWordIdx, navWordIdx});
         navWordIdx = savedWordIdx; // Ripristina
       }
       
@@ -1502,9 +1482,14 @@
       speak(txt);
     }
 
-    function parseAndRenderBoard(text, rev) {
+    function parseAndRenderBoard(text, rev, resetNavigation = false) {
       rev = Array.isArray(rev) ? rev : [];
-      navWordIdx = 0; navCharIdx = -1;
+      
+      // ✅ FIX CRITICO: SALVA la posizione corrente prima di ricostruire il tabellone
+      // SOLO se non vogliamo resettare (es: quando è la stessa frase ma si aggiorna)
+      const savedWordIdx = resetNavigation ? 0 : navWordIdx;
+      const savedCharIdx = resetNavigation ? -1 : navCharIdx;
+      
       const c = document.getElementById('board-container');
       c.innerHTML = '';
       parsedBoard = [];
@@ -1546,6 +1531,26 @@
         c.appendChild(r);
         parsedBoard.push(wO);
       });
+      
+      // ✅ FIX CRITICO: RIPRISTINA la posizione salvata, con clamp ai limiti
+      // Se la parola salvata esiste ancora, torna lì
+      if(savedWordIdx >= 0 && savedWordIdx < parsedBoard.length) {
+        navWordIdx = savedWordIdx;
+        const currentWord = parsedBoard[navWordIdx];
+        // Clamp navCharIdx ai limiti della parola corrente
+        if(savedCharIdx >= currentWord.chars.length) {
+          navCharIdx = currentWord.chars.length - 1; // Vai all'ultimo carattere
+        } else if(savedCharIdx < -1) {
+          navCharIdx = -1; // Nessun carattere selezionato
+        } else {
+          navCharIdx = savedCharIdx; // Ripristina posizione esatta
+        }
+      } else {
+        // La parola salvata non esiste più (frase cambiata), resetta
+        navWordIdx = 0;
+        navCharIdx = -1;
+      }
+      
       const numWords = parsedBoard.length;
       const summary = `Tabellone: ${numWords} parole, ${totalLetters} lettere totali, ${revealedLetters} scoperte.`;
       c.setAttribute('aria-label', summary);
@@ -2291,7 +2296,7 @@
         document.getElementById('live-category').textContent=currentFrase.categoria;
         document.getElementById('round-hint').textContent=currentHintText;
         vowelsBoughtThisTurn=0;
-        parseAndRenderBoard(currentPuzzleText, s.lettere_rivelate);
+        parseAndRenderBoard(currentPuzzleText, s.lettere_rivelate, true); // ✅ Reset navigazione per nuova frase
         speak(`Nuovo Round. Categoria: ${currentFrase.categoria}. ${currentHintText}`);
       }
 
@@ -2908,6 +2913,39 @@ const showSurrender = isHost && (
       const txt=document.getElementById('game-input').value.trim().toUpperCase();
       if(!txt){ isProcessingInput=false; return; }
       const mode=inputMode;
+      
+      // ✅ FIX: Valida l'input PRIMA di chiudere il campo!
+      // Se c'è un errore, lascia il campo aperto per riscrivere
+      
+      // Validazione per vocali/consonanti
+      if(mode === 'vowel' || mode === 'letter') {
+        const char = txt.charAt(0);
+        const isVowel = "AEIOU".includes(char);
+        
+        // Controllo vocale al posto di consonante
+        if(mode === 'letter' && isVowel) {
+          playAudio('snd-miss');
+          alert("Devi inserire una CONSONANTE, non una vocale!");
+          speak("Errore: hai inserito una vocale invece di una consonante. Riprova.");
+          document.getElementById('game-input').value = '';
+          document.getElementById('game-input').focus();
+          isProcessingInput = false;
+          return; // NON chiude il campo, NON passa il turno
+        }
+        
+        // Controllo consonante al posto di vocale
+        if(mode === 'vowel' && !isVowel) {
+          playAudio('snd-miss');
+          alert("Devi inserire una VOCALE, non una consonante!");
+          speak("Errore: hai inserito una consonante invece di una vocale. Riprova.");
+          document.getElementById('game-input').value = '';
+          document.getElementById('game-input').focus();
+          isProcessingInput = false;
+          return; // NON chiude il campo, NON passa il turno
+        }
+      }
+      
+      // ✅ Validazione OK - ora possiamo chiudere il campo
       closeInput();
       const myName=document.getElementById('inp-name').value;
       const s=currentStanza;
@@ -2915,12 +2953,15 @@ const showSurrender = isHost && (
       
       if(isSpecialRound && specialVowelsPhase && mode==='vowel'){
         const char=txt.charAt(0);
-        const isVowel="AEIOU".includes(char);
-        if(!isVowel){ alert("Devi inserire una VOCALE"); isProcessingInput=false; return; }
+        // ✅ Il controllo che sia una vocale è già fatto all'inizio di submitInput
         
-        
+        // Controlla se già chiamata
         if(lettersCalledThisRound.includes(char)){
+          playAudio('snd-miss');
           alert(`La vocale ${char} è già stata chiamata! Scegli un'altra vocale.`);
+          speak(`Errore: la vocale ${char} è già stata chiamata. Scegline un'altra.`);
+          // Riapri il campo per riscrivere
+          openInput('vowel');
           isProcessingInput=false;
           return;
         }
@@ -2961,8 +3002,8 @@ const showSurrender = isHost && (
       } else {
         const char=txt.charAt(0);
         const isVowel="AEIOU".includes(char);
-        if(mode==='vowel' && !isVowel){ alert("Devi inserire una VOCALE"); isProcessingInput=false; return; }
-        if(mode==='letter' && isVowel){ alert("Devi inserire una CONSONANTE"); isProcessingInput=false; return; }
+        // ✅ I controlli vocale/consonante sono ora all'inizio di submitInput
+        // Non serve ripeterli qui
 
         if(mode==='vowel'){
           const cost=getVowelCost();
@@ -3035,8 +3076,9 @@ const showSurrender = isHost && (
             return;
           }
           
-          
-          playMultipleHits(newFoundIndices.length);
+          // ✅ FIX: NON riprodurre il suono qui - verrà riprodotto da updateUI
+          // quando riceveremo l'aggiornamento dal server. Altrimenti si sovrappone!
+          // playMultipleHits(newFoundIndices.length); // <- RIMOSSO
           
           const newRev=[...new Set([...(s.lettere_rivelate||[]), ...foundIndices])];
           if(mode==='letter'){
@@ -3476,11 +3518,15 @@ const showSurrender = isHost && (
       document.getElementById('game-panel').classList.add('hidden');
       document.getElementById('setup-panel').classList.remove('hidden');
       
+      // ✅ FIX: Non riempire automaticamente i campi quando esci
+      // Gli utenti con screen reader preferiscono campi vuoti
+      // I valori sono comunque salvati in localStorage se vogliono rientrare
       
-      const savedCode = localStorage.getItem('lastRoomCode');
-      const savedName = localStorage.getItem('lastPlayerName');
-      if(savedCode) document.getElementById('inp-code').value = savedCode;
-      if(savedName) document.getElementById('inp-name').value = savedName;
+      // Reset display
+      const displayName = document.getElementById('inp-name-display');
+      const displayCode = document.getElementById('inp-code-display');
+      if(displayName) displayName.textContent = '(vuoto)';
+      if(displayCode) displayCode.textContent = '(vuoto)';
       
       
       roomId = null;
@@ -3489,7 +3535,7 @@ const showSurrender = isHost && (
       isHost = false;
       currentStanza = null;
       
-      speak("Sei uscito dalla stanza. Puoi rientrare usando lo stesso codice.");
+      speak("Sei uscito dalla stanza.");
     }
     async function closeRoom(){ 
       await _supabase.from('stanze').delete().eq('id', roomId); 

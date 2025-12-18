@@ -877,10 +877,23 @@
       
       if(n !== navWordIdx) {
         navWordIdx = n;
-        navCharIdx = -1;
+        navCharIdx = -1; // ✅ FIX 3: Reset sempre a -1 quando cambi parola
         highlightNav();
         let w = parsedBoard[n];
         if(!w) return; 
+        let letterCount = w.chars.length;
+        let spelling = "";
+        w.chars.forEach(c => {
+          if(c.isLetter && !c.isRevealed) spelling += " asterisco";
+          else spelling += " " + (c.char ? c.char.toLowerCase() : "");
+        });
+        speak(`Parola ${n + 1}, ${letterCount} lettere.${spelling}`);
+      } else {
+        // ✅ FIX 3: Anche se non cambia parola, resetta il carattere
+        navCharIdx = -1;
+        highlightNav();
+        let w = parsedBoard[n];
+        if(!w) return;
         let letterCount = w.chars.length;
         let spelling = "";
         w.chars.forEach(c => {
@@ -2650,13 +2663,19 @@ const showSurrender = isHost && (
           const currentValue = e.target.value.toUpperCase();
           const templateValue = template.toUpperCase();
           
+          // ✅ FIX 4: Se l'utente ha cancellato caratteri, ripristina il template
+          if(currentValue.length < templateValue.length) {
+            e.target.value = template;
+            return;
+          }
           
+          // Se lunghezza maggiore, tronca
           if(currentValue.length > templateValue.length) {
             e.target.value = currentValue.substring(0, templateValue.length);
             return;
           }
           
-          
+          // Trova la prima differenza
           let diffPos = -1;
           for(let i = 0; i < currentValue.length; i++) {
             if(currentValue[i] !== templateValue[i]) {
@@ -2665,20 +2684,38 @@ const showSurrender = isHost && (
             }
           }
           
-          
+          // ✅ FIX 4: Sostituisci l'asterisco con la lettera digitata
           if(diffPos !== -1 && templateValue[diffPos] === '*') {
             const newChar = currentValue[diffPos];
             if(newChar.match(/[A-ZÀ-Ù]/)) {
-              
+              // Sostituisci nel template l'asterisco con la nuova lettera
               const newTemplate = template.substring(0, diffPos) + newChar + template.substring(diffPos + 1);
               template = newTemplate;
               e.target.value = newTemplate;
               
-              
+              // Sposta il cursore alla prossima posizione
               setTimeout(() => {
-                e.target.setSelectionRange(diffPos + 1, diffPos + 1);
+                // Trova il prossimo asterisco
+                let nextAsterisk = -1;
+                for(let i = diffPos + 1; i < newTemplate.length; i++) {
+                  if(newTemplate[i] === '*') {
+                    nextAsterisk = i;
+                    break;
+                  }
+                }
+                if(nextAsterisk !== -1) {
+                  e.target.setSelectionRange(nextAsterisk, nextAsterisk);
+                } else {
+                  e.target.setSelectionRange(newTemplate.length, newTemplate.length);
+                }
               }, 0);
+            } else {
+              // Carattere non valido, ripristina
+              e.target.value = template;
             }
+          } else {
+            // Non è un asterisco o posizione non valida, ripristina
+            e.target.value = template;
           }
         });
         
@@ -2686,7 +2723,11 @@ const showSurrender = isHost && (
       } else {
         inp.value='';
         if(mode==='vowel') speak("Scrivi una vocale.");
-        else speak("Scrivi una consonante.");
+        else {
+          // ✅ FIX 2: Annuncio automatico dopo giro ruota
+          const montepremi = currentStanza?.montepremi_round || 0;
+          speak(`Hai girato ${montepremi} euro. Scrivi una consonante.`);
+        }
       }
       
       // Nascondi/mostra bottone ANNULLA in base al mode

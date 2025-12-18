@@ -820,7 +820,7 @@
         if(secondsSinceLastPing > TIMEOUT_SECONDS) {
           console.log(`[DISCONNECT] Rimuovo ${player.nome} - ultimo ping ${secondsSinceLastPing}s fa`);
           await _supabase.from('giocatori').delete().eq('id', player.id);
-          showMessage(`⚠️ ${player.nome} disconnesso e rimosso`, '#ff9900');
+          showFlashMessage(`⚠️ ${player.nome} disconnesso e rimosso`, 'bad');
           speak(`${player.nome} si è disconnesso`);
         }
       }
@@ -1626,7 +1626,7 @@
         // Trova chi è entrato
         s.giocatori.forEach(player => {
           if(!previousIds.includes(player.id)) {
-            showMessage(`🟢 ${player.nome} è entrato nella partita!`, '#00ff00');
+            showFlashMessage(`🟢 ${player.nome} è entrato nella partita!`, 'good');
             speak(`Nuovo giocatore: ${player.nome} è entrato nella stanza`, true); // true = priorità alta
             console.log(`[ANNUNCIO] ${player.nome} è entrato`); // Debug
           }
@@ -1635,7 +1635,7 @@
         // Trova chi è uscito
         previousPlayersList.forEach(player => {
           if(!currentIds.includes(player.id)) {
-            showMessage(`🔴 ${player.nome} ha lasciato la partita`, '#ff4444');
+            showFlashMessage(`🔴 ${player.nome} ha lasciato la partita`, 'bad');
             speak(`${player.nome} è uscito dalla stanza`, true);
             console.log(`[ANNUNCIO] ${player.nome} è uscito`); // Debug
           }
@@ -1643,7 +1643,7 @@
         
         // Controlla se rimangono abbastanza giocatori
         if(s.giocatori.length < 1) {
-          showMessage('⚠️ Nessun giocatore rimasto! La partita terminerà.', '#ff9900');
+          showFlashMessage('⚠️ Nessun giocatore rimasto! La partita terminerà.', 'bad');
           if(isHost) {
             setTimeout(() => {
               if(confirm('Non ci sono abbastanza giocatori. Terminare la partita?')) {
@@ -1954,6 +1954,12 @@
 
       isSpinning=false;
       await _supabase.from('stanze').update({montepremi_round:finalPrize,fase_speciale:nextFaseSpeciale,ultima_azione:'gira_ruota',ultimo_messaggio:msg,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+      
+      // APERTURA AUTOMATICA: Se ho girato un numero, apri subito la chiamata consonante
+      if(finalPrize > 0 && !mysterySafeFlat) {
+        await new Promise(r=>setTimeout(r, 500)); // Piccolo delay per far aggiornare l'UI
+        openInput('letter');
+      }
     }
 
     function passTurn(){

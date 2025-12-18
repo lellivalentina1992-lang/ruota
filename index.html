@@ -722,22 +722,20 @@
       // MOSTRA TUTTE LE LETTERE CHIAMATE (presenti o meno)
       if(!lettersCalledThisRound || lettersCalledThisRound.length === 0) {
         speak("Nessuna lettera chiamata ancora in questo round.");
-        alert("Nessuna lettera chiamata ancora in questo round.");
         return;
       }
       
       const list = [...lettersCalledThisRound].sort();
       
-      // SPELLING con pause 500ms tra lettere
+      // SPELLING con pause 500ms tra lettere - SOLO VOCALE, NIENTE POPUP
       clearSpeechQueue();
-      speak(`${list.length} lettere chiamate:`);
-      alert(`Lettere chiamate (${list.length}): ${list.join(', ')}`);
+      speak(`Lettere chiamate: ${list.length}`);
       
       for(let i=0; i<list.length; i++){
         await new Promise(r => setTimeout(r, 500));
         const letter = list[i];
         const word = NATO_ALPHABET[letter] || letter;
-        speak(`${letter} ${word}`);
+        speak(`${letter}, ${word}`);
       }
     }
     
@@ -2115,10 +2113,21 @@
         nextFaseSpeciale=2;
       } else if(val==='JOLLY'){
         const startR=currentStanza.round_giocati;
-        const endR=startR + 4; // Dura 5 round (compreso quello corrente)
-        await _supabase.from('giocatori').update({scadenza_jolly:endR}).eq('id', myId);
+        
+        // JOLLY ACCUMULABILI: Se hai già un jolly attivo, estendi la scadenza
+        const currentJollyEnd = me && me.scadenza_jolly ? me.scadenza_jolly : startR;
+        const newEndR = Math.max(currentJollyEnd, startR) + 5; // Aggiungi 5 round
+        
+        await _supabase.from('giocatori').update({scadenza_jolly:newEndR}).eq('id', myId);
         finalPrize=0;
-        msg=`${myName} pesca il JOLLY! Attivo dal round ${startR} al round ${endR} (5 round)`;
+        
+        if(currentJollyEnd > startR) {
+          // Aveva già un jolly attivo
+          msg=`${myName} pesca un altro JOLLY! Scadenza estesa al round ${newEndR}`;
+        } else {
+          // Primo jolly
+          msg=`${myName} pesca il JOLLY! Attivo dal round ${startR} al round ${newEndR} (5 round)`;
+        }
         nextFaseSpeciale=0;
       }
 
@@ -2536,6 +2545,9 @@
 
     function checkTurnTimer(){
       if(!currentStanza || currentStanza.in_pausa || currentStanza.stato!=='gioco') return;
+      
+      // NON far scattare il timeout se si sta girando la ruota o processando input
+      if(isSpinning || isProcessingInput) return;
       
       // USA lastSpinTimestamp per il timer (si resetta solo quando giri o inizia il turno)
       // Se non è impostato, usa azione_timestamp come fallback

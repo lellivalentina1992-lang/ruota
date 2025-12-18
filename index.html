@@ -7,6 +7,12 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
+  // --- INIZIALIZZAZIONE SUPABASE ---
+  const _supabase = supabase.createClient(
+    'https://azcwkpdjbysnivknnino.supabase.co',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Y3drcGRqYnlzbml2a25uaW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MzAwNDksImV4cCI6MjA3OTIwNjA0OX0.R8wkMJEmsP8cTVUUOcWtD4Rrg_ZhuOE-PYBJ56eGqMU'
+  );
+
   // --- PROTEZIONE AIRBAG EVOLUTA ---
   window.onerror = function(msg, url, line) {
     if (!msg || typeof msg !== 'string') return false;

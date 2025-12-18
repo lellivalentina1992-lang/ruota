@@ -2016,8 +2016,16 @@
       // APERTURA AUTOMATICA: Se ho girato un numero, apri subito la chiamata consonante
       console.log('[DEBUG] Controllo apertura automatica: finalPrize=', finalPrize, 'mysterySafeFlat=', mysterySafeFlat);
       if(finalPrize > 0 && !mysterySafeFlat) {
-        console.log('[DEBUG] ✅ Apertura automatica consonante tra 500ms...');
-        await new Promise(r=>setTimeout(r, 500)); // Piccolo delay per far aggiornare l'UI
+        console.log('[DEBUG] ✅ Apertura automatica consonante...');
+        
+        // FORZA refresh dello stato PRIMA di aprire la finestra
+        console.log('[DEBUG] Forzo refresh dello stato...');
+        await fetchFullState();
+        
+        // Aspetta che l'UI si aggiorni
+        await new Promise(r=>setTimeout(r, 300));
+        
+        console.log('[DEBUG] Stato aggiornato, currentStanza.montepremi_round:', currentStanza?.montepremi_round);
         openInput('letter');
       } else {
         console.log('[DEBUG] ⚠️ NON apro finestra consonante (finalPrize=0 o mysterySafeFlat)');

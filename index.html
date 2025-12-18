@@ -183,9 +183,12 @@
   <div id="setup-panel" class="container">
     <h1 style="color:var(--col-accent); font-size:3em; margin-bottom:10px; text-shadow:0 0 20px rgba(255,215,0,0.3);">LA RUOTA</h1>
     <label for="inp-name" style="color:#fff; font-size:1.2em; display:block; margin-bottom:5px;">Nome Giocatore:</label>
-    <input id="inp-name" type="text" placeholder="NOME GIOCATORE" aria-label="Nome giocatore"><br>
+    <input id="inp-name" type="text" placeholder="NOME GIOCATORE" aria-label="Nome giocatore" aria-describedby="inp-name-display"><br>
+    <div id="inp-name-display" style="color:#0f0; font-size:1.5em; min-height:1.5em; margin:-15px 0 10px 0;" aria-live="polite"></div>
+    
     <label for="inp-code" style="color:#fff; font-size:1.2em; display:block; margin-bottom:5px; margin-top:10px;">Codice Stanza (opzionale):</label>
-    <input id="inp-code" type="text" placeholder="CODICE STANZA (OPZ)" aria-label="Codice stanza opzionale"><br>
+    <input id="inp-code" type="text" placeholder="CODICE STANZA (OPZ)" aria-label="Codice stanza opzionale" aria-describedby="inp-code-display"><br>
+    <div id="inp-code-display" style="color:#0f0; font-size:1.5em; min-height:1.5em; margin:-15px 0 10px 0;" aria-live="polite"></div>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; width:100%;">
       <button id="btn-create-room" class="action-btn btn-spin">CREA NUOVA</button>
       <button id="btn-join-room" class="action-btn btn-vowel">ENTRA</button>
@@ -288,7 +291,7 @@
       <div class="controls-grid" style="grid-template-columns:1fr 1fr 1fr;">
         <button onclick="submitInput()" class="action-btn btn-spin">OK</button>
         <button onclick="document.getElementById('game-input').value=''; document.getElementById('game-input').focus();" class="action-btn" style="background:linear-gradient(180deg,#ff8800,#cc6600); border-color:#ff8800;">SVUOTA</button>
-        <button onclick="closeInput()" class="action-btn btn-pass">ANNULLA</button>
+        <button id="btn-cancel-input" onclick="tryCancelInput()" class="action-btn btn-pass">ANNULLA</button>
       </div>
     </div>
   </div>
@@ -579,6 +582,24 @@
           }
         }
       });
+      
+      // Aggiorna display per inp-name
+      document.getElementById('inp-name')?.addEventListener('input', (e) => {
+        const value = e.target.value;
+        const display = document.getElementById('inp-name-display');
+        if(display){
+          display.textContent = value || '(vuoto)';
+        }
+      });
+      
+      // Aggiorna display per inp-code
+      document.getElementById('inp-code')?.addEventListener('input', (e) => {
+        const value = e.target.value;
+        const display = document.getElementById('inp-code-display');
+        if(display){
+          display.textContent = value || '(vuoto)';
+        }
+      });
 
       document.getElementById('game-input').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
@@ -586,6 +607,7 @@
             submitInput();
         }
       });
+      
       document.getElementById('chat-input').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -1005,7 +1027,19 @@
       
       const boardMsg = `Tabellone: ${totalWords} parole, ${totalLetters} lettere totali, ${revealedLetters} scoperte.`;
       
-      speak(`${turnMsg} ${boardMsg}`);
+      // Aggiungi categoria e hint
+      const category = document.getElementById('live-category')?.textContent || '';
+      const hint = document.getElementById('round-hint')?.textContent || '';
+      
+      let categoryMsg = '';
+      if(category && category !== '...') {
+        categoryMsg = ` Categoria: ${category}.`;
+      }
+      if(hint) {
+        categoryMsg += ` ${hint}.`;
+      }
+      
+      speak(`${turnMsg} ${boardMsg}${categoryMsg}`);
     }
 
     function announceScore(){
@@ -1039,23 +1073,23 @@
           const sorted = [...freshStanza.giocatori].sort((a,b) => (b.punteggio_totale||0) - (a.punteggio_totale||0));
           sorted.forEach((p, i) => {
             const div = document.createElement('div');
-            div.style = 'background:#111; border:1px solid #333; padding:15px; margin:15px 0; border-radius:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;';
+            div.style = 'background:#111; border:1px solid #333; padding:15px; margin-bottom:20px; border-radius:8px; display:flex; flex-direction:column; gap:10px;';
             
             const info = document.createElement('span');
-            info.style = 'color:#ddd; font-size:1.1em; flex:1; min-width:200px;';
-            info.innerHTML = `<strong style="color:var(--col-accent);">${i+1}.</strong> ${p.nome} - <strong>${p.punteggio_totale||0}€</strong> (Giro: ${p.punteggio_round||0}€)`;
+            info.style = 'color:#ddd; font-size:1.1em;';
+            info.innerHTML = `<strong style="color:var(--col-accent);">${i+1}.</strong> ${p.nome} - <strong>${p.punteggio_totale||0} €</strong> (Giro: ${p.punteggio_round||0} €)`;
             div.appendChild(info);
             
             
             if(isHost && p.id !== myId){
               const btnContainer = document.createElement('div');
-              btnContainer.style = 'display:flex; gap:5px; flex-wrap:wrap;';
+              btnContainer.style = 'display:flex; gap:8px; flex-wrap:wrap;';
               
               
               const btnHost = document.createElement('button');
               btnHost.textContent = 'PASSA HOST';
               btnHost.className = 'action-btn';
-              btnHost.style = 'padding:8px 12px; font-size:0.9em; background:#1a5490; border-color:#4a90e2; min-height:auto;';
+              btnHost.style = 'padding:10px 15px; font-size:0.9em; background:#1a5490; border-color:#4a90e2; min-height:auto;';
               btnHost.onclick = () => transferHost(p.id, p.nome);
               btnContainer.appendChild(btnHost);
               
@@ -1063,7 +1097,7 @@
               const btnDel = document.createElement('button');
               btnDel.textContent = 'ELIMINA';
               btnDel.className = 'action-btn';
-              btnDel.style = 'padding:8px 12px; font-size:0.9em; background:#8b0000; border-color:#ff0000; min-height:auto;';
+              btnDel.style = 'padding:10px 15px; font-size:0.9em; background:#8b0000; border-color:#ff0000; min-height:auto;';
               btnDel.onclick = () => removePlayer(p.id, p.nome);
               btnContainer.appendChild(btnDel);
               
@@ -1152,44 +1186,93 @@
       if(!isHost) return;
       if(!confirm(`Eliminare ${playerName}?`)) return;
       
-      
-      await _supabase.from('giocatori').delete().eq('id', playerId);
-      
-      
-      const {data: remainingPlayers} = await _supabase.from('giocatori').select('*').eq('stanza_id', roomId).order('indice');
-      if(remainingPlayers && remainingPlayers.length > 0){
-        for(let i=0; i<remainingPlayers.length; i++){
-          await _supabase.from('giocatori').update({indice: i}).eq('id', remainingPlayers[i].id);
+      try {
+        // Elimina il giocatore (usa sia stanza_id che id per sicurezza)
+        const {error: deleteError} = await _supabase
+          .from('giocatori')
+          .delete()
+          .eq('stanza_id', roomId)
+          .eq('id', playerId);
+          
+        if(deleteError){
+          console.error('Errore eliminazione giocatore:', deleteError);
+          alert('Errore nell\'eliminazione: ' + deleteError.message);
+          return;
         }
         
-        await _supabase.from('stanze').update({id_giocatore_corrente: 0}).eq('id', roomId);
+        // Riorganizza gli indici
+        const {data: remainingPlayers} = await _supabase.from('giocatori').select('*').eq('stanza_id', roomId).order('indice');
+        if(remainingPlayers && remainingPlayers.length > 0){
+          for(let i=0; i<remainingPlayers.length; i++){
+            await _supabase.from('giocatori').update({indice: i}).eq('id', remainingPlayers[i].id);
+          }
+          
+          // Reset turno corrente
+          await _supabase.from('stanze').update({
+            id_giocatore_corrente: 0,
+            ultima_azione: 'elimina_giocatore',
+            ultimo_messaggio: `${playerName} eliminato`,
+            azione_timestamp: new Date().toISOString()
+          }).eq('id', roomId);
+        }
+        
+        speak(`${playerName} eliminato. Turni resettati.`);
+        
+        // Aggiorna subito lo stato
+        await fetchFullState();
+        
+        // Riapri il pannello giocatori aggiornato
+        setTimeout(() => openPlayersPanel(), 300);
+        
+      } catch(e){
+        console.error('Errore removePlayer:', e);
+        alert('Errore: ' + e.message);
       }
-      
-      speak(`${playerName} eliminato. Turni resettati.`);
-      closePlayers();
-      
-      
-      await fetchFullState();
     }
 
     async function transferHost(newHostId, newHostName){
       if(!isHost) return;
       if(!confirm(`Passare il controllo della stanza a ${newHostName}?`)) return;
       
-      
-      await _supabase.from('giocatori').update({is_host: false}).eq('id', myId);
-      
-      
-      await _supabase.from('giocatori').update({is_host: true}).eq('id', newHostId);
-      
-      
-      isHost = false;
-      
-      speak(`${newHostName} è ora l'host della stanza.`);
-      closePlayers();
-      
-      
-      await fetchFullState();
+      try {
+        // Rimuovi host al vecchio
+        const {error: removeError} = await _supabase.from('giocatori').update({is_host: false}).eq('id', myId);
+        if(removeError){
+          console.error('Errore rimozione host:', removeError);
+          alert('Errore: ' + removeError.message);
+          return;
+        }
+        
+        // Assegna host al nuovo
+        const {error: assignError} = await _supabase.from('giocatori').update({is_host: true}).eq('id', newHostId);
+        if(assignError){
+          console.error('Errore assegnazione host:', assignError);
+          alert('Errore: ' + assignError.message);
+          return;
+        }
+        
+        // Aggiorna stato locale
+        isHost = false;
+        
+        // Aggiorna database stanza
+        await _supabase.from('stanze').update({
+          ultima_azione: 'passa_host',
+          ultimo_messaggio: `${newHostName} è ora l'host`,
+          azione_timestamp: new Date().toISOString()
+        }).eq('id', roomId);
+        
+        speak(`${newHostName} è ora l'host della stanza.`);
+        
+        // Aggiorna stato
+        await fetchFullState();
+        
+        // Riapri pannello aggiornato
+        setTimeout(() => openPlayersPanel(), 300);
+        
+      } catch(e){
+        console.error('Errore transferHost:', e);
+        alert('Errore: ' + e.message);
+      }
     }
 
     async function shareRoom(){
@@ -1317,6 +1400,13 @@
       // ESC deve funzionare SEMPRE, anche in input mode
       if(k === 'escape'){
          e.preventDefault();
+         
+         // Se sei in modalità consonante (letter), NON chiudere!
+         if(inputMode === 'letter'){
+           speak("Non puoi annullare la consonante! Devi inserirla.");
+           return;
+         }
+         
          ['player-check-overlay','chat-overlay','help-panel','players-panel','action-history-panel','input-area','word-inspector-overlay','mystery-choice-overlay'].forEach(id => {
             const el = document.getElementById(id);
             if(el) el.classList.add('hidden');
@@ -2299,7 +2389,7 @@
       }
     }
 
-    function passTurn(){
+    async function passTurn(){
       if(isHandlingTimeout) return;
       if(Date.now() - lastAutoPassTime < 5000) return; 
       lastAutoPassTime = Date.now();
@@ -2323,7 +2413,23 @@
       let nextInd = s.giocatori[nextIdx].indice;
       
       
-      _supabase.from('stanze').update({id_giocatore_corrente:nextInd,montepremi_round:0,fase_speciale:0,ultima_azione:'timeout',ultimo_messaggio:'Cambio turno',azione_timestamp:new Date().toISOString()}).eq('id', roomId).then(()=>{ isHandlingTimeout=false; });
+      const {error} = await _supabase.from('stanze').update({
+        id_giocatore_corrente:nextInd,
+        montepremi_round:0,
+        fase_speciale:0,
+        ultima_azione:'passa_turno',
+        ultimo_messaggio:'Cambio turno',
+        azione_timestamp:new Date().toISOString()
+      }).eq('id', roomId);
+      
+      if(error){
+        console.error('Errore passTurn:', error);
+      }
+      
+      isHandlingTimeout=false;
+      
+      // Forza refresh
+      await fetchFullState();
     }
 
     function openInput(mode){
@@ -2407,8 +2513,34 @@
         else speak("Scrivi una consonante.");
       }
       
+      // Nascondi/mostra bottone ANNULLA in base al mode
+      const btnCancel = document.getElementById('btn-cancel-input');
+      if(btnCancel){
+        if(mode === 'letter'){
+          // Consonante: nascondi ANNULLA
+          btnCancel.style.display = 'none';
+        } else {
+          // Vocale/Risolvi: mostra ANNULLA
+          btnCancel.style.display = 'flex';
+        }
+      }
+      
       setTimeout(()=>inp.focus(),100);
     }
+    
+    function tryCancelInput(){
+      // Se è una consonante (letter mode), NON permettere l'annullamento
+      if(inputMode === 'letter'){
+        playAudio('snd-miss');
+        speak("Non puoi annullare la consonante! Devi inserirla.");
+        alert("Non puoi annullare!\n\nDevi inserire una consonante dopo aver girato la ruota.");
+        return;
+      }
+      
+      // Altrimenti chiudi normalmente (vocale, risolvi)
+      closeInput();
+    }
+    
     function closeInput(){ 
       const inp = document.getElementById('game-input');
       
@@ -2623,7 +2755,7 @@
           addActionToHistory(`${myName}: ${char} NON PRESENTE`);
           
           await _supabase.from('stanze').update({ultima_azione:'errore',ultimo_messaggio:`${myName}: ${char} assente`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
-          passTurn();
+          await passTurn();
         }
       }
       isProcessingInput=false;

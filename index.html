@@ -2329,8 +2329,16 @@
           currentPuzzleText = fullSolutionText;
         }
         
-        else if(fullSolutionText.includes(" - ")){
-          const p=fullSolutionText.split(" - ");
+        else if(fullSolutionText.includes(" - ") || fullSolutionText.includes("–") || fullSolutionText.includes(" – ")){
+          // Gestisci diversi formati di trattino
+          let p;
+          if(fullSolutionText.includes(" – ")){
+            p = fullSolutionText.split(" – ");
+          } else if(fullSolutionText.includes("–")){
+            p = fullSolutionText.split("–");
+          } else {
+            p = fullSolutionText.split(" - ");
+          }
           currentHintText=p[0].trim();
           currentPuzzleText=p[1].trim();
         } else {

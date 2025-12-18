@@ -2018,14 +2018,17 @@
       if(finalPrize > 0 && !mysterySafeFlat) {
         console.log('[DEBUG] ✅ Apertura automatica consonante...');
         
-        // FORZA refresh dello stato PRIMA di aprire la finestra
-        console.log('[DEBUG] Forzo refresh dello stato...');
-        await fetchFullState();
+        // WORKAROUND: Aggiorna manualmente currentStanza invece di fare fetchFullState
+        // (problema con RLS che non vede subito l'update)
+        console.log('[DEBUG] Aggiorno manualmente currentStanza.montepremi_round da', currentStanza?.montepremi_round, 'a', finalPrize);
+        if(currentStanza) {
+          currentStanza.montepremi_round = finalPrize;
+          currentStanza.fase_speciale = nextFaseSpeciale;
+          currentStanza.ultima_azione = 'gira_ruota';
+          currentStanza.ultimo_messaggio = msg;
+        }
         
-        // Aspetta che l'UI si aggiorni
-        await new Promise(r=>setTimeout(r, 300));
-        
-        console.log('[DEBUG] Stato aggiornato, currentStanza.montepremi_round:', currentStanza?.montepremi_round);
+        console.log('[DEBUG] Stato aggiornato manualmente, currentStanza.montepremi_round:', currentStanza?.montepremi_round);
         openInput('letter');
       } else {
         console.log('[DEBUG] ⚠️ NON apro finestra consonante (finalPrize=0 o mysterySafeFlat)');

@@ -194,10 +194,10 @@
     <div id="inp-name-display" style="color:#0f0; font-size:1.5em; min-height:1.5em; margin:5px 0 10px 0;" aria-hidden="true"></div>
     
     <label for="inp-code" style="color:#fff; font-size:1.2em; display:block; margin-bottom:5px; margin-top:10px;">
-      Codice Stanza: <span style="color:#888; font-size:0.9em;">(lascia vuoto per creare nuova)</span>
+      Codice Stanza: <span style="color:#888; font-size:0.9em;">(scegli un codice per creare, es: AMICI23)</span>
     </label>
     <div style="display:flex; gap:10px; align-items:center; width:90%; margin:0 auto;">
-      <input id="inp-code" type="text" placeholder="CODICE PER ENTRARE" aria-label="Codice stanza, lascia vuoto per creare nuova stanza" aria-required="false" style="flex:1; margin-bottom:0;">
+      <input id="inp-code" type="text" placeholder="SCRIVI UN CODICE" aria-label="Codice stanza da creare o per entrare" aria-required="true" style="flex:1; margin-bottom:0;">
       <button onclick="document.getElementById('inp-code').value=''; document.getElementById('inp-code-display').textContent='(vuoto)'; document.getElementById('inp-code').focus();" class="action-btn" aria-label="Cancella codice" style="background:#cc0000; padding:10px 15px; min-height:auto; font-size:1em; margin-bottom:0;">CANC</button>
     </div>
     <div id="inp-code-display" style="color:#0f0; font-size:1.5em; min-height:1.5em; margin:5px 0 10px 0;" aria-hidden="true"></div>
@@ -552,7 +552,7 @@
 
     
     
-    const FREQ_CONS_GROUPS = [;
+    const FREQ_CONS_GROUPS = [
       ['R','T','N'],        
       ['S','L','C'],        
       ['D','P','M'],        
@@ -1631,7 +1631,12 @@
     async function createRoomFinal(isPublic){
       document.getElementById('privacy-dialog').classList.add('hidden');
       let cd=document.getElementById('inp-code').value.trim().toUpperCase();
-      if(!cd) cd="STANZA-"+Math.floor(Math.random()*9999);
+      if(!cd) {
+        speak("Devi inserire un codice stanza");
+        document.getElementById('setup-panel').classList.remove('hidden');
+        document.getElementById('inp-code').focus();
+        return;
+      }
       joinGame(true, cd, isPublic);
     }
     async function fetchPublicRooms(){

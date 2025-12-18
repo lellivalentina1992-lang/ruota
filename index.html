@@ -209,7 +209,7 @@
     </div>
     
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; width:100%;">
-      <button id="btn-create-room" class="action-btn btn-spin">CREA NUOVA<br><span style="font-size:0.8em;">(senza codice)</span></button>
+      <button id="btn-create-room" class="action-btn btn-spin">CREA NUOVA STANZA</button>
       <button id="btn-join-room" class="action-btn btn-vowel">ENTRA<br><span style="font-size:0.8em;">(con codice)</span></button>
     </div>
     <div id="public-rooms-container" style="width:100%; margin-top:30px;">
@@ -558,7 +558,7 @@
       ['D','P','M'],        
       ['G','B','F','V']     
     ];
-    const FREQ_VOW_GROUPS = [;
+    const FREQ_VOW_GROUPS = [
       ['A','E'],            
       ['I','O'],            
       ['U']                 
@@ -2079,7 +2079,7 @@
       _supabase.from('stanze').update({id_giocatore_corrente:nextPlayerUUID,montepremi_round:0,fase_speciale:0,ultima_azione:'timeout',ultimo_messaggio:'Cambio turno',azione_timestamp:new Date().toISOString()}).eq('id', roomId);
     }
 
-    function updateUI(s){
+    async function updateUI(s){
       if (!s || !s.giocatori) return;
       currentStanza=s;
       s.giocatori.sort((a,b)=>a.indice-b.indice);

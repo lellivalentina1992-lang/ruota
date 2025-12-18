@@ -303,10 +303,10 @@
     </div>
   </div>
 
-  <div id="help-panel" class="hidden" role="dialog">
-    <div class="modal-content" style="max-width:700px; text-align:left;">
-      <h2 style="color:var(--col-neon);">TASTI RAPIDI</h2>
-      <ul style="line-height:1.8; color:#ddd;">
+  <div id="help-panel" class="hidden" style="position:fixed; top:0; left:0; right:0; bottom:0; width:100vw; height:100vh; background:var(--bg-body); z-index:9999; overflow-y:auto; padding:20px;">
+    <div style="max-width:700px; margin:0 auto; text-align:left;">
+      <h2 style="color:var(--col-neon); margin-top:20px;">TASTI RAPIDI</h2>
+      <ul style="line-height:1.8; color:#ddd; font-size:1.1em;">
         <li><strong>G</strong> o <strong>Ctrl+G</strong>: Gira la ruota</li>
         <li><strong>V</strong> o <strong>Ctrl+V</strong>: Compra vocale</li>
         <li><strong>R</strong> o <strong>Ctrl+R</strong>: Risolvi</li>
@@ -316,11 +316,47 @@
         <li><strong>S</strong> o <strong>Ctrl+S</strong>: Controlli e Classifica</li>
         <li><strong>L</strong> o <strong>Ctrl+L</strong>: Lettere uscite</li>
         <li><strong>A</strong> o <strong>Ctrl+A</strong>: Storico azioni</li>
+        <li><strong>D</strong> o <strong>Ctrl+D</strong>: Ascolta punteggio (parziale e totale)</li>
         <li><strong>B</strong> o <strong>Ctrl+B</strong>: Aggiungi Bot veloce (Solo Host)</li>
         <li><strong>H</strong> o <strong>Ctrl+H</strong>: Aiuto</li>
+        <li><strong>I</strong>: Ispeziona parola (navigazione accessibile)</li>
+        <li><strong>Spazio</strong>: Riapri ultimo input</li>
+        <li><strong>Frecce</strong>: Naviga tra parole e lettere</li>
         <li><strong>ESC</strong>: Chiudi finestre</li>
+        <li><strong>1-4</strong>: Effetti sonori (applauso, risata, fischi, ooh)</li>
       </ul>
-      <button onclick="closeHelp()" class="action-btn full-width">CHIUDI (ESC)</button>
+      
+      <h2 style="color:var(--col-neon); margin-top:30px;">REGOLE DEL GIOCO</h2>
+      <div style="color:#ddd; line-height:1.6;">
+        <p><strong>La Ruota della Fortuna</strong> è un gioco dove devi indovinare frasi nascoste lettera per lettera.</p>
+        
+        <h3 style="color:var(--col-accent);">Come si gioca:</h3>
+        <ul>
+          <li><strong>Gira la ruota (G)</strong> per scoprire quanto vale ogni consonante che indovini</li>
+          <li><strong>Di una consonante</strong> quando la ruota si ferma - se è presente guadagni!</li>
+          <li><strong>Compra vocale (V)</strong> costa 250€ ma ti aiuta a capire la frase</li>
+          <li><strong>Risolvi (R)</strong> quando pensi di sapere la frase completa</li>
+          <li><strong>Passa (P)</strong> se non sai cosa fare - il turno passa al prossimo</li>
+        </ul>
+        
+        <h3 style="color:var(--col-accent);">Settori speciali della ruota:</h3>
+        <ul>
+          <li><strong>PERDE TUTTO (☠)</strong> - Perdi tutto il punteggio del round corrente!</li>
+          <li><strong>PASSA (→)</strong> - Il turno passa automaticamente</li>
+          <li><strong>JOLLY (★)</strong> - Scegli qualsiasi consonante gratis</li>
+          <li><strong>MISTERO (?)</strong> - Scegli se aprire (rischio/opportunità) o prendere 500€ sicuri</li>
+        </ul>
+        
+        <h3 style="color:var(--col-accent);">Punteggio:</h3>
+        <ul>
+          <li>Ogni consonante presente vale quanto indicato dalla ruota</li>
+          <li>Chi risolve la frase guadagna 1000€ bonus</li>
+          <li>Il punteggio del round si aggiunge al totale quando qualcuno risolve</li>
+          <li>Vince chi ha più soldi alla fine della partita!</li>
+        </ul>
+      </div>
+      
+      <button onclick="closeHelp()" class="action-btn btn-solve" style="margin:30px 0; width:100%;">CHIUDI (ESC)</button>
     </div>
   </div>
 
@@ -459,6 +495,10 @@
     let specialVowelsGiven = 0; 
     let lettersCalledThisRound = []; 
     
+    // Cleanup variables
+    let gameChannel = null;
+    let chatChannel = null;
+    let turnTimerInterval = null;
     
     
     (function(){
@@ -581,6 +621,22 @@
       const a=document.getElementById(id);
       if(a){ a.pause(); a.currentTime=0; a.play().catch(()=>{}); }
     }
+    
+    async function playSharedAudio(soundId, soundName){
+      // Riproduci localmente
+      playAudio(soundId);
+      
+      // Condividi con tutti i giocatori
+      if(roomId && myId){
+        const myName = document.getElementById('inp-name').value;
+        const message = `[SOUND:${soundId}]${soundName}`;
+        await _supabase.from('chat_messaggi').insert({
+          stanza_id: roomId, 
+          giocatore_nome: myName, 
+          messaggio: message
+        });
+      }
+    }
     function playMultipleHits(count) {
         let i = 0;
         const interval = setInterval(() => {
@@ -593,6 +649,11 @@
       isMuted=!isMuted;
       document.getElementById('btn-mute').textContent = isMuted ? 'AUDIO OFF' : 'AUDIO ON';
       speak(isMuted ? "Audio disattivato" : "Audio attivato");
+    }
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
     }
     function cleanStr(s){ return (s && typeof s === 'string') ? s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"") : ""; }
     
@@ -945,6 +1006,20 @@
       speak(`${turnMsg} ${boardMsg}`);
     }
 
+    function announceScore(){
+      if(!currentStanza) return;
+      const me = currentStanza.giocatori.find(p=>p.id===myId);
+      if(!me){
+        speak("Nessun giocatore trovato");
+        return;
+      }
+      
+      const roundScore = me.punteggio_round || 0;
+      const totalScore = me.punteggio_totale || 0;
+      
+      speak(`Punteggio parziale: ${roundScore} euro. Punteggio totale: ${totalScore} euro.`);
+    }
+
     async function openPlayersPanel(){
       const panel = document.getElementById('players-panel');
       panel.classList.remove('hidden');
@@ -1248,8 +1323,8 @@
          return;
       }
 
-      if(document.activeElement && document.activeElement.tagName==='INPUT') return;
-
+      const isInInput = document.activeElement && document.activeElement.tagName==='INPUT';
+      
       if(isMysteryModalOpen){
         const btn1 = document.getElementById('btn-mystery-open');
         const btn2 = document.getElementById('btn-mystery-500');
@@ -1267,29 +1342,35 @@
       if(k==='arrowdown'){ e.preventDefault(); moveWordNav(1); return; }
       if(k==='arrowleft'){ e.preventDefault(); moveNav(-1); return; }
       if(k==='arrowright'){ e.preventDefault(); moveNav(1); return; }
-      if(k===' '){ e.preventDefault(); reopenLastInput(); return; }
-      if(k==='i'){ e.preventDefault(); openWordInspector(); return; }
+      if(k===' ' && !isInInput){ e.preventDefault(); reopenLastInput(); return; }
+      if(k==='i' && !isInInput){ e.preventDefault(); openWordInspector(); return; }
       
-      if(k==='1'){ playAudio('snd-clap'); return; }
-      if(k==='2'){ playAudio('snd-laugh'); return; }
-      if(k==='3'){ playAudio('snd-boo'); return; }
-      if(k==='4'){ playAudio('snd-ooh'); return; }
+      if(k==='1'){ playSharedAudio('snd-clap', '👏 Applauso'); return; }
+      if(k==='2'){ playSharedAudio('snd-laugh', '😂 Risata'); return; }
+      if(k==='3'){ playSharedAudio('snd-boo', '👎 Fischi'); return; }
+      if(k==='4'){ playSharedAudio('snd-ooh', '😮 Ooh'); return; }
       
       
-      if(k==='h' || (e.ctrlKey && k==='h')){ e.preventDefault(); const p=document.getElementById('help-panel'); if(p.classList.contains('hidden')) openHelp(); else closeHelp(); }
-      if(k==='g' || (e.ctrlKey && k==='g')){ e.preventDefault(); doSpin(); }
-      if(k==='v' || (e.ctrlKey && k==='v')){ e.preventDefault(); openInput('vowel'); }
-      if(k==='p' || (e.ctrlKey && k==='p')){ e.preventDefault(); passTurn(); }
-      if(k==='r' || (e.ctrlKey && k==='r')){ e.preventDefault(); openInput('solve'); }
-      if(k==='t' || (e.ctrlKey && k==='t')){ e.preventDefault(); announceTurn(); }
-      if(k==='k' || (e.ctrlKey && k==='k')){ e.preventDefault(); openChat(); }
-      if(k==='s' || (e.ctrlKey && k==='s')){ 
+      if((k==='h' && !isInInput) || (e.ctrlKey && k==='h')){ e.preventDefault(); const p=document.getElementById('help-panel'); if(p.classList.contains('hidden')) openHelp(); else closeHelp(); return; }
+      if((k==='g' && !isInInput) || (e.ctrlKey && k==='g')){ e.preventDefault(); doSpin(); return; }
+      if((k==='v' && !isInInput) || (e.ctrlKey && k==='v')){ e.preventDefault(); openInput('vowel'); return; }
+      if((k==='p' && !isInInput) || (e.ctrlKey && k==='p')){ e.preventDefault(); passTurn(); return; }
+      if((k==='r' && !isInInput) || (e.ctrlKey && k==='r')){ e.preventDefault(); openInput('solve'); return; }
+      if((k==='t' && !isInInput) || (e.ctrlKey && k==='t')){ e.preventDefault(); announceTurn(); return; }
+      if((k==='k' && !isInInput) || (e.ctrlKey && k==='k')){ e.preventDefault(); openChat(); return; }
+      if((k==='s' && !isInInput) || (e.ctrlKey && k==='s')){ 
         e.preventDefault(); 
         openPlayersPanel(); 
+        return;
       }
-      if(k==='l' || (e.ctrlKey && k==='l')){ e.preventDefault(); readRevealedLetters(); }
-      if(k==='a' || (e.ctrlKey && k==='a')){ e.preventDefault(); openActionHistory(true); }
-      if(k==='b' || (e.ctrlKey && k==='b')){ e.preventDefault(); addBot(); } 
+      if((k==='l' && !isInInput) || (e.ctrlKey && k==='l')){ e.preventDefault(); readRevealedLetters(); return; }
+      if((k==='a' && !isInInput) || (e.ctrlKey && k==='a')){ e.preventDefault(); openActionHistory(true); return; }
+      if((k==='d' && !isInInput) || (e.ctrlKey && k==='d')){ 
+        e.preventDefault(); 
+        announceScore(); 
+        return;
+      }
+      if((k==='b' && !isInInput) || (e.ctrlKey && k==='b')){ e.preventDefault(); addBot(); return; } 
     });
 
     function toggleAccessibleMode(){
@@ -1437,11 +1518,35 @@
           btnManagement.textContent = isHost ? 'CONTROLLI E CLASSIFICA (S)' : 'CLASSIFICA (S)';
         }
 
-        _supabase.channel('game').on('postgres_changes',{event:'UPDATE',schema:'public',table:'stanze',filter:`id=eq.${roomId}`},fetchFullState).subscribe();
-        _supabase.channel('chat').on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_messaggi',filter:`stanza_id=eq.${roomId}`},payload=>{
+        gameChannel = _supabase.channel('game').on('postgres_changes',{event:'UPDATE',schema:'public',table:'stanze',filter:`id=eq.${roomId}`},fetchFullState).subscribe();
+        chatChannel = _supabase.channel('chat').on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_messaggi',filter:`stanza_id=eq.${roomId}`},payload=>{
           
-          if(payload.new.giocatore_nome !== nm) {
-            speakChat(`${payload.new.giocatore_nome} scrive: ${payload.new.messaggio}`);
+          const message = payload.new.messaggio;
+          const senderName = payload.new.giocatore_nome;
+          
+          // Check if it's a sound effect
+          if(message.startsWith('[SOUND:')){
+            const soundMatch = message.match(/\[SOUND:([^\]]+)\](.+)/);
+            if(soundMatch){
+              const soundId = soundMatch[1];
+              const soundName = soundMatch[2];
+              
+              // Play the sound for everyone (including sender)
+              playAudio(soundId);
+              
+              // Speak it if it's from someone else
+              if(senderName !== nm) {
+                speakChat(`${senderName} ha fatto: ${soundName}`);
+              }
+              
+              // Show a visual notification
+              showFlashMessage(`${senderName} ${soundName}`, 'info');
+            }
+          } else {
+            // Normal chat message
+            if(senderName !== nm) {
+              speakChat(`${senderName} scrive: ${message}`);
+            }
           }
           
           const chatOverlay = document.getElementById('chat-overlay');
@@ -1451,7 +1556,7 @@
         }).subscribe();
 
         fetchFullState();
-        setInterval(checkTurnTimer, 1000);
+        turnTimerInterval = setInterval(checkTurnTimer, 1000);
         
         
         
@@ -2275,8 +2380,17 @@
     function closeInput(){ 
       const inp = document.getElementById('game-input');
       
-      const newInp = inp.cloneNode(true);
-      inp.parentNode.replaceChild(newInp, inp);
+      // Non svuotare il valore se è una consonante (letter mode)
+      if(inputMode !== 'letter') {
+        const newInp = inp.cloneNode(true);
+        inp.parentNode.replaceChild(newInp, inp);
+      } else {
+        // Per le consonanti, mantieni il valore
+        const currentValue = inp.value;
+        const newInp = inp.cloneNode(true);
+        newInp.value = currentValue;
+        inp.parentNode.replaceChild(newInp, inp);
+      }
       
       document.getElementById('input-area').classList.add('hidden'); 
       inputMode=null; 
@@ -2541,7 +2655,17 @@
           const d=document.createElement('div');
           d.style="border-bottom:1px solid #333; margin-bottom:5px; padding:8px;";
           d.tabIndex = 0;
-          d.innerHTML=`<strong style="color:var(--col-accent);">${m.giocatore_nome}:</strong> ${m.messaggio}`;
+          
+          // Check if it's a sound effect
+          if(m.messaggio.startsWith('[SOUND:')){
+            const soundMatch = m.messaggio.match(/\[SOUND:([^\]]+)\](.+)/);
+            if(soundMatch){
+              const soundName = escapeHtml(soundMatch[2]);
+              d.innerHTML=`<strong style="color:var(--col-accent);">${escapeHtml(m.giocatore_nome)}</strong> <span style="color:#aaa;">ha fatto:</span> <strong style="color:var(--col-neon); font-size:1.2em;">${soundName}</strong>`;
+            }
+          } else {
+            d.innerHTML=`<strong style="color:var(--col-accent);">${escapeHtml(m.giocatore_nome)}:</strong> ${escapeHtml(m.messaggio)}`;
+          }
           c.appendChild(d);
         });
         c.scrollTop=c.scrollHeight;
@@ -2551,7 +2675,17 @@
         const d=document.createElement('div');
         d.style="border-bottom:1px solid #333; margin-bottom:5px; padding:8px; font-size:1.1em;";
         d.tabIndex = 0;
-        d.innerHTML=`<strong style="color:var(--col-accent);">${lastMsg.giocatore_nome}:</strong> ${lastMsg.messaggio}`;
+        
+        // Check if it's a sound effect
+        if(lastMsg.messaggio.startsWith('[SOUND:')){
+          const soundMatch = lastMsg.messaggio.match(/\[SOUND:([^\]]+)\](.+)/);
+          if(soundMatch){
+            const soundName = escapeHtml(soundMatch[2]);
+            d.innerHTML=`<strong style="color:var(--col-accent);">${escapeHtml(lastMsg.giocatore_nome)}</strong> <span style="color:#aaa;">ha fatto:</span> <strong style="color:var(--col-neon); font-size:1.2em;">${soundName}</strong>`;
+          }
+        } else {
+          d.innerHTML=`<strong style="color:var(--col-accent);">${escapeHtml(lastMsg.giocatore_nome)}:</strong> ${escapeHtml(lastMsg.messaggio)}`;
+        }
         c.appendChild(d);
         
         
@@ -2802,6 +2936,20 @@
     }
 
     async function leaveGame(){
+      // Cleanup channels and timers
+      if(gameChannel) {
+        await gameChannel.unsubscribe();
+        gameChannel = null;
+      }
+      if(chatChannel) {
+        await chatChannel.unsubscribe();
+        chatChannel = null;
+      }
+      if(turnTimerInterval) {
+        clearInterval(turnTimerInterval);
+        turnTimerInterval = null;
+      }
+      
       if(roomId && myId){
         if(isHost){
           if(confirm("Sei l'host! Vuoi chiudere la stanza per tutti?")){

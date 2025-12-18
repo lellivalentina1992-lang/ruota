@@ -13,6 +13,18 @@
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Y3drcGRqYnlzbml2a25uaW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MzAwNDksImV4cCI6MjA3OTIwNjA0OX0.R8wkMJEmsP8cTVUUOcWtD4Rrg_ZhuOE-PYBJ56eGqMU'
   );
 
+  // --- LOGIN ANONIMO AUTOMATICO ---
+  (async () => {
+    const { data: { session } } = await _supabase.auth.getSession();
+    if (!session) {
+      console.log('[AUTH] Nessuna sessione, faccio login anonimo...');
+      await _supabase.auth.signInAnonymously();
+      console.log('[AUTH] Login anonimo completato');
+    } else {
+      console.log('[AUTH] Sessione già attiva:', session.user.id);
+    }
+  })();
+
   // --- PROTEZIONE AIRBAG EVOLUTA ---
   window.onerror = function(msg, url, line) {
     if (!msg || typeof msg !== 'string') return false;
@@ -870,7 +882,7 @@
       
       // RICARICA dati freschi dal database
       if(roomId){
-        const {data: freshStanza} = await _supabase.from('stanze').select('*, giocatori(*)').eq('id', roomId).single();
+        const {data: freshStanza} = await _supabase.from('stanze').select('*, giocatori(*)').eq('id', roomId).maybeSingle();
         if(freshStanza && freshStanza.giocatori && freshStanza.giocatori.length > 0){
           list.innerHTML = '<h3 style="color:var(--col-accent); margin-bottom:15px;">CLASSIFICA</h3>';
           
@@ -1296,10 +1308,10 @@
             lettere_rivelate:[],
             ultima_azione:'creazione', 
             azione_timestamp:new Date().toISOString()
-          }).select().single();
+          }).select().maybeSingle();
           st=data;
         } else {
-          const {data}=await _supabase.from('stanze').select('*').eq('codice',cd).single();
+          const {data}=await _supabase.from('stanze').select('*').eq('codice',cd).maybeSingle();
           if(!data) return speak("Stanza inesistente");
           st=data;
         }
@@ -1316,7 +1328,7 @@
             indice:myIndex,
             is_host:isHost,
             ultimo_ping: new Date().toISOString()
-          }).select().single();
+          }).select().maybeSingle();
           
           if(plError || !pl) {
             console.error('Errore inserimento giocatore:', plError);
@@ -1353,21 +1365,25 @@
         fetchFullState();
         setInterval(checkTurnTimer, 1000);
         
-        // SISTEMA HEARTBEAT: aggiorna ultimo_ping ogni 3 secondi
-        setInterval(async () => {
+        // SISTEMA HEARTBEAT DISABILITATO
+        /* setInterval(async () => {
           if(myId && roomId) {
-            await _supabase.from('giocatori').update({
+            console.log('[HEARTBEAT] Aggiorno ping per myId:', myId);
+            const result = await _supabase.from('giocatori').update({
               ultimo_ping: new Date().toISOString()
             }).eq('id', myId);
+            console.log('[HEARTBEAT] Risultato update:', result);
+          } else {
+            console.log('[HEARTBEAT] SKIP - myId:', myId, 'roomId:', roomId);
           }
-        }, 3000);
+        }, 3000); */
         
-        // CONTROLLO DISCONNESSIONI: ogni 10 secondi controlla chi è offline
-        if(isHost) {
+        // CONTROLLO DISCONNESSIONI DISABILITATO
+        /* if(isHost) {
           setInterval(async () => {
             await checkAndRemoveDisconnectedPlayers();
           }, 10000);
-        }
+        } */
       } catch(e){
         console.error(e);
         speak("Errore connessione.");
@@ -1396,7 +1412,7 @@
 
     async function tryUseJollyToAvoid(kindLabel){
       // Ricarica stato fresco per avere i dati aggiornati del giocatore
-      const {data:freshStanza} = await _supabase.from('stanze').select('*, giocatori(*)').eq('id', roomId).single();
+      const {data:freshStanza} = await _supabase.from('stanze').select('*, giocatori(*)').eq('id', roomId).maybeSingle();
       if(!freshStanza) return false;
       
       const me = freshStanza.giocatori.find(p=>p.id===myId);
@@ -1415,7 +1431,7 @@
       if(!isHost || !roomId) return;
       
       // RICARICA lo stato aggiornato dal database
-      const {data: freshStanza} = await _supabase.from('stanze').select('*, giocatori(*)').eq('id', roomId).single();
+      const {data: freshStanza} = await _supabase.from('stanze').select('*, giocatori(*)').eq('id', roomId).maybeSingle();
       if(!freshStanza) return;
       
       // CONTROLLO LIMITE GIOCATORI (sul dato fresco!)
@@ -2083,6 +2099,7 @@
       if(isProcessingInput) return;
       isProcessingInput=true;
       const txt=document.getElementById('game-input').value.trim().toUpperCase();
+      console.log('[DEBUG] submitInput chiamato, txt:', txt, 'mode:', inputMode);
       if(!txt){ isProcessingInput=false; return; }
       const mode=inputMode;
       closeInput();
@@ -2155,6 +2172,15 @@
 
         let foundIndices=[]; let gIdx=0;
         const sol=currentPuzzleText.toUpperCase();
+        console.log('[DEBUG] ===== CHIAMATA CONSONANTE =====');
+        console.log('[DEBUG] char chiamato:', char);
+        console.log('[DEBUG] currentPuzzleText:', currentPuzzleText);
+        console.log('[DEBUG] currentPuzzleText.toUpperCase():', sol);
+        console.log('[DEBUG] currentPuzzleText.length:', currentPuzzleText.length);
+        console.log('[DEBUG] Frase completa (fullSolutionText):', fullSolutionText);
+        console.log('[DEBUG] Hint:', currentHintText);
+        console.log('[DEBUG] montepremi_round:', s.montepremi_round);
+        console.log('[DEBUG] mode:', mode);
         
         // TRACCIA la lettera chiamata (per i bot)
         if(!lettersCalledThisRound.includes(char)) {
@@ -2163,10 +2189,18 @@
         
         for(let i=0;i<sol.length;i++){
           if(sol[i].match(/[A-ZÀ-Ù]/)){
-            if(cleanStr(sol[i])===cleanStr(char)) foundIndices.push(gIdx);
+            const solChar = sol[i];
+            const cleanSolChar = cleanStr(solChar);
+            const cleanInputChar = cleanStr(char);
+            if(cleanSolChar === cleanInputChar) {
+              foundIndices.push(gIdx);
+              console.log('[DEBUG] MATCH trovato! posizione:', i, 'indice:', gIdx, 'carattere:', solChar);
+            }
             gIdx++;
           }
         }
+        console.log('[DEBUG] Totale match trovati:', foundIndices.length);
+        console.log('[DEBUG] foundIndices:', foundIndices);
         if(foundIndices.length>0){
           // NON resettiamo più vowelsBoughtThisTurn qui - si resetta a ogni turno
           const newRev=[...new Set([...(s.lettere_rivelate||[]), ...foundIndices])];

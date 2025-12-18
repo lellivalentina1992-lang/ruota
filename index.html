@@ -2307,7 +2307,9 @@
             return;
           }
           
-          playAudio('snd-hit'); // SUONO LETTERA TROVATA
+          // SUONA una volta per ogni lettera trovata
+          playMultipleHits(newFoundIndices.length);
+          
           const newRev=[...new Set([...(s.lettere_rivelate||[]), ...foundIndices])];
           if(mode==='letter'){
             // RESET contatore vocali: hai chiamato una consonante con premio, quindi puoi comprare un'altra vocale

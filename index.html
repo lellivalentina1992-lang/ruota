@@ -182,8 +182,10 @@
 
   <div id="setup-panel" class="container">
     <h1 style="color:var(--col-accent); font-size:3em; margin-bottom:10px; text-shadow:0 0 20px rgba(255,215,0,0.3);">LA RUOTA</h1>
-    <input id="inp-name" type="text" placeholder="NOME GIOCATORE"><br>
-    <input id="inp-code" type="text" placeholder="CODICE STANZA (OPZ)"><br>
+    <label for="inp-name" style="color:#fff; font-size:1.2em; display:block; margin-bottom:5px;">Nome Giocatore:</label>
+    <input id="inp-name" type="text" placeholder="NOME GIOCATORE" aria-label="Nome giocatore"><br>
+    <label for="inp-code" style="color:#fff; font-size:1.2em; display:block; margin-bottom:5px; margin-top:10px;">Codice Stanza (opzionale):</label>
+    <input id="inp-code" type="text" placeholder="CODICE STANZA (OPZ)" aria-label="Codice stanza opzionale"><br>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; width:100%;">
       <button id="btn-create-room" class="action-btn btn-spin">CREA NUOVA</button>
       <button id="btn-join-room" class="action-btn btn-vowel">ENTRA</button>
@@ -211,8 +213,8 @@
       </div>
     </div>
     <div class="money-box">
-      <span>GIRO: <span id="score-round" style="color:#fff;">0</span>€</span>
-      <span>TOT: <span id="score-total" style="color:#fff;">0</span>€</span>
+      <span>GIRO: <span id="score-round" style="color:#fff;">0</span> €</span>
+      <span>TOT: <span id="score-total" style="color:#fff;">0</span> €</span>
     </div>
 
     <div class="category-box">
@@ -282,7 +284,7 @@
   <div id="input-area" class="hidden">
     <div class="modal-content">
       <h2 id="input-title" style="color:var(--col-accent);">INSERISCI</h2>
-      <input id="game-input" type="text" autocomplete="off">
+      <input id="game-input" type="text" autocomplete="off" aria-label="Campo di inserimento testo">
       <div class="controls-grid" style="grid-template-columns:1fr 1fr 1fr;">
         <button onclick="submitInput()" class="action-btn btn-spin">OK</button>
         <button onclick="document.getElementById('game-input').value=''; document.getElementById('game-input').focus();" class="action-btn" style="background:linear-gradient(180deg,#ff8800,#cc6600); border-color:#ff8800;">SVUOTA</button>
@@ -295,7 +297,7 @@
     <div class="modal-content" style="height:80%; max-width:600px; display:flex; flex-direction:column;">
       <h2 style="color:var(--col-neon);">CHAT</h2>
       <div id="chat-messages" tabindex="0" role="log" aria-live="polite" style="flex:1; overflow-y:auto; text-align:left; border:1px solid #444; padding:10px; margin-bottom:10px; background:#000; color:#ddd;"></div>
-      <input id="chat-input" type="text" placeholder="Messaggio..." style="font-size:1.2em; width:95%; margin-bottom:10px;">
+      <input id="chat-input" type="text" placeholder="Messaggio..." aria-label="Scrivi messaggio chat" style="font-size:1.2em; width:95%; margin-bottom:10px;">
       <div style="display:flex; gap:10px; width:100%;">
         <button onclick="sendChatMessage()" class="action-btn btn-vowel" style="flex:1;">INVIA</button>
         <button onclick="document.getElementById('chat-overlay').classList.add('hidden')" class="action-btn btn-pass" style="flex:1;">CHIUDI</button>

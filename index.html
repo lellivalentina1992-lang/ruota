@@ -2444,11 +2444,20 @@
           currentPuzzleText=fullSolutionText;
         }
         
-        document.getElementById('live-category').textContent=currentFrase.categoria;
-        document.getElementById('round-hint').textContent=currentHintText;
+        // ✅ Mostra categoria + hint (se presente) per TUTTE le categorie
+        const categoryDisplay = currentHintText 
+          ? `${currentFrase.categoria} - ${currentHintText}` 
+          : currentFrase.categoria;
+        
+        document.getElementById('live-category').textContent = categoryDisplay;
+        document.getElementById('round-hint').textContent = currentHintText;
         vowelsBoughtThisTurn=0;
         parseAndRenderBoard(currentPuzzleText, s.lettere_rivelate, true); // ✅ Reset navigazione per nuova frase
-        speak(`Nuovo Round. Categoria: ${currentFrase.categoria}. ${currentHintText}`);
+        
+        const speakText = currentHintText 
+          ? `Nuovo Round. Categoria: ${currentFrase.categoria}. ${currentHintText}` 
+          : `Nuovo Round. Categoria: ${currentFrase.categoria}`;
+        speak(speakText);
       }
 
       document.getElementById('round-indicator').textContent = `R ${s.round_giocati}/10`;
@@ -2649,25 +2658,37 @@
       let mysterySafeFlat=false;
 
       if(val==='MISTERO'){
-        const openIt = await askMysteryChoice(); 
-        if(!openIt){
+        // ✅ Nel round speciale: MISTERO dà automaticamente 500€ (no scelta, no rischi)
+        if(isSpecialRound && !specialVowelsPhase) {
           val = 500;
           mysterySafeFlat = true;
-          speak("Hai scelto 500 euro sicuri");
+          speak("Mistero nel round speciale: 500 euro automatici!");
+          await _supabase.from('stanze').update({
+            ultimo_messaggio:`${myName} becca MISTERO - 500€ automatici nel round speciale`,
+            azione_timestamp:new Date().toISOString()
+          }).eq('id', roomId);
         } else {
-          val = MISTERO_VALUES[Math.floor(Math.random()*MISTERO_VALUES.length)];
-          
-          
-          let mysteryResultText = "";
-          if(val === 'BANCAROTTA') mysteryResultText = "BANCAROTTA!";
-          else if(val === 'RADDOPPIA') mysteryResultText = "RADDOPPIA!";
-          else if(val === '+1000') mysteryResultText = "+1000 EURO!";
-          else if(val === 'JOLLY') mysteryResultText = "JOLLY!";
-          else if(val === 'PASSA' || val === 'PASSA_TURNO') mysteryResultText = "PASSA TURNO";
-          else if(val === 'PASSA_AVVERSARIO') mysteryResultText = "PASSA ALL'AVVERSARIO";
-          else mysteryResultText = `${val}`;
-          
-          speak(`Mistero svelato: ${mysteryResultText}`);
+          // Round normale: chiedi scelta
+          const openIt = await askMysteryChoice(); 
+          if(!openIt){
+            val = 500;
+            mysterySafeFlat = true;
+            speak("Hai scelto 500 euro sicuri");
+          } else {
+            val = MISTERO_VALUES[Math.floor(Math.random()*MISTERO_VALUES.length)];
+            
+            
+            let mysteryResultText = "";
+            if(val === 'BANCAROTTA') mysteryResultText = "BANCAROTTA!";
+            else if(val === 'RADDOPPIA') mysteryResultText = "RADDOPPIA!";
+            else if(val === '+1000') mysteryResultText = "+1000 EURO!";
+            else if(val === 'JOLLY') mysteryResultText = "JOLLY!";
+            else if(val === 'PASSA' || val === 'PASSA_TURNO') mysteryResultText = "PASSA TURNO";
+            else if(val === 'PASSA_AVVERSARIO') mysteryResultText = "PASSA ALL'AVVERSARIO";
+            else mysteryResultText = `${val}`;
+            
+            speak(`Mistero svelato: ${mysteryResultText}`);
+          }
         }
       }
 
@@ -2679,18 +2700,24 @@
         if(saved) return;
         
         
+        // ✅ Nel round speciale, BANCAROTTA rigira automaticamente - devi prendere soldi per chiamare!
         if(isSpecialRound && !specialVowelsPhase){
-          await _supabase.from('giocatori').update({punteggio_round:0}).eq('id', myId);
           await _supabase.from('stanze').update({
-            ultimo_messaggio:`${myName} becca BANCAROTTA! Punteggio azzerato. RIGIRA OBBLIGATORIO!`,
+            ultimo_messaggio:`${myName} becca BANCAROTTA! Nel round speciale RIGIRA AUTOMATICAMENTE! (${specialConsonantsUsed}/10 consonanti)`,
             azione_timestamp:new Date().toISOString()
           }).eq('id', roomId);
-          speak("BANCAROTTA! Devi rigirare!");
           
+          speak("BANCAROTTA nel round speciale! Rigiri automaticamente!");
+          showFlashMessage('RIGIRA AUTOMATICAMENTE!', 'bad');
+          
+          // Rigira automaticamente dopo 2 secondi
+          setTimeout(() => {
+            doSpin();
+          }, 2000);
           return;
         }
         
-        
+        // Round normale: perde tutto e passa turno
         await _supabase.from('giocatori').update({punteggio_round:0, punteggio_totale:0}).eq('id', myId);
         await _supabase.from('stanze').update({
           fase_speciale:0,
@@ -2713,6 +2740,24 @@
         const saved=await tryUseJollyToAvoid(label);
         if(saved) return;
         
+        // ✅ Nel round speciale, PASSA non esiste - rigira automaticamente!
+        if(isSpecialRound && !specialVowelsPhase) {
+          await _supabase.from('stanze').update({
+            ultimo_messaggio:`${myName} becca ${label}! Nel round speciale RIGIRA AUTOMATICAMENTE! (${specialConsonantsUsed}/10 consonanti)`,
+            azione_timestamp:new Date().toISOString()
+          }).eq('id', roomId);
+          
+          speak("PASSA nel round speciale! Rigiri automaticamente!");
+          showFlashMessage('RIGIRA AUTOMATICAMENTE!', 'bad');
+          
+          // Rigira automaticamente dopo 2 secondi
+          setTimeout(() => {
+            doSpin();
+          }, 2000);
+          return;
+        }
+        
+        // Round normale: azzera fase_speciale e passa turno
         await _supabase.from('stanze').update({
           fase_speciale:0,
           ultima_azione:'gira_ruota',
@@ -3599,9 +3644,9 @@
           azione_timestamp:new Date().toISOString()
         }).eq('id', roomId);
         
-        // ✅ Dopo 1 secondo, inizia la raccolta delle vocali
+        // ✅ Dopo 2 secondi, inizia la raccolta delle vocali
         if(isHost) {
-          setTimeout(() => startVowelCollection(), 1000);
+          setTimeout(() => startVowelCollection(), 2000);
         }
         
       } else {
@@ -3955,16 +4000,23 @@
       specialConsonantsUsed = 0;
       specialVowelsPhase = true;
       specialVowelsGiven = 0;
+      lettersCalledThisRound = []; // ✅ Reset lettere chiamate per la nuova frase
       
       const nextPhraseId = specialPhraseIds[specialPhraseIndex];
       await _supabase.from('stanze').update({
         frase_corrente_id: nextPhraseId,
         lettere_rivelate:[],
         montepremi_round:0,
-        fase_speciale:100, 
+        fase_speciale:100, // Fase vocali
         ultimo_messaggio:`${solverName} risolve! Frase ${specialPhraseIndex + 1}/4 - ${getSpecialVowelInstructions()}`,
         azione_timestamp:new Date().toISOString()
       }).eq('id', roomId);
+      
+      // ✅ Riavvia la raccolta vocali dopo 2 secondi
+      speak(`Frase risolta! Frase ${specialPhraseIndex + 1} su 4. Raccolta vocali...`);
+      setTimeout(() => {
+        startVowelCollection();
+      }, 2000);
     }
 
     async function leaveGame(){

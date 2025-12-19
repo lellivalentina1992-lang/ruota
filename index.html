@@ -242,8 +242,8 @@
     </div>
 
     <div class="category-box">
-      <h2 id="live-category" aria-live="polite">...</h2>
-      <h3 id="round-hint" aria-live="polite"></h3>
+      <h2 id="live-category">...</h2>
+      <h3 id="round-hint"></h3>
       <div id="jolly-indicator" class="hidden" style="color:#ff00ff; font-weight:bold; margin-top:5px; font-size:1.1em; text-shadow:0 0 5px #ff00ff;"></div>
       <div id="double-indicator" class="hidden" style="color:orange; font-weight:bold; margin-top:5px; font-size:1.1em; text-shadow:0 0 5px red; border:1px solid red; padding:2px;">RADDOPPIA ATTIVO! GIRA ANCORA!</div>
       <div id="special-round-indicator" class="hidden" style="color:cyan; font-weight:bold; margin-top:5px; font-size:1.1em; text-shadow:0 0 5px cyan; border:1px solid cyan; padding:5px; border-radius:5px;"></div>
@@ -577,7 +577,7 @@
     let currentFrase=null, currentStanza=null, currentPuzzleText="", currentHintText="", fullSolutionText="";
     let lastTimestamp="", isSpinning=false, inputMode=null, parsedBoard=[];
     let isFetching=false, isProcessingInput=false, isHandlingTimeout=false;
-    let vowelsBoughtThisTurn=0, wasMyTurn=false;
+    let vowelsBoughtThisTurn=0, wasMyTurn=false, wasBotTurn=false;
     let actionHistory=[];
     let isAccessibleMode=false;
     let speechTimeouts=[];
@@ -593,6 +593,14 @@
     let specialPhase = 0; 
     let lastAutoPassTime = 0;
     let isBotThinking = false;
+    const BOT_BREATH_TIME = 1200; // Pausa tra azioni bot per far "respirare" il gioco
+    
+    // Helper per resettare isBotThinking con delay
+    function botFinishAction(delayMs = BOT_BREATH_TIME) {
+      setTimeout(() => {
+        isBotThinking = false;
+      }, delayMs);
+    }
     let previousPlayersList = []; 
     
     
@@ -2151,9 +2159,13 @@
         return;
       }
       
-      const botNames = ["BOT Giulia", "BOT Matteo"];
+      const botNames = [
+        "BOT Giulia", "BOT Matteo", "BOT Sofia", "BOT Luca",
+        "BOT Elena", "BOT Marco", "BOT Chiara", "BOT Andrea",
+        "BOT Francesca", "BOT Alessandro", "BOT Federico", "BOT Lorenzo"
+      ];
       const usedNames = freshStanza.giocatori.map(p => p.nome);
-      const name = botNames.find(n => !usedNames.includes(n)) || "BOT " + Math.floor(Math.random()*100);
+      const name = botNames.find(n => !usedNames.includes(n)) || "BOT " + Math.floor(Math.random()*1000);
       const lastInd = freshStanza.giocatori[freshStanza.giocatori.length-1].indice;
       
       await _supabase.from('giocatori').insert({
@@ -2210,14 +2222,14 @@
           if(Math.random() < 0.10) {
              await _supabase.from('stanze').update({ultima_azione: 'errore', ultimo_messaggio: `${botPlayer.nome} tenta ma sbaglia la soluzione!`, azione_timestamp: new Date().toISOString()}).eq('id', roomId);
              passTurnBot();
-             isBotThinking = false;
+             botFinishAction();
              return;
           }
           
           console.log(`Bot risolve: ${revealedInCurrentPhrase}/${totalLetters} lettere (${Math.round(ratio*100)}%)`);
           await _supabase.from('giocatori').update({punteggio_totale:(botPlayer.punteggio_totale||0)+(botPlayer.punteggio_round||0)+1000, punteggio_round:0}).eq('id', botPlayer.id);
           await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${botPlayer.nome} HA RISOLTO LA FRASE!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
-          isBotThinking = false;
+          botFinishAction();
           return;
        }
 
@@ -2226,7 +2238,7 @@
           const errorChar = lettersCalledThisRound[Math.floor(Math.random()*lettersCalledThisRound.length)];
           await _supabase.from('stanze').update({ultima_azione: 'errore', ultimo_messaggio: `${botPlayer.nome} richiama la "${errorChar}" già provata!`, azione_timestamp: new Date().toISOString()}).eq('id', roomId);
           passTurnBot();
-          isBotThinking = false;
+          botFinishAction();
           return;
        }
 
@@ -2270,7 +2282,7 @@
               if(Math.random() < takeSafe) {
                  // Prende 500€ sicuri
                  await _supabase.from('stanze').update({montepremi_round:500,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} gira MISTERO: prende 500€ sicuri!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
-                 isBotThinking = false;
+                 botFinishAction();
                  return;
               } else {
                  // Apre il mistero - pesca un valore random da MISTERO_VALUES
@@ -2286,7 +2298,7 @@
               const newEndR = Math.min(startR + 4, 10);
               await _supabase.from('giocatori').update({scadenza_jolly:newEndR}).eq('id', botPlayer.id);
               await _supabase.from('stanze').update({montepremi_round:0,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} pesca JOLLY! Attivo fino al round ${newEndR}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
-              isBotThinking = false;
+              botFinishAction();
               return;
            }
            
@@ -2294,14 +2306,14 @@
            if(val === '+1000') {
               await _supabase.from('giocatori').update({punteggio_round:(botPlayer.punteggio_round||0)+1000}).eq('id', botPlayer.id);
               await _supabase.from('stanze').update({montepremi_round:0,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} becca +1000€! Gira ancora!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
-              isBotThinking = false;
+              botFinishAction();
               return;
            }
            
            // RADDOPPIA: attiva raddoppio e gira ancora
            if(val === 'RADDOPPIA') {
               await _supabase.from('stanze').update({montepremi_round:0,fase_speciale:2,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} trova RADDOPPIA! Gira ancora!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
-              isBotThinking = false;
+              botFinishAction();
               return;
            }
            
@@ -2314,7 +2326,7 @@
                   // Usa il JOLLY per evitare la bancarotta
                   await _supabase.from('giocatori').update({scadenza_jolly:0}).eq('id', botPlayer.id);
                   await _supabase.from('stanze').update({montepremi_round:0,fase_speciale:0,ultima_azione:'jolly',ultimo_messaggio:`${botPlayer.nome} usa JOLLY per evitare BANCAROTTA!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
-                  isBotThinking = false;
+                  botFinishAction();
                   return;
                }
                
@@ -2322,7 +2334,7 @@
                await _supabase.from('giocatori').update({punteggio_round:0, punteggio_totale:0}).eq('id', botPlayer.id);
                await _supabase.from('stanze').update({montepremi_round:0,fase_speciale:0,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} gira: BANCAROTTA! Perde tutto.`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
                passTurnBot();
-               isBotThinking = false;
+               botFinishAction();
                return;
            }
 
@@ -2333,13 +2345,13 @@
                if(hasJolly) {
                   await _supabase.from('giocatori').update({scadenza_jolly:0}).eq('id', botPlayer.id);
                   await _supabase.from('stanze').update({montepremi_round:0,fase_speciale:0,ultima_azione:'jolly',ultimo_messaggio:`${botPlayer.nome} usa JOLLY per evitare PASSA TURNO!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
-                  isBotThinking = false;
+                  botFinishAction();
                   return;
                }
                
                await _supabase.from('stanze').update({montepremi_round:0,fase_speciale:0,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} gira: PASSA TURNO!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
                passTurnBot();
-               isBotThinking = false;
+               botFinishAction();
                return;
            }
 
@@ -2351,7 +2363,7 @@
            }
            
            await _supabase.from('stanze').update({montepremi_round:prize,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} gira: ${val}€`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
-           isBotThinking = false; 
+           botFinishAction(); 
            return; 
        } else {
            
@@ -2398,12 +2410,12 @@
                if(isVowel) await _supabase.from('giocatori').update({punteggio_round:(botPlayer.punteggio_round||0)-costVowel}).eq('id', botPlayer.id);
                vowelsBoughtThisTurn++; // ✅ FIX: Incrementa contatore vocali anche se non trovata
                await _supabase.from('stanze').update({ultima_azione:'errore',ultimo_messaggio:`${botPlayer.nome}: La "${chosenChar}" è assente.`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
-               isBotThinking = false; 
+               botFinishAction(); // Pausa prima di passare il turno
                passTurnBot();
                return; 
            }
        }
-       isBotThinking = false;
+       botFinishAction(); // Pausa prima della prossima azione
     }
 
     function isLetterAlreadyRevealedOnBoard(char, stanza) {
@@ -2590,11 +2602,15 @@
       document.getElementById('round-indicator').textContent = `R ${s.round_giocati}/10`;
       
       // ✅ Aggiorna sempre la categoria con hint (se presente) - persiste anche dopo cambio fase
+      // Ma SOLO se è cambiata (per evitare troppi aggiornamenti DOM)
       if(currentFrase) {
         const categoryDisplay = currentHintText 
           ? `${currentFrase.categoria} - ${currentHintText}` 
           : currentFrase.categoria;
-        document.getElementById('live-category').textContent = categoryDisplay;
+        const categoryElement = document.getElementById('live-category');
+        if(categoryElement.textContent !== categoryDisplay) {
+          categoryElement.textContent = categoryDisplay;
+        }
       }
       
       // ✅ UUID: Trova giocatore corrente per UUID (non per indice!)
@@ -2604,11 +2620,16 @@
       if(currentPlayer) {
       }
       
-      if(isHost && currentPlayer && currentPlayer.nome.startsWith("BOT")){
-          // Avvisa l'utente che c'è un bot (potrebbe essere non voluto)
-          const botWarning = `Rilevato ${currentPlayer.nome}. Se non l'hai aggiunto tu, puoi eliminarlo dal pannello Giocatori (tasto S).`;
-          showFlashMessage(botWarning, 'warning');
-          speak(`Turno del bot: ${currentPlayer.nome}`);
+      const isBotTurn = isHost && currentPlayer && currentPlayer.nome.startsWith("BOT");
+      
+      if(isBotTurn){
+          // Annuncia SOLO se il turno è appena cambiato al bot
+          if(!wasBotTurn) {
+            // Avvisa l'utente che c'è un bot (potrebbe essere non voluto)
+            const botWarning = `Rilevato ${currentPlayer.nome}. Se non l'hai aggiunto tu, puoi eliminarlo dal pannello Giocatori (tasto S).`;
+            showFlashMessage(botWarning, 'warning');
+            speak(`Turno del bot: ${currentPlayer.nome}`);
+          }
           
           playBotTurn(currentPlayer);
       } else {
@@ -2628,6 +2649,7 @@
       }
       
       wasMyTurn=isMe;
+      wasBotTurn=isBotTurn;
       
       const who=currentPlayer?.nome;
       document.getElementById('turn-indicator').textContent=isMe ? "TOCCA A TE" : `Turno di ${who||'...'}`;
@@ -2740,9 +2762,15 @@
       if(isAccessibleMode) updateAccessibleBoard();
       
       // CORREZIONE: Ripristina il focus dopo il rendering
-      // Ma SOLO se NON è stato appena aperto il campo consonante automaticamente
-      // (perché openInput ha il suo setTimeout che gestirà il focus)
-      if(!willOpenInput){
+      // Se abbiamo appena aperto il campo, il focus va sul campo DOPO parseAndRenderBoard
+      if(willOpenInput){
+        setTimeout(() => {
+          const inp = document.getElementById('game-input');
+          if(inp) {
+            inp.focus();
+          }
+        }, 50); // Breve delay per permettere al DOM di stabilizzarsi
+      } else if(!willOpenInput){
         setTimeout(() => {
           if(focusedId && focusedId !== 'body'){
             const elementToFocus = document.getElementById(focusedId);
@@ -3224,10 +3252,13 @@
         }
       }
       
-      // ✅ ACCESSIBILITÀ: Focus semplice senza strattonamenti per mantenere NVDA in focus mode
-      setTimeout(() => {
-        inp.focus();
-      }, 100);
+      // ✅ FOCUS: Per apertura manuale (vocale/risolvi) il focus va qui
+      // Per apertura automatica (consonante dopo giro ruota) il focus è gestito in updateUI dopo parseAndRenderBoard
+      if(mode !== 'letter') {
+        setTimeout(() => {
+          inp.focus();
+        }, 100);
+      }
     }
     
     function tryCancelInput(){

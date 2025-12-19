@@ -123,7 +123,7 @@
     #input-area, #privacy-dialog, #chat-overlay, #player-check-overlay, #round-over-panel, #end-panel, #pause-panel, #help-panel, #players-panel, #action-history-panel, #mystery-choice-overlay, #word-inspector-overlay, #result-popup {
       position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
       width: 100vw !important; height: 100vh !important; background: rgba(0,0,0,0.96) !important; z-index: 9999 !important;
-      display: flex; flex-direction: column; justify-content: center; align-items: center; overflow-y: hidden; backdrop-filter: blur(5px);
+      display: flex; flex-direction: column; justify-content: center; align-items: center; overflow-y: auto; backdrop-filter: blur(5px);
     }
     #result-popup .modal-content {
       background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
@@ -322,8 +322,8 @@
     </div>
   </div>
 
-  <div id="help-panel" class="hidden" style="position:fixed; top:0; left:0; right:0; bottom:0; width:100vw; height:100vh; background:var(--bg-body); z-index:9999; overflow-y:auto; padding:20px;">
-    <div style="max-width:700px; margin:0 auto; text-align:left;">
+  <div id="help-panel" class="hidden">
+    <div class="modal-content" style="max-width:700px; text-align:left; max-height:85vh; overflow-y:auto;">
       <h1 style="color:var(--col-accent); text-align:center; margin-top:10px;">GUIDA COMPLETA</h1>
       
       <h2 style="color:var(--col-neon); margin-top:30px;">PULSANTI PRINCIPALI (in alto)</h2>
@@ -1751,7 +1751,8 @@
       
       if((k==='h' && !isInInput) || (e.ctrlKey && k==='h')){ e.preventDefault(); const p=document.getElementById('help-panel'); if(p.classList.contains('hidden')) openHelp(); else closeHelp(); return; }
       if((k==='g' && !isInInput) || (e.ctrlKey && k==='g')){ e.preventDefault(); doSpin(); return; }
-      if((k==='v' && !isInInput) || (e.ctrlKey && k==='v')){ e.preventDefault(); tryOpenVowelInput(); return; }
+      // ✅ SOLO V è bloccato con Ctrl perché Ctrl+V deve incollare, non aprire vocale
+      if(k==='v' && !isInInput){ e.preventDefault(); tryOpenVowelInput(); return; }
       if((k==='p' && !isInInput) || (e.ctrlKey && k==='p')){ 
       e.preventDefault(); 
       // ✅ CORREZIONE CHATGPT: Passa solo se è il tuo turno o sei host
@@ -2928,8 +2929,13 @@
         inp.value = template;
         
         // ✅ MODIFICA LIBERA: Permetti editing completo del campo
+        // Rimuovi vecchi listener per evitare leak
+        const oldInput = inp.cloneNode(true);
+        inp.parentNode.replaceChild(oldInput, inp);
+        const inp2 = document.getElementById('game-input');
+        
         // Converti automaticamente in maiuscolo mentre l'utente digita
-        inp.addEventListener('input', function(e) {
+        inp2.addEventListener('input', function(e) {
           // Salva la posizione del cursore
           const cursorPos = e.target.selectionStart;
           
@@ -2942,6 +2948,14 @@
           // Ripristina la posizione del cursore
           e.target.setSelectionRange(cursorPos, cursorPos);
         });
+        
+        // Re-aggiungi listener per Enter
+        inp2.onkeydown = (e) => {
+          if(e.key === 'Enter') {
+            e.preventDefault();
+            submitInput();
+          }
+        };
         
         speak("Risolvi. Completa gli asterischi con le lettere mancanti.");
       } else {

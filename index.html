@@ -332,7 +332,7 @@
   <div id="input-area" class="hidden">
     <div class="modal-content">
       <h2 id="input-title" style="color:var(--col-accent);">INSERISCI</h2>
-      <input id="game-input" type="text" autocomplete="off" aria-label="Campo di inserimento testo">
+      <input id="game-input" type="text" autocomplete="off" autofocus aria-label="Campo di inserimento testo" aria-describedby="input-title">
       <div class="controls-grid" style="grid-template-columns:1fr 1fr 1fr;">
         <button onclick="submitInput()" class="action-btn btn-spin">OK</button>
         <button onclick="document.getElementById('game-input').value=''; document.getElementById('game-input').focus();" class="action-btn" style="background:linear-gradient(180deg,#ff8800,#cc6600); border-color:#ff8800;">SVUOTA</button>
@@ -2185,10 +2185,27 @@
        const s = currentStanza;
        const totalLetters = currentPuzzleText.replace(/[^A-ZÀ-Ù]/g, '').length;
        const revealedIndices = s.lettere_rivelate || [];
-       const ratio = revealedIndices.length / totalLetters;
-
        
-       if(ratio >= 0.90 && Math.random() > 0.3) {
+       // ✅ CORREZIONE: Conta solo le lettere DELLA FRASE CORRENTE (non di tutto il round)
+       const phraseUpper = currentPuzzleText.toUpperCase();
+       let revealedInCurrentPhrase = 0;
+       let posInBoard = 0;
+       
+       for(let i = 0; i < phraseUpper.length; i++) {
+         if(phraseUpper[i].match(/[A-ZÀ-Ù]/)) {
+           if(revealedIndices.includes(posInBoard)) {
+             revealedInCurrentPhrase++;
+           }
+           posInBoard++;
+         }
+       }
+       
+       const ratio = revealedInCurrentPhrase / totalLetters;
+       
+       // ✅ Vincolo minimo: deve essere rivelato almeno l'80% DELLA FRASE + minimo 5 lettere
+       const minLettersNeeded = Math.max(5, Math.floor(totalLetters * 0.5));
+       
+       if(ratio >= 0.80 && revealedInCurrentPhrase >= minLettersNeeded && Math.random() > 0.3) {
           
           if(Math.random() < 0.10) {
              await _supabase.from('stanze').update({ultima_azione: 'errore', ultimo_messaggio: `${botPlayer.nome} tenta ma sbaglia la soluzione!`, azione_timestamp: new Date().toISOString()}).eq('id', roomId);
@@ -2197,6 +2214,7 @@
              return;
           }
           
+          console.log(`Bot risolve: ${revealedInCurrentPhrase}/${totalLetters} lettere (${Math.round(ratio*100)}%)`);
           await _supabase.from('giocatori').update({punteggio_totale:(botPlayer.punteggio_totale||0)+(botPlayer.punteggio_round||0)+1000, punteggio_round:0}).eq('id', botPlayer.id);
           await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${botPlayer.nome} HA RISOLTO LA FRASE!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
           isBotThinking = false;
@@ -2238,11 +2256,15 @@
            
            // MISTERO: il bot sceglie intelligentemente
            if(val === 'MISTERO') {
-              let takeSafe = 0.5; 
+              let takeSafe = 0.5; // default 50%
+              
+              // ✅ LOGICA CORRETTA: 
+              // Pochi soldi → rischia di più (non ha niente da perdere)
+              // Tanti soldi → più conservativo (ha molto da perdere con bancarotta)
               if(botMoney < 500) {
-                 takeSafe = 0.80; 
+                 takeSafe = 0.20; // 20% prende sicuro, 80% rischia (coraggioso!)
               } else if(botMoney > 1500) {
-                 takeSafe = 0.30; 
+                 takeSafe = 0.75; // 75% prende sicuro, 25% rischia (conservativo)
               }
               
               if(Math.random() < takeSafe) {
@@ -3043,10 +3065,23 @@
       await fetchFullState();
     }
 
+    // ✅ ACCESSIBILITÀ: Variabile per salvare l'elemento che ha aperto l'input
+    let lastFocusedElement = null;
+    
     function openInput(mode){
+      // ✅ ACCESSIBILITÀ: Salva l'elemento attualmente focalizzato
+      lastFocusedElement = document.activeElement;
+      
       inputMode=mode;
       lastInputMode=mode; 
-      document.getElementById('input-area').classList.remove('hidden');
+      const inputArea = document.getElementById('input-area');
+      inputArea.classList.remove('hidden');
+      
+      // ✅ ACCESSIBILITÀ: Imposta attributi ARIA per screen reader
+      inputArea.setAttribute('role', 'dialog');
+      inputArea.setAttribute('aria-modal', 'true');
+      inputArea.setAttribute('aria-labelledby', 'input-title');
+      
       const inp=document.getElementById('game-input');
       
       
@@ -3086,6 +3121,9 @@
         inp.parentNode.replaceChild(oldInput, inp);
         const inp2 = document.getElementById('game-input');
         
+        // ✅ ACCESSIBILITÀ: Aggiungi label e descrizione per screen reader
+        inp2.setAttribute('aria-label', 'Campo per risolvere la frase. Completa gli asterischi con le lettere mancanti.');
+        
         // Converti automaticamente in maiuscolo mentre l'utente digita
         inp2.addEventListener('input', function(e) {
           // Salva la posizione del cursore
@@ -3112,10 +3150,13 @@
         speak("Risolvi. Completa gli asterischi con le lettere mancanti.");
       } else {
         inp.value='';
-        if(mode==='vowel') speak("Scrivi una vocale.");
-        else {
-          // ✅ FIX 2: Annuncio automatico dopo giro ruota
+        // ✅ ACCESSIBILITÀ: Label appropriata per ogni modalità
+        if(mode==='vowel') {
+          inp.setAttribute('aria-label', 'Campo per inserire una vocale');
+          speak("Scrivi una vocale.");
+        } else {
           const montepremi = currentStanza?.montepremi_round || 0;
+          inp.setAttribute('aria-label', `Campo per inserire una consonante. Hai girato ${montepremi} euro.`);
           speak(`Hai girato ${montepremi} euro. Scrivi una consonante.`);
         }
       }
@@ -3132,9 +3173,16 @@
         }
       }
       
-      // ✅ FIX: Aumento il timeout a 300ms per dare tempo al sistema di aprire il campo
-      // prima di dargli il focus, evitando che il gioco si impalli
-      setTimeout(()=>inp.focus(),300);
+      // ✅ ACCESSIBILITÀ MIGLIORATA: Focus immediato e multiplo per garantire che lo screen reader lo rilevi
+      inp.focus();
+      requestAnimationFrame(() => {
+        inp.focus();
+        inp.select(); // Seleziona il testo per facilitare l'editing
+      });
+      setTimeout(() => {
+        inp.focus();
+        inp.select();
+      }, 100);
     }
     
     function tryCancelInput(){
@@ -3166,7 +3214,14 @@
       }
       
       document.getElementById('input-area').classList.add('hidden'); 
-      inputMode=null; 
+      inputMode=null;
+      
+      // ✅ ACCESSIBILITÀ: Ripristina il focus all'elemento che ha aperto l'input
+      if(lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+        setTimeout(() => {
+          lastFocusedElement.focus();
+        }, 100);
+      }
     }
 
     async function submitInput(){

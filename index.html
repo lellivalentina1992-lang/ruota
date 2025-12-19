@@ -576,7 +576,7 @@
     let myId, myIndex, roomId, isHost=false;
     let currentFrase=null, currentStanza=null, currentPuzzleText="", currentHintText="", fullSolutionText="";
     let lastTimestamp="", isSpinning=false, inputMode=null, parsedBoard=[];
-    let isFetching=false, isProcessingInput=false, isHandlingTimeout=false, justClosedInput=false;
+    let isFetching=false, isProcessingInput=false, isHandlingTimeout=false;
     let vowelsBoughtThisTurn=0, wasMyTurn=false;
     let actionHistory=[];
     let isAccessibleMode=false;
@@ -2363,6 +2363,12 @@
 
            if(!chosenChar) chosenChar = "Z"; 
 
+           // ✅ FIX: Aggiungi la lettera chiamata PRIMA di verificare se è presente
+           // Altrimenti il bot richiamerà all'infinito lettere sbagliate!
+           if(!lettersCalledThisRound.includes(chosenChar)) {
+               lettersCalledThisRound.push(chosenChar);
+           }
+
            
            let foundIndices = []; let gIdx = 0;
            const sol = currentPuzzleText.toUpperCase();
@@ -2725,8 +2731,7 @@
       // Si apre SOLO se non c'è già un campo aperto (inputMode è null)
       // Se l'utente ha manualmente aperto vocale o risolvi, NON sovrascrivere
       // NON riapre se è ancora in fase di processing (evita riapertura dopo submit)
-      // NON riapre se il campo è appena stato chiuso (evita loop di apertura/chiusura)
-      const willOpenInput = canManual && wasInputModeNull && !isProcessingInput && !justClosedInput;
+      const willOpenInput = canManual && wasInputModeNull && !isProcessingInput;
       if(willOpenInput) {
         openInput('letter');
       }
@@ -2746,9 +2751,7 @@
             }
           } else if(focusedTag === 'INPUT' && inputMode){
             // Se era un input e c'è una modalità input attiva, ripristinalo
-            if(inputMode === 'letter') document.getElementById('consonant-input')?.focus();
-            else if(inputMode === 'vowel') document.getElementById('vowel-input')?.focus();
-            else if(inputMode === 'solve') document.getElementById('solve-input')?.focus();
+            document.getElementById('game-input')?.focus();
           }
         }, 50);
       }
@@ -3017,8 +3020,8 @@
             elementToFocus.focus();
           }
         } else if(focusedTag === 'INPUT'){
-          // Se era un input, prova a rimettere il focus sul campo consonante
-          document.getElementById('consonant-input')?.focus();
+          // Se era un input, prova a rimettere il focus sul campo di gioco
+          document.getElementById('game-input')?.focus();
         }
       }, 100);
       
@@ -3257,12 +3260,6 @@
       
       document.getElementById('input-area').classList.add('hidden'); 
       inputMode=null;
-      
-      // ✅ FIX: Imposta flag per impedire riapertura automatica immediata
-      justClosedInput = true;
-      setTimeout(() => { justClosedInput = false; }, 1000);
-      
-      // ✅ NON ripristiniamo il focus per evitare strattonamenti che fanno uscire NVDA dalla focus mode
     }
 
     async function submitInput(){
@@ -3657,11 +3654,10 @@
         }
       }
       
-      isProcessingInput=false;
-      
-      setTimeout(() => {
-        if(roomId) fetchFullState();
-      }, 1500); // ✅ Aumentato a 1.5 secondi per dare tempo al DB di aggiornarsi
+      setTimeout(async () => {
+        if(roomId) await fetchFullState();
+        isProcessingInput=false; // ✅ Reset DOPO il fetch, così updateUI vede i dati freschi
+      }, 300); // ✅ Ridotto a 300ms per reattività migliore
     }
 
     function checkTurnTimer(){

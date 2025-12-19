@@ -2759,6 +2759,16 @@
       if(btnManagement) {
         btnManagement.textContent = isHost ? 'CONTROLLI E CLASSIFICA (S)' : 'CLASSIFICA (S)';
       }
+      
+      // ✅ MANTIENI IL FOCUS: Se il campo di input è ancora aperto dopo l'update UI, re-focalizzalo
+      if(inputMode) {
+        const inp = document.getElementById('game-input');
+        if(inp && !inp.classList.contains('hidden')) {
+          setTimeout(() => {
+            inp.focus();
+          }, 50);
+        }
+      }
     }
 
     function animateWheelSpin(){
@@ -2986,7 +2996,27 @@
           currentStanza.ultimo_messaggio = msg;
         }
         
-        openInput('letter');
+        // ✅ NOTA: Non serve chiamare openInput('letter') qui perché viene già chiamato 
+        // da updateUI (che è stato chiamato da fetchFullState sopra) quando rileva 
+        // che montepremi_round > 0
+        
+        // ✅ FOCUS GARANTITO: Dopo che updateUI ha aperto il campo, forzare il focus con multipli tentativi
+        // per assicurarsi che non venga perso da altri aggiornamenti UI
+        setTimeout(() => {
+          const inp = document.getElementById('game-input');
+          if(inp) {
+            inp.focus();
+            inp.select();
+          }
+        }, 100);
+        setTimeout(() => {
+          const inp = document.getElementById('game-input');
+          if(inp) inp.focus();
+        }, 300);
+        setTimeout(() => {
+          const inp = document.getElementById('game-input');
+          if(inp) inp.focus();
+        }, 600);
       } else {
         // ✅ CORREZIONE: Aggiorna manualmente currentStanza per sincronizzazione immediata
         if(currentStanza) {
@@ -3615,32 +3645,6 @@
           await passTurn();
         }
       }
-      
-      // ✅ RIAPRI AUTOMATICAMENTE il campo appropriato dopo l'azione
-      // Questo permette all'utente di continuare a giocare senza perdere il focus
-      // Salva il mode corrente prima che venga resettato
-      const savedMode = mode;
-      
-      setTimeout(async () => {
-        if(roomId) {
-          // Ricarica lo stato fresco per verificare la situazione
-          const { data: freshState } = await _supabase
-            .from('stanze')
-            .select('*')
-            .eq('id', roomId)
-            .single();
-          
-          if(freshState && freshState.id_giocatore_corrente === myId && !inputMode && freshState.stato === 'gioco' && !freshState.in_pausa) {
-            // Se l'ultima azione è stata chiamare una CONSONANTE (letter mode) E montepremi_round è 0
-            // significa che la consonante è stata trovata e posso continuare
-            if(savedMode === 'letter' && freshState.ultima_azione === 'chiama_lettera' && freshState.montepremi_round === 0) {
-              openInput('letter');
-            }
-            // Per le vocali normali (non round speciale), non riaprire automaticamente
-            // L'utente deve scegliere se girare la ruota o fare altro
-          }
-        }
-      }, 1200); // Delay di 1.2 secondi per dare tempo al DB di aggiornarsi
       
       isProcessingInput=false;
       

@@ -2369,7 +2369,7 @@
         const currentPlayerExists = s.giocatori.some(p => p.id === s.id_giocatore_corrente);
         if(!currentPlayerExists) {
           showFlashMessage('Il giocatore corrente è uscito. Passaggio automatico del turno.', 'info');
-          setTimeout(() => passTurn(), 500); 
+          setTimeout(() => passTurn(), 1500); // ✅ Aumentato a 1.5 secondi
         }
       }
 
@@ -2515,7 +2515,7 @@
       }
 
       let canSpin=isMe && !isSpinning && !inputMode && s.montepremi_round===0 && !isProcessingInput;
-      let canSolve=isMe && !isSpinning && !inputMode && !isProcessingInput;
+      let canSolve=isMe && !isSpinning && !inputMode && !isProcessingInput; // ✅ Puoi sempre risolvere quando è il tuo turno
       let canPass=isMe && !isSpinning && !isProcessingInput;
       let canVowel=isMe && !isSpinning && !inputMode && !isProcessingInput;
       
@@ -2569,20 +2569,19 @@
       btnV.textContent=`VOCALE (€${vCost})`;
 
       let canManual=isMe && !isSpinning && !inputMode && s.montepremi_round>0;
-      document.getElementById('btn-manual-cons').classList.add('hidden'); 
+      
       const btnSurrender = document.getElementById('btn-surrender');
       if(btnSurrender) {
-        
-        
-        
-// ✅ Mostra pulsante ARRENDITI solo per l'host nel round speciale fase 102 (10 consonanti date, tutti possono risolvere)
-const btnSurrender = document.getElementById('btn-surrender');
-if(btnSurrender) {
-  const showSurrender = isHost && isSpecialRound && s.fase_speciale === 102;
-  btnSurrender.classList.toggle('hidden', !showSurrender);
-}
+        const showSurrender = isHost && isSpecialRound && s.fase_speciale === 102;
+        btnSurrender.classList.toggle('hidden', !showSurrender);
       }
-      if(canManual && !inputMode) openInput('letter');
+      
+      // ✅ APERTURA AUTOMATICA CAMPO CONSONANTE: 
+      // Si apre SOLO se non c'è già un campo aperto (inputMode è null)
+      // Se l'utente ha manualmente aperto vocale o risolvi, NON sovrascrivere
+      if(canManual && !inputMode) {
+        openInput('letter');
+      }
 
       parseAndRenderBoard(currentPuzzleText, s.lettere_rivelate);
       if(isAccessibleMode) updateAccessibleBoard();
@@ -3092,10 +3091,10 @@ if(btnSurrender) {
             azione_timestamp:new Date().toISOString()
           }).eq('id', roomId);
           
-          // Suona per ogni occorrenza
+          // ✅ Suona per ogni occorrenza (400ms tra i suoni)
           for(let i = 0; i < foundIndices.length; i++) {
             playRandomCorrectSound();
-            await new Promise(resolve => setTimeout(resolve, 200));
+            await new Promise(resolve => setTimeout(resolve, 400));
           }
         } else {
           await _supabase.from('stanze').update({
@@ -3307,6 +3306,12 @@ if(btnSurrender) {
             
             const gain = (s.fase_speciale===3) ? (s.montepremi_round||0) : ((s.montepremi_round||0) * newFoundIndices.length);
             
+            // ✅ FIX CRITICO: Aggiorna cache locale PRIMA dell'update DB
+            // Questo previene che updateUI() riapra il campo prima che il DB si aggiorni
+            if(currentStanza) {
+              currentStanza.montepremi_round = 0;
+              currentStanza.fase_speciale = 0;
+            }
             
             const resultMsg = `Trovate ${newFoundIndices.length} ${char}! Guadagni ${gain} euro`;
             speak(resultMsg);
@@ -3360,13 +3365,6 @@ if(btnSurrender) {
               
               await _supabase.from('stanze').update({lettere_rivelate:newRev,montepremi_round:0,fase_speciale:0,ultima_azione:'chiama_lettera',ultimo_messaggio:`${myName}: Trovate ${newFoundIndices.length} ${char}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
             }
-            
-            // ✅ FIX CRITICO: Aggiorna currentStanza locale per evitare che updateUI() riapra l'input
-            // Problema: updateUI() vede montepremi_round>0 in cache e riapre l'input automaticamente
-            if(currentStanza) {
-              currentStanza.montepremi_round = 0;
-              currentStanza.fase_speciale = 0;
-            }
           } else {
             
             const vowelResultMsg = newFoundIndices.length > 0
@@ -3392,7 +3390,7 @@ if(btnSurrender) {
       setTimeout(() => {
         isProcessingInput = false;
         if(roomId) fetchFullState();
-      }, 500);
+      }, 1500); // ✅ Aumentato a 1.5 secondi per dare tempo al DB di aggiornarsi
     }
 
     function checkTurnTimer(){
@@ -3644,8 +3642,8 @@ if(btnSurrender) {
         
         speak("Sistema ha regalato 3 vocali. Inizia la fase consonanti.");
         
-        // Dopo 1 secondo, inizia la raccolta delle consonanti
-        setTimeout(() => startConsonantCollection(), 1000);
+        // ✅ Dopo 2 secondi, inizia la raccolta delle consonanti (più tempo per vedere le vocali)
+        setTimeout(() => startConsonantCollection(), 2000);
         return;
       }
       
@@ -3666,8 +3664,8 @@ if(btnSurrender) {
         // Aspetta che il giocatore scelga la vocale
         await waitForPlayerVowel(player.id);
         
-        // Pausa di 1 secondo
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // ✅ Pausa di 2 secondi per vedere bene la vocale rivelata
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
       
       // Ora le vocali del sistema
@@ -3687,8 +3685,8 @@ if(btnSurrender) {
       
       speak("Fase vocali completata. Inizia la fase consonanti.");
       
-      // Dopo 1 secondo, inizia la raccolta delle consonanti
-      setTimeout(() => startConsonantCollection(), 1000);
+      // ✅ Dopo 2 secondi, inizia la raccolta delle consonanti
+      setTimeout(() => startConsonantCollection(), 2000);
     }
     
     async function waitForPlayerVowel(playerId) {
@@ -3756,8 +3754,8 @@ if(btnSurrender) {
           await waitForPlayerConsonant(player.id);
           totalConsonants++;
           
-          // Pausa
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          // ✅ Pausa di 2 secondi per vedere bene la consonante
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
       }
       
@@ -3876,10 +3874,10 @@ if(btnSurrender) {
       speak(`Il sistema rivela: ${NATO[mostFrequent] || mostFrequent}. Trovate ${foundIndices.length} lettere.`);
       addActionToHistory(`SISTEMA: ${mostFrequent} - Trovate ${foundIndices.length}`);
       
-      // Passa il turno dopo un attimo
+      // ✅ Passa il turno dopo 2 secondi per dare tempo di vedere
       setTimeout(() => {
         passTurn();
-      }, 1000);
+      }, 2000);
     }
 
     
@@ -3919,7 +3917,7 @@ if(btnSurrender) {
             // ✅ Suona una volta per ogni occorrenza trovata
             for(let i = 0; i < foundIndices.length; i++) {
               playRandomCorrectSound();
-              await new Promise(resolve => setTimeout(resolve, 200)); // Pausa tra i suoni
+              await new Promise(resolve => setTimeout(resolve, 400)); // ✅ 400ms tra i suoni
             }
             
             speak(`Sistema regala vocale ${v}. Trovate ${foundIndices.length}.`);
@@ -3932,8 +3930,8 @@ if(btnSurrender) {
           
           count--;
           
-          // Pausa tra le vocali del sistema
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          // ✅ Pausa di 1.5 secondi tra le vocali del sistema
+          await new Promise(resolve => setTimeout(resolve, 1500));
         }
       }
     }

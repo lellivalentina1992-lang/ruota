@@ -277,6 +277,7 @@
     <h3 id="hdr-finish" class="section-header" tabindex="-1">CONCLUDI E INFO</h3>
     <div class="bottom-controls-wrapper">
       <button id="btn-solve" class="action-btn btn-solve" onclick="openInput('solve')">RISOLVI FRASE</button>
+      <button id="btn-surrender" class="action-btn hidden" onclick="surrenderSpecialRound()" style="background:linear-gradient(180deg,#8B0000,#400000); color:#fff; margin-top:10px; font-size:1.2em;">HOST: ARRENDITI</button>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px; margin-top:10px;">
         <button id="btn-chat" class="action-btn btn-chat" onclick="openChat()" style="font-size:0.8em; padding:10px;">CHAT (K)</button>
         <button id="btn-management" class="action-btn" onclick="openPlayersPanel()" style="font-size:0.8em; padding:10px; background:#222;">CLASSIFICA (S)</button>
@@ -1655,7 +1656,25 @@
       if(k === 'escape'){
          e.preventDefault();
          
-         // ✅ FIX: Verifica se è ancora il tuo turno
+         // ✅ FIX: Prima controlla se c'è un pannello informativo aperto
+         const infoPanels = ['action-history-panel', 'help-panel', 'players-panel', 'chat-overlay', 'player-check-overlay', 'word-inspector-overlay', 'mystery-choice-overlay'];
+         let panelClosed = false;
+         
+         for(const panelId of infoPanels) {
+           const panel = document.getElementById(panelId);
+           if(panel && !panel.classList.contains('hidden')) {
+             panel.classList.add('hidden');
+             panelClosed = true;
+           }
+         }
+         
+         // Se abbiamo chiuso un pannello, termina qui
+         if(panelClosed) {
+           speak("Pannello chiuso.");
+           return;
+         }
+         
+         // ✅ Altrimenti controlla se è il caso di chiudere l'input
          const s = currentStanza;
          const isMe = (s?.id_giocatore_corrente === myId);
          
@@ -1665,13 +1684,14 @@
            return;
          }
          
-         // Altrimenti chiudi tutto
-         ['player-check-overlay','chat-overlay','help-panel','players-panel','action-history-panel','input-area','word-inspector-overlay','mystery-choice-overlay'].forEach(id => {
-            const el = document.getElementById(id);
-            if(el) el.classList.add('hidden');
-         });
-         closeInput();
-         speak("Finestre chiuse.");
+         // Altrimenti chiudi l'input
+         const inputArea = document.getElementById('input-area');
+         if(inputArea && !inputArea.classList.contains('hidden')) {
+           inputArea.classList.add('hidden');
+           closeInput();
+           speak("Input chiuso.");
+         }
+         
          return;
       }
       
@@ -2502,9 +2522,17 @@
       
       if(isSpecialRound){
         if(specialVowelsPhase){
-          
+          // FASE VOCALI
           canSpin = false;
-          canVowel = isMe && !isSpinning && !inputMode;
+          
+          // ✅ FIX: Con 1 giocatore il sistema regala le vocali, non deve premere VOCALE
+          const numPlayers = s.giocatori.length;
+          if(numPlayers === 1) {
+            canVowel = false; // Sistema le regala automaticamente
+          } else {
+            canVowel = isMe && !isSpinning && !inputMode;
+          }
+          
           canSolve = false; 
           canPass = false;
         } else {
@@ -2547,12 +2575,12 @@
         
         
         
-const showSurrender = isHost && (
-          (s.fase_speciale === 3 && s.azione_timestamp && (new Date().getTime() - new Date(s.azione_timestamp).getTime()) > TURN_LIMIT_SEC * 1000) ||
-          (s.fase_speciale === 102) 
-        );
-
-        btnSurrender.classList.toggle('hidden', !showSurrender);
+// ✅ Mostra pulsante ARRENDITI solo per l'host nel round speciale fase 102 (10 consonanti date, tutti possono risolvere)
+const btnSurrender = document.getElementById('btn-surrender');
+if(btnSurrender) {
+  const showSurrender = isHost && isSpecialRound && s.fase_speciale === 102;
+  btnSurrender.classList.toggle('hidden', !showSurrender);
+}
       }
       if(canManual && !inputMode) openInput('letter');
 
@@ -2900,103 +2928,20 @@ const showSurrender = isHost && (
         }
         inp.value = template;
         
-        // ✅ FIX: Migliore gestione della digitazione interattiva con supporto per frecce
-        let lastCursorPos = 0;
-        
-        inp.addEventListener('input', function handleInteractiveTyping(e) {
-          const currentValue = e.target.value.toUpperCase();
-          const templateValue = template.toUpperCase();
+        // ✅ MODIFICA LIBERA: Permetti editing completo del campo
+        // Converti automaticamente in maiuscolo mentre l'utente digita
+        inp.addEventListener('input', function(e) {
+          // Salva la posizione del cursore
+          const cursorPos = e.target.selectionStart;
           
-          // Se l'utente ha cancellato caratteri, ripristina il template
-          if(currentValue.length < templateValue.length) {
-            e.target.value = template;
-            e.target.setSelectionRange(lastCursorPos, lastCursorPos);
-            return;
-          }
+          // Converti in maiuscolo
+          const upperValue = e.target.value.toUpperCase();
           
-          // Se lunghezza maggiore, gestisci la nuova lettera
-          if(currentValue.length > templateValue.length) {
-            // L'utente ha digitato un carattere
-            // Trova dove l'ha digitato (posizione del cursore prima della digitazione)
-            const cursorPos = lastCursorPos;
-            
-            // Prendi il carattere digitato
-            const typedChar = currentValue[cursorPos];
-            
-            // Controlla se in quella posizione c'è un asterisco nel template
-            if(template[cursorPos] === '*' && typedChar.match(/[A-ZÀ-Ù]/)) {
-              // Sostituisci l'asterisco con la lettera
-              const newTemplate = template.substring(0, cursorPos) + typedChar + template.substring(cursorPos + 1);
-              template = newTemplate;
-              e.target.value = newTemplate;
-              
-              // Sposta alla prossima posizione (o al prossimo asterisco)
-              let nextPos = cursorPos + 1;
-              for(let i = nextPos; i < newTemplate.length; i++) {
-                if(newTemplate[i] === '*') {
-                  nextPos = i;
-                  break;
-                }
-              }
-              e.target.setSelectionRange(nextPos, nextPos);
-              lastCursorPos = nextPos;
-            } else {
-              // Carattere non valido o posizione non corretta, ripristina
-              e.target.value = template;
-              e.target.setSelectionRange(cursorPos, cursorPos);
-            }
-            return;
-          }
+          // Aggiorna il valore
+          e.target.value = upperValue;
           
-          // Lunghezza uguale: potrebbe essere una sostituzione diretta
-          // Trova la prima differenza
-          let diffPos = -1;
-          for(let i = 0; i < currentValue.length; i++) {
-            if(currentValue[i] !== templateValue[i]) {
-              diffPos = i;
-              break;
-            }
-          }
-          
-          if(diffPos !== -1 && templateValue[diffPos] === '*') {
-            const newChar = currentValue[diffPos];
-            if(newChar.match(/[A-ZÀ-Ù]/)) {
-              // Sostituisci l'asterisco con la nuova lettera
-              const newTemplate = template.substring(0, diffPos) + newChar + template.substring(diffPos + 1);
-              template = newTemplate;
-              e.target.value = newTemplate;
-              
-              // Sposta al prossimo asterisco
-              let nextAsterisk = -1;
-              for(let i = diffPos + 1; i < newTemplate.length; i++) {
-                if(newTemplate[i] === '*') {
-                  nextAsterisk = i;
-                  break;
-                }
-              }
-              const nextPos = nextAsterisk !== -1 ? nextAsterisk : newTemplate.length;
-              e.target.setSelectionRange(nextPos, nextPos);
-              lastCursorPos = nextPos;
-            } else {
-              // Carattere non valido, ripristina
-              e.target.value = template;
-            }
-          } else {
-            // Non è un asterisco, ripristina
-            e.target.value = template;
-          }
-        });
-        
-        // Traccia la posizione del cursore per gestire meglio la digitazione
-        inp.addEventListener('click', function(e) {
-          lastCursorPos = e.target.selectionStart;
-        });
-        
-        inp.addEventListener('keydown', function(e) {
-          // Prima dell'input, salva la posizione del cursore
-          if(e.key.length === 1 || e.key === 'Backspace' || e.key === 'Delete') {
-            lastCursorPos = e.target.selectionStart;
-          }
+          // Ripristina la posizione del cursore
+          e.target.setSelectionRange(cursorPos, cursorPos);
         });
         
         speak("Risolvi. Completa gli asterischi con le lettere mancanti.");
@@ -3128,7 +3073,43 @@ const showSurrender = isHost && (
           return;
         }
         
-        await handleSpecialVowel(char, myName, s);
+        // ✅ NUOVO SISTEMA: La vocale viene gestita direttamente qui
+        // Aggiorna il database con la vocale scelta
+        let foundIndices=[]; let gIdx=0;
+        const sol=currentPuzzleText.toUpperCase();
+        for(let i=0;i<sol.length;i++){
+          if(sol[i].match(/[A-ZÀ-Ù]/)){
+            if(cleanStr(sol[i])===cleanStr(char)) foundIndices.push(gIdx);
+            gIdx++;
+          }
+        }
+        
+        if(foundIndices.length > 0){
+          const newRev=[...new Set([...(s.lettere_rivelate||[]), ...foundIndices])];
+          await _supabase.from('stanze').update({
+            lettere_rivelate:newRev,
+            ultimo_messaggio:`${myName} chiama vocale: ${char} - Trovate ${foundIndices.length}`,
+            azione_timestamp:new Date().toISOString()
+          }).eq('id', roomId);
+          
+          // Suona per ogni occorrenza
+          for(let i = 0; i < foundIndices.length; i++) {
+            playRandomCorrectSound();
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+        } else {
+          await _supabase.from('stanze').update({
+            ultimo_messaggio:`${myName} chiama vocale: ${char} (assente)`,
+            azione_timestamp:new Date().toISOString()
+          }).eq('id', roomId);
+          playIncorrectSound();
+        }
+        
+        // Aggiorna il contatore - waitForPlayerVowel lo rileverà
+        if(!lettersCalledThisRound.includes(char)) {
+          lettersCalledThisRound.push(char);
+        }
+        
         isProcessingInput=false;
         return;
       }
@@ -3583,13 +3564,13 @@ const showSurrender = isHost && (
           return;
         }
         
-        
         specialPhraseIds = fr.map(f => f.id);
         isSpecialRound = true;
         specialPhraseIndex = 0;
         specialConsonantsUsed = 0;
         specialVowelsPhase = true;
         specialVowelsGiven = 0;
+        lettersCalledThisRound = []; // Reset lettere chiamate
         
         
         const firstPhraseId = specialPhraseIds[0];
@@ -3602,9 +3583,14 @@ const showSurrender = isHost && (
           montepremi_round:0,
           fase_speciale:100, 
           ultima_azione:'round_speciale_start',
-          ultimo_messaggio:`ROUND SPECIALE ${n} - Tema: ${selectedTheme}! Fase vocali: ${getSpecialVowelInstructions()}`,
+          ultimo_messaggio:`ROUND SPECIALE ${n} - Tema: ${selectedTheme}! Fase vocali inizia...`,
           azione_timestamp:new Date().toISOString()
         }).eq('id', roomId);
+        
+        // ✅ Dopo 1 secondo, inizia la raccolta delle vocali
+        if(isHost) {
+          setTimeout(() => startVowelCollection(), 1000);
+        }
         
       } else {
         
@@ -3628,10 +3614,187 @@ const showSurrender = isHost && (
     
     function getSpecialVowelInstructions(){
       const numPlayers = currentStanza.giocatori.length;
-      if(numPlayers === 1) return "Sistema regala 2 vocali";
-      if(numPlayers === 2) return "Ognuno dice 1 vocale, sistema regala 1";
-      if(numPlayers === 3) return "Ognuno dice 1 vocale";
+      if(numPlayers === 1) return "Sistema regala 3 vocali";
+      if(numPlayers === 2) return "1 vocale per giocatore + 1 dal sistema";
+      if(numPlayers === 3) return "1 vocale per giocatore";
       return "Fase vocali";
+    }
+    
+    async function startVowelCollection() {
+      // ✅ Gestisce la raccolta delle vocali in sequenza
+      const s = currentStanza;
+      if(!s) return;
+      
+      const numPlayers = s.giocatori.length;
+      
+      // ✅ FIX: Con 1 giocatore il sistema regala direttamente tutte le vocali
+      if(numPlayers === 1) {
+        await giveSystemVowels(3, s);
+        
+        // Completa la fase vocali e passa alle consonanti
+        specialVowelsPhase = false;
+        specialConsonantsUsed = 0;
+        specialVowelsGiven = 3;
+        
+        await _supabase.from('stanze').update({
+          fase_speciale: 101,
+          ultimo_messaggio: `Sistema ha regalato 3 vocali! Fase consonanti: 10 consonanti totali`,
+          azione_timestamp: new Date().toISOString()
+        }).eq('id', roomId);
+        
+        speak("Sistema ha regalato 3 vocali. Inizia la fase consonanti.");
+        
+        // Dopo 1 secondo, inizia la raccolta delle consonanti
+        setTimeout(() => startConsonantCollection(), 1000);
+        return;
+      }
+      
+      const vowelsPerPlayer = 1; // Sempre 1 per giocatore
+      const systemVowels = numPlayers === 2 ? 1 : 0;
+      
+      // Chiedi le vocali ai giocatori in sequenza
+      for(let i = 0; i < numPlayers; i++) {
+        const player = s.giocatori[i];
+        
+        // Imposta il turno su questo giocatore
+        await _supabase.from('stanze').update({
+          id_giocatore_corrente: player.id,
+          ultimo_messaggio: `${player.nome}: scegli 1 vocale`,
+          azione_timestamp: new Date().toISOString()
+        }).eq('id', roomId);
+        
+        // Aspetta che il giocatore scelga la vocale
+        await waitForPlayerVowel(player.id);
+        
+        // Pausa di 1 secondo
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      // Ora le vocali del sistema
+      if(systemVowels > 0) {
+        await giveSystemVowels(systemVowels, s);
+      }
+      
+      // Completa la fase vocali e passa alle consonanti
+      specialVowelsPhase = false;
+      specialConsonantsUsed = 0;
+      
+      await _supabase.from('stanze').update({
+        fase_speciale: 101,
+        ultimo_messaggio: `Vocali complete! Fase consonanti: 10 consonanti totali`,
+        azione_timestamp: new Date().toISOString()
+      }).eq('id', roomId);
+      
+      speak("Fase vocali completata. Inizia la fase consonanti.");
+      
+      // Dopo 1 secondo, inizia la raccolta delle consonanti
+      setTimeout(() => startConsonantCollection(), 1000);
+    }
+    
+    async function waitForPlayerVowel(playerId) {
+      // ✅ Aspetta che il giocatore scelga una vocale (con timeout di 2 minuti)
+      return new Promise((resolve) => {
+        const checkInterval = setInterval(() => {
+          const s = currentStanza;
+          
+          // Controlla se la vocale è stata inserita
+          const currentVowels = lettersCalledThisRound.filter(c => 'AEIOU'.includes(c)).length;
+          
+          if(currentVowels > specialVowelsGiven) {
+            specialVowelsGiven = currentVowels;
+            clearInterval(checkInterval);
+            clearTimeout(timeoutId);
+            resolve();
+          }
+        }, 500);
+        
+        // Timeout dopo 2 minuti - risolvi comunque per evitare blocco
+        const timeoutId = setTimeout(() => {
+          clearInterval(checkInterval);
+          console.error('Timeout attesa vocale giocatore:', playerId);
+          resolve(); // Risolvi comunque per continuare
+        }, 120000);
+      });
+    }
+    
+    async function startConsonantCollection() {
+      // ✅ Gestisce la raccolta delle 10 consonanti
+      const s = currentStanza;
+      if(!s) return;
+      
+      const numPlayers = s.giocatori.length;
+      let consonantsPerPlayer;
+      let systemConsonants;
+      
+      if(numPlayers === 1) {
+        consonantsPerPlayer = 10;
+        systemConsonants = 0;
+      } else if(numPlayers === 2) {
+        consonantsPerPlayer = 5;
+        systemConsonants = 0;
+      } else { // 3 giocatori
+        consonantsPerPlayer = 3;
+        systemConsonants = 1;
+      }
+      
+      // Raccogli consonanti dai giocatori
+      let totalConsonants = 0;
+      
+      while(totalConsonants < consonantsPerPlayer * numPlayers) {
+        for(let i = 0; i < numPlayers && totalConsonants < consonantsPerPlayer * numPlayers; i++) {
+          const player = s.giocatori[i];
+          
+          // Imposta il turno
+          await _supabase.from('stanze').update({
+            id_giocatore_corrente: player.id,
+            montepremi_round: 0, // Reset per permettere di girare
+            ultimo_messaggio: `${player.nome}: gira la ruota e scegli consonante (${specialConsonantsUsed}/10)`,
+            azione_timestamp: new Date().toISOString()
+          }).eq('id', roomId);
+          
+          // Aspetta consonante
+          await waitForPlayerConsonant(player.id);
+          totalConsonants++;
+          
+          // Pausa
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+      
+      // Consonante del sistema se necessario
+      if(systemConsonants > 0) {
+        await revealAutomaticConsonant();
+      }
+      
+      // Ora tutti possono risolvere
+      await _supabase.from('stanze').update({
+        fase_speciale: 102,
+        ultimo_messaggio: `10 consonanti completate! Tutti possono RISOLVERE. Host può arrendersi.`,
+        azione_timestamp: new Date().toISOString()
+      }).eq('id', roomId);
+      
+      speak("Dieci consonanti completate! Tutti possono provare a risolvere.");
+    }
+    
+    async function waitForPlayerConsonant(playerId) {
+      // ✅ Aspetta che il giocatore scelga una consonante (con timeout di 2 minuti)
+      return new Promise((resolve) => {
+        const initialCount = specialConsonantsUsed;
+        const checkInterval = setInterval(() => {
+          if(specialConsonantsUsed > initialCount) {
+            clearInterval(checkInterval);
+            clearTimeout(timeoutId);
+            resolve();
+          }
+        }, 500);
+        
+        // Timeout dopo 2 minuti - risolvi comunque per evitare blocco
+        const timeoutId = setTimeout(() => {
+          clearInterval(checkInterval);
+          console.error('Timeout attesa consonante giocatore:', playerId);
+          resolve(); // Risolvi comunque per continuare
+        }, 120000);
+      });
     }
     
     async function revealAutomaticConsonant(){
@@ -3720,56 +3883,6 @@ const showSurrender = isHost && (
     }
 
     
-    async function handleSpecialVowel(char, playerName, stanza){
-      const numPlayers = stanza.giocatori.length;
-      
-      
-      if(!lettersCalledThisRound.includes(char)) {
-        lettersCalledThisRound.push(char);
-      }
-      
-      
-      let foundIndices=[]; let gIdx=0;
-      const sol=currentPuzzleText.toUpperCase();
-      for(let i=0;i<sol.length;i++){
-        if(sol[i].match(/[A-ZÀ-Ù]/)){
-          if(cleanStr(sol[i])===cleanStr(char)) foundIndices.push(gIdx);
-          gIdx++;
-        }
-      }
-      
-      if(foundIndices.length > 0){
-        const newRev=[...new Set([...(stanza.lettere_rivelate||[]), ...foundIndices])];
-        await _supabase.from('stanze').update({lettere_rivelate:newRev,ultimo_messaggio:`${playerName} chiama vocale: ${char}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
-      } else {
-        
-        await _supabase.from('stanze').update({ultimo_messaggio:`${playerName} chiama vocale: ${char} (assente)`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
-      }
-      
-      specialVowelsGiven++;
-      
-      
-      let systemVowels = 0;
-      if(numPlayers === 1) systemVowels = 2;
-      else if(numPlayers === 2 && specialVowelsGiven === 2) systemVowels = 1;
-      
-      if(systemVowels > 0){
-        await giveSystemVowels(systemVowels, stanza);
-      }
-      
-      
-      const totalVowels = specialVowelsGiven + systemVowels;
-      if(totalVowels >= 3 || (numPlayers === 3 && specialVowelsGiven === 3)){
-        specialVowelsPhase = false;
-        await _supabase.from('stanze').update({
-          fase_speciale:101, 
-          ultimo_messaggio:`Vocali complete! Fase consonanti: 10 consonanti totali da chiamare`,
-          azione_timestamp:new Date().toISOString()
-        }).eq('id', roomId);
-      } else {
-        passTurn();
-      }
-    }
     
     async function giveSystemVowels(count, stanza){
       const vowelsOrder = ['E','A','I','O','U']; 
@@ -3800,14 +3913,27 @@ const showSurrender = isHost && (
           
           if(foundIndices.length > 0){
             const newRev=[...new Set([...(stanza.lettere_rivelate||[]), ...foundIndices])];
-            await _supabase.from('stanze').update({lettere_rivelate:newRev,ultimo_messaggio:`Sistema regala vocale: ${v}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+            await _supabase.from('stanze').update({lettere_rivelate:newRev,ultimo_messaggio:`Sistema regala vocale: ${v} - Trovate ${foundIndices.length}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
             stanza.lettere_rivelate = newRev;
+            
+            // ✅ Suona una volta per ogni occorrenza trovata
+            for(let i = 0; i < foundIndices.length; i++) {
+              playRandomCorrectSound();
+              await new Promise(resolve => setTimeout(resolve, 200)); // Pausa tra i suoni
+            }
+            
+            speak(`Sistema regala vocale ${v}. Trovate ${foundIndices.length}.`);
           } else {
             
             await _supabase.from('stanze').update({ultimo_messaggio:`Sistema regala vocale: ${v} (non presente)`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+            playIncorrectSound();
+            speak(`Sistema regala vocale ${v}. Non presente.`);
           }
           
           count--;
+          
+          // Pausa tra le vocali del sistema
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
     }
@@ -3899,6 +4025,11 @@ const showSurrender = isHost && (
       localStorage.removeItem('lastRoomCode');
       localStorage.removeItem('lastPlayerName');
       location.reload(); 
+    }
+    
+    async function surrenderSpecialRound(){
+      // Alias per surrenderPhrase - stessa funzione
+      await surrenderPhrase();
     }
     
     async function surrenderPhrase(){

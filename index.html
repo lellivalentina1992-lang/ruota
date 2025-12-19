@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>La Ruota</title>
+  <link rel="icon" href="data:," />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
@@ -13,14 +14,7 @@
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Y3drcGRqYnlzbml2a25uaW5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MzAwNDksImV4cCI6MjA3OTIwNjA0OX0.R8wkMJEmsP8cTVUUOcWtD4Rrg_ZhuOE-PYBJ56eGqMU'
   );
 
-  
-  (async () => {
-    const { data: { session } } = await _supabase.auth.getSession();
-    if (!session) {
-      await _supabase.auth.signInAnonymously();
-    } else {
-    }
-  })();
+
 
   
   window.onerror = function(msg, url, line) {
@@ -204,8 +198,8 @@
     
     <div style="text-align:center; color:#aaa; font-size:1em; margin-bottom:15px;">
       <strong style="color:#fff;">Vuoi creare o entrare?</strong><br>
-      • CREA NUOVA → Nuova stanza (ignora codice)<br>
-      • ENTRA → Usa il codice sopra
+      CREA NUOVA: Nuova stanza (ignora codice)<br>
+      ENTRA: Usa il codice sopra
     </div>
     
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; width:100%;">
@@ -336,7 +330,12 @@
         <ul>
           <li><strong>Aiuto (H)</strong> - Apre questa guida</li>
           <li><strong>Contrasto</strong> - Cambia il tema dei colori per una migliore visibilità. Alterna tra tema normale e tema ad alto contrasto (nero/bianco/giallo/verde). Utile per persone con problemi di vista o in ambienti molto luminosi.</li>
-          <li><strong>VISTA TESTO</strong> - Attiva la modalità accessibile per screen reader. Quando attiva, il tabellone visuale viene sostituito da un elenco testuale delle parole con pulsanti cliccabili. Ogni parola mostra le lettere trovate e quelle nascoste. Include anche pulsanti di navigazione rapida alle diverse sezioni della pagina.</li>
+          <li><strong>VISTA TESTO</strong> - Attiva la modalità accessibile per screen reader. 
+            <ul style="margin-top:8px; line-height:1.6;">
+              <li><strong>SMARTPHONE:</strong> Quando attiva, il tabellone visuale viene sostituito da un elenco testuale delle parole con pulsanti cliccabili. Ogni parola mostra le lettere trovate e quelle nascoste. Include anche pulsanti di navigazione rapida alle diverse sezioni della pagina. Ideale per dispositivi touch e screen reader.</li>
+              <li><strong>PC:</strong> Su computer è molto più comodo lasciare DISATTIVATA questa modalità e usare il tabellone visuale standard con le frecce direzionali per navigare (vedi sotto "Navigazione con Frecce da PC").</li>
+            </ul>
+          </li>
           <li><strong>Storico (A)</strong> - Mostra tutte le azioni recenti del gioco (giri, lettere chiamate, passaggi di turno, ecc.)</li>
         </ul>
       </div>
@@ -368,7 +367,16 @@
         <li><strong>H</strong> o <strong>Ctrl+H</strong>: Aiuto</li>
         <li><strong>I</strong>: Ispeziona parola (modalità accessibile) - Apre una finestra che mostra tutte le lettere della parola corrente, sia quelle trovate che quelle nascoste. Puoi cliccare su una lettera per selezionarla.</li>
         <li><strong>Spazio</strong>: Riapri ultimo input</li>
-        <li><strong>Frecce ↑↓←→</strong>: <strong>(DA PC - MOLTO IMPORTANTE!)</strong> Naviga nel tabellone tra parole e lettere. Usa ↑/↓ per cambiare parola, ←/→ per spostarti tra le lettere della parola corrente. La lettera selezionata viene evidenziata con un bordo dorato brillante.</li>
+        <li><strong>Frecce ↑↓←→ (NAVIGAZIONE DA PC)</strong>: 
+          <ul style="margin-top:8px; line-height:1.6;">
+            <li><strong>Freccia DESTRA (→)</strong>: Passa al carattere successivo nella stessa parola</li>
+            <li><strong>Freccia SINISTRA (←)</strong>: Torna al carattere precedente nella stessa parola</li>
+            <li><strong>Freccia SU (↑)</strong>: Passa alla parola precedente</li>
+            <li><strong>Freccia GIÙ (↓)</strong>: Passa alla parola successiva</li>
+            <li><em>Nota: Le frecce sinistra/destra NON cambiano parola, rimangono sempre all'interno della parola corrente. Per cambiare parola usa SU/GIÙ.</em></li>
+            <li><em>Il carattere selezionato viene evidenziato con un bordo dorato brillante per facilitare la navigazione visiva.</em></li>
+          </ul>
+        </li>
         <li><strong>ESC</strong>: Chiudi finestre</li>
         <li><strong>1-4</strong>: Effetti sonori (1=applauso, 2=risata, 3=fischi, 4=ooh)</li>
       </ul>
@@ -1434,7 +1442,7 @@
         await reorganizePlayers();
         
         speak(`${playerName} eliminato. Turni riorganizzati. Tutti i giocatori sono stati risincronizzati.`);
-        showFlashMessage(`✓ ${playerName} eliminato e turni riorganizzati`, 'success');
+        showFlashMessage(`${playerName} eliminato e turni riorganizzati`, 'success');
         
         // Riapri il pannello giocatori aggiornato
         setTimeout(() => openPlayersPanel(), 500);
@@ -1647,12 +1655,17 @@
       if(k === 'escape'){
          e.preventDefault();
          
-         // Se sei in modalità consonante (letter), NON chiudere!
-         if(inputMode === 'letter'){
+         // ✅ FIX: Verifica se è ancora il tuo turno
+         const s = currentStanza;
+         const isMe = (s?.id_giocatore_corrente === myId);
+         
+         // Se sei in modalità consonante (letter) E è ancora il tuo turno, NON chiudere!
+         if(inputMode === 'letter' && isMe){
            speak("Non puoi annullare la consonante! Devi inserirla.");
            return;
          }
          
+         // Altrimenti chiudi tutto
          ['player-check-overlay','chat-overlay','help-panel','players-panel','action-history-panel','input-area','word-inspector-overlay','mystery-choice-overlay'].forEach(id => {
             const el = document.getElementById(id);
             if(el) el.classList.add('hidden');
@@ -1736,7 +1749,16 @@
         return;
       }
       if((k==='l' && !isInInput) || (e.ctrlKey && k==='l')){ e.preventDefault(); readRevealedLetters(); return; }
-      if((k==='a' && !isInInput) || (e.ctrlKey && k==='a')){ e.preventDefault(); openActionHistory(true); return; }
+      if(k==='a' && !isInInput){ 
+        e.preventDefault(); 
+        openActionHistory(true); 
+        return; 
+      }
+      if(e.ctrlKey && k==='a' && !isInInput){ 
+        e.preventDefault(); 
+        openActionHistory(true); 
+        return; 
+      }
       if((k==='d' && !isInInput) || (e.ctrlKey && k==='d')){ 
         e.preventDefault(); 
         announceScore(); 
@@ -1823,6 +1845,17 @@
       try{
         let st;
         if(cr){
+          // ✅ FIX: Controlla se il codice esiste già prima di creare
+          const {data: existing} = await _supabase.from('stanze').select('codice').eq('codice', cd).maybeSingle();
+          
+          if(existing){
+            speak(`Errore: esiste già una stanza con codice ${cd}. Scegline un altro!`);
+            alert(`ERRORE: Esiste già una stanza con il codice "${cd}".\n\nScegli un codice diverso o entra nella stanza esistente usando il pulsante ENTRA.`);
+            document.getElementById('privacy-dialog').classList.add('hidden');
+            document.getElementById('setup-panel').classList.remove('hidden');
+            document.getElementById('inp-code').focus();
+            return;
+          }
           
           const {data:fr}=await _supabase.from('frasi').select('id,categoria').neq('categoria','SITUAZIONI QUOTIDIANE').limit(500);
           if(!fr || fr.length === 0){
@@ -2422,6 +2455,13 @@
         speak("Tocca a te."); 
         playAudio('snd-turn'); 
       }
+      
+      // ✅ FIX: Chiudi overlay di input quando il turno cambia e non è più il mio turno
+      if(wasMyTurn && !isMe && inputMode){
+        closeInput();
+        speak("Turno cambiato durante l'inserimento");
+      }
+      
       wasMyTurn=isMe;
       
       const who=currentPlayer?.nome;
@@ -2459,8 +2499,6 @@
       let canPass=isMe && !isSpinning && !isProcessingInput;
       let canVowel=isMe && !isSpinning && !inputMode && !isProcessingInput;
       
-      if(isRaddoppiaActive && isMe) canSpin=true;
-      
       
       if(isSpecialRound){
         if(specialVowelsPhase){
@@ -2487,6 +2525,12 @@
         if(myRoundMoney < vCost) canVowel=false;
         if(vowelsBoughtThisTurn>=1) canVowel=false;
         if(isRaddoppiaActive) canVowel=false;
+      }
+      
+      // ✅ FIX: Raddoppia deve sovrascrivere TUTTO, anche in round speciale
+      // Mettilo DOPO i controlli del round speciale così ha priorità
+      if(isRaddoppiaActive && isMe) {
+        canSpin = true; // Forza abilitazione anche se altri controlli dicono di no
       }
 
       setBtnState('btn-spin', !canSpin);
@@ -2650,7 +2694,7 @@ const showSurrender = isHost && (
         
         addActionToHistory(`${myName} ${label}`);
         speak(`${label}! Passi il turno.`);
-        showFlashMessage(`⏭ ${label}`, 'bad');
+        showFlashMessage(`${label}`, 'bad');
         
         passTurn();
         return;
@@ -2683,20 +2727,28 @@ const showSurrender = isHost && (
       } else if(val==='JOLLY'){
         const startR=currentStanza.round_giocati;
         
+        // ✅ FIX: Il Jolly dura 5 round dal round corrente (incluso)
+        // Ma NON può andare oltre il round 10 (fine partita)
+        const idealEndR = startR + 4; // +4 perché il round corrente è già incluso
+        const newEndR = Math.min(idealEndR, 10); // Cap a round 10
         
-        const currentJollyEnd = me && me.scadenza_jolly ? me.scadenza_jolly : startR;
-        const newEndR = Math.max(currentJollyEnd, startR) + 5; 
+        const currentJollyEnd = me && me.scadenza_jolly ? me.scadenza_jolly : 0;
         
-        await _supabase.from('giocatori').update({scadenza_jolly:newEndR}).eq('id', myId);
-        finalPrize=0;
-        
-        if(currentJollyEnd > startR) {
-          
-          msg=`${myName} pesca un altro JOLLY! Scadenza estesa al round ${newEndR}`;
+        // Se hai già un Jolly attivo, NON estendere ma avvisare
+        if(currentJollyEnd >= startR) {
+          msg=`${myName} pesca un altro JOLLY! Hai già un Jolly attivo (fino al round ${currentJollyEnd})`;
+          // Non aggiornare la scadenza, mantieni quella esistente
         } else {
-          
-          msg=`${myName} pesca il JOLLY! Attivo dal round ${startR} al round ${newEndR} (5 round)`;
+          // Nuovo Jolly
+          await _supabase.from('giocatori').update({scadenza_jolly:newEndR}).eq('id', myId);
+          if(newEndR === 10 && idealEndR > 10) {
+            msg=`${myName} pesca il JOLLY! Attivo fino alla fine (round ${newEndR})`;
+          } else {
+            msg=`${myName} pesca il JOLLY! Attivo per 5 round (fino al round ${newEndR})`;
+          }
         }
+        
+        finalPrize=0;
         nextFaseSpeciale=0;
       }
 
@@ -2743,12 +2795,14 @@ const showSurrender = isHost && (
         }
         
         if(val === 'JOLLY') {
-          const endR = currentStanza.round_giocati + 4;
+          // ✅ FIX: Usa la scadenza dal database (potrebbe essere invariata se già attivo)
+          const me = currentStanza.giocatori.find(p => p.id === myId);
+          const endR = me?.scadenza_jolly || (currentStanza.round_giocati + 4);
           speak(`Hai pescato il JOLLY! Protegge da bancarotta e passa turno fino al round ${endR}. Ora gira di nuovo!`);
-          showFlashMessage(`🃏 JOLLY ATTIVO! (fino a round ${endR})`, 'good');
+          showFlashMessage(`JOLLY ATTIVO! (fino a round ${endR})`, 'good');
         } else if(val === '+1000') {
           speak(`Hai guadagnato mille euro! Ora gira di nuovo!`);
-          showFlashMessage(` +1000€ GUADAGNATI!`, 'good');
+          showFlashMessage(`+1000 EURO GUADAGNATI!`, 'good');
         } else if(val === 'RADDOPPIA') {
           speak(`Raddoppia attivo! Il prossimo giro vale il doppio. Gira ora!`);
           showFlashMessage(`RADDOPPIA ATTIVO!`, 'good');
@@ -3005,6 +3059,18 @@ const showSurrender = isHost && (
 
     async function submitInput(){
       if(isProcessingInput) return;
+      
+      // ✅ FIX: Verifica che sia ancora il tuo turno prima di processare
+      const s = currentStanza;
+      const isMe = (s?.id_giocatore_corrente === myId);
+      if(!isMe){
+        playAudio('snd-miss');
+        alert("Non è più il tuo turno!");
+        speak("Errore: non è più il tuo turno");
+        closeInput();
+        return;
+      }
+      
       isProcessingInput=true;
       const txt=document.getElementById('game-input').value.trim().toUpperCase();
       if(!txt){ isProcessingInput=false; return; }
@@ -3068,6 +3134,31 @@ const showSurrender = isHost && (
       }
 
       if(mode==='solve'){
+        // ✅ FIX RACE CONDITION: Verifica stato fresco prima di risolvere
+        const { data: freshState, error: fetchError } = await _supabase
+          .from('stanze')
+          .select('*, giocatori(*)')
+          .eq('id', roomId)
+          .single();
+        
+        if(fetchError || !freshState) {
+          console.error('Errore fetch stato fresco:', fetchError);
+          playAudio('snd-miss');
+          alert("Errore di connessione. Riprova.");
+          isProcessingInput = false;
+          return;
+        }
+        
+        // ✅ VALIDAZIONE CRITICA: Verifica che sei ANCORA il giocatore corrente
+        if(freshState.id_giocatore_corrente !== myId) {
+          playAudio('snd-miss');
+          alert("Non è più il tuo turno!");
+          speak("Errore: il turno è cambiato. Non puoi risolvere.");
+          closeInput();
+          isProcessingInput = false;
+          return;
+        }
+        
         if(cleanStr(txt)===cleanStr(currentPuzzleText)){
           playAudio('snd-win'); 
           const me=s.giocatori.find(p=>p.id===myId);
@@ -3105,6 +3196,31 @@ const showSurrender = isHost && (
           const cost=getVowelCost();
           const me=s.giocatori.find(p=>p.id===myId);
           const myRoundMoney = me ? (me.punteggio_round||0) : 0;
+          
+          // ✅ FIX RACE CONDITION: Verifica stato fresco prima di comprare vocale
+          const { data: freshState, error: fetchError } = await _supabase
+            .from('stanze')
+            .select('*, giocatori(*)')
+            .eq('id', roomId)
+            .single();
+          
+          if(fetchError || !freshState) {
+            console.error('Errore fetch stato fresco:', fetchError);
+            playAudio('snd-miss');
+            alert("Errore di connessione. Riprova.");
+            isProcessingInput = false;
+            return;
+          }
+          
+          // ✅ VALIDAZIONE CRITICA: Verifica che sei ANCORA il giocatore corrente
+          if(freshState.id_giocatore_corrente !== myId) {
+            playAudio('snd-miss');
+            alert("Non è più il tuo turno!");
+            speak("Errore: il turno è cambiato. Non puoi comprare la vocale.");
+            closeInput();
+            isProcessingInput = false;
+            return;
+          }
           
           vowelsBoughtThisTurn++;
           await _supabase.from('giocatori').update({punteggio_round:myRoundMoney-cost}).eq('id', myId);
@@ -3183,6 +3299,31 @@ const showSurrender = isHost && (
             
             const me=s.giocatori.find(p=>p.id===myId);
             
+            // ✅ FIX RACE CONDITION: Ricarica lo stato fresco dal DB prima di aggiornare
+            const { data: freshState, error: fetchError } = await _supabase
+              .from('stanze')
+              .select('*, giocatori(*), frasi(*)')
+              .eq('id', roomId)
+              .single();
+            
+            if(fetchError || !freshState) {
+              console.error('Errore fetch stato fresco:', fetchError);
+              playAudio('snd-miss');
+              alert("Errore di connessione. Riprova.");
+              isProcessingInput = false;
+              return;
+            }
+            
+            // ✅ VALIDAZIONE CRITICA: Verifica che sei ANCORA il giocatore corrente
+            if(freshState.id_giocatore_corrente !== myId) {
+              playAudio('snd-miss');
+              alert("Non è più il tuo turno!");
+              speak("Errore: il turno è cambiato. Non puoi più inserire lettere.");
+              closeInput();
+              isProcessingInput = false;
+              return;
+            }
+            
             const gain = (s.fase_speciale===3) ? (s.montepremi_round||0) : ((s.montepremi_round||0) * newFoundIndices.length);
             
             
@@ -3237,6 +3378,13 @@ const showSurrender = isHost && (
             } else {
               
               await _supabase.from('stanze').update({lettere_rivelate:newRev,montepremi_round:0,fase_speciale:0,ultima_azione:'chiama_lettera',ultimo_messaggio:`${myName}: Trovate ${newFoundIndices.length} ${char}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+            }
+            
+            // ✅ FIX CRITICO: Aggiorna currentStanza locale per evitare che updateUI() riapra l'input
+            // Problema: updateUI() vede montepremi_round>0 in cache e riapre l'input automaticamente
+            if(currentStanza) {
+              currentStanza.montepremi_round = 0;
+              currentStanza.fase_speciale = 0;
             }
           } else {
             
@@ -3405,25 +3553,33 @@ const showSurrender = isHost && (
       
       if(isSpecial){
         
-        
-        const {data:themes}=await _supabase.from('frasi').select('hint').eq('categoria','SITUAZIONI QUOTIDIANE');
+        // ✅ FIX: Il database usa 'tema' non 'hint'! Prendi tutti i temi disponibili
+        const {data:themes}=await _supabase.from('frasi').select('tema').eq('categoria','SITUAZIONI QUOTIDIANE');
         
         if(!themes || themes.length === 0){
-          speak("Errore: non ci sono frasi speciali");
+          speak("Errore: non ci sono frasi nella categoria SITUAZIONI QUOTIDIANE");
+          alert("ERRORE: Non ci sono frasi con categoria 'SITUAZIONI QUOTIDIANE' nel database!");
           return;
         }
         
+        // Filtra solo temi non null e prendi temi unici
+        const uniqueThemes = [...new Set(themes.map(t => t.tema).filter(Boolean))];
         
-        const uniqueThemes = [...new Set(themes.map(t => t.hint))];
+        if(uniqueThemes.length === 0){
+          speak("Errore: le frasi SITUAZIONI QUOTIDIANE non hanno il campo tema compilato");
+          alert("ERRORE: Le frasi con categoria 'SITUAZIONI QUOTIDIANE' devono avere il campo 'tema' compilato!");
+          return;
+        }
         
-        
+        // Scegli un tema random
         const selectedTheme = uniqueThemes[Math.floor(Math.random() * uniqueThemes.length)];
         
-        
-        const {data:fr}=await _supabase.from('frasi').select('id,hint,soluzione').eq('categoria','SITUAZIONI QUOTIDIANE').eq('hint', selectedTheme);
+        // Prendi tutte le frasi di quel tema (dovrebbero essere 4)
+        const {data:fr}=await _supabase.from('frasi').select('id,tema,soluzione,categoria').eq('categoria','SITUAZIONI QUOTIDIANE').eq('tema', selectedTheme);
         
         if(!fr || fr.length < 4){
           speak(`Errore: tema "${selectedTheme}" ha solo ${fr?.length || 0} frasi, ne servono 4`);
+          alert(`ERRORE: Il tema "${selectedTheme}" ha solo ${fr?.length || 0} frasi. Servono esattamente 4 frasi per tema!`);
           return;
         }
         

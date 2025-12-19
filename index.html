@@ -2462,6 +2462,14 @@
 
       document.getElementById('round-indicator').textContent = `R ${s.round_giocati}/10`;
       
+      // ✅ Aggiorna sempre la categoria con hint (se presente) - persiste anche dopo cambio fase
+      if(currentFrase) {
+        const categoryDisplay = currentHintText 
+          ? `${currentFrase.categoria} - ${currentHintText}` 
+          : currentFrase.categoria;
+        document.getElementById('live-category').textContent = categoryDisplay;
+      }
+      
       // ✅ UUID: Trova giocatore corrente per UUID (non per indice!)
       const currentPlayer = s.giocatori.find(p=>p.id===s.id_giocatore_corrente);
       const isMe=(s.id_giocatore_corrente===myId); // ← Confronta UUID con UUID!
@@ -3025,7 +3033,9 @@
         }
       }
       
-      setTimeout(()=>inp.focus(),100);
+      // ✅ FIX: Aumento il timeout a 300ms per dare tempo al sistema di aprire il campo
+      // prima di dargli il focus, evitando che il gioco si impalli
+      setTimeout(()=>inp.focus(),300);
     }
     
     function tryCancelInput(){
@@ -3983,7 +3993,7 @@
           } else {
             
             await _supabase.from('stanze').update({ultimo_messaggio:`Sistema regala vocale: ${v} (non presente)`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
-            playIncorrectSound();
+            // ✅ FIX: NON riprodurre playIncorrectSound() qui - verrà riprodotto automaticamente da updateUI()
             speak(`Sistema regala vocale ${v}. Non presente.`);
           }
           

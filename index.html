@@ -2759,16 +2759,6 @@
       if(btnManagement) {
         btnManagement.textContent = isHost ? 'CONTROLLI E CLASSIFICA (S)' : 'CLASSIFICA (S)';
       }
-      
-      // ✅ MANTIENI IL FOCUS: Se il campo di input è ancora aperto dopo l'update UI, re-focalizzalo
-      if(inputMode) {
-        const inp = document.getElementById('game-input');
-        if(inp && !inp.classList.contains('hidden')) {
-          setTimeout(() => {
-            inp.focus();
-          }, 50);
-        }
-      }
     }
 
     function animateWheelSpin(){
@@ -2996,27 +2986,7 @@
           currentStanza.ultimo_messaggio = msg;
         }
         
-        // ✅ NOTA: Non serve chiamare openInput('letter') qui perché viene già chiamato 
-        // da updateUI (che è stato chiamato da fetchFullState sopra) quando rileva 
-        // che montepremi_round > 0
-        
-        // ✅ FOCUS GARANTITO: Dopo che updateUI ha aperto il campo, forzare il focus con multipli tentativi
-        // per assicurarsi che non venga perso da altri aggiornamenti UI
-        setTimeout(() => {
-          const inp = document.getElementById('game-input');
-          if(inp) {
-            inp.focus();
-            inp.select();
-          }
-        }, 100);
-        setTimeout(() => {
-          const inp = document.getElementById('game-input');
-          if(inp) inp.focus();
-        }, 300);
-        setTimeout(() => {
-          const inp = document.getElementById('game-input');
-          if(inp) inp.focus();
-        }, 600);
+        // openInput('letter') viene chiamato automaticamente da updateUI quando montepremi_round > 0
       } else {
         // ✅ CORREZIONE: Aggiorna manualmente currentStanza per sincronizzazione immediata
         if(currentStanza) {
@@ -3203,16 +3173,10 @@
         }
       }
       
-      // ✅ ACCESSIBILITÀ MIGLIORATA: Focus immediato e multiplo per garantire che lo screen reader lo rilevi
-      inp.focus();
-      requestAnimationFrame(() => {
-        inp.focus();
-        inp.select(); // Seleziona il testo per facilitare l'editing
-      });
+      // ✅ ACCESSIBILITÀ: Focus semplice senza strattonamenti per mantenere NVDA in focus mode
       setTimeout(() => {
         inp.focus();
-        inp.select();
-      }, 100);
+      }, 50);
     }
     
     function tryCancelInput(){
@@ -3246,12 +3210,7 @@
       document.getElementById('input-area').classList.add('hidden'); 
       inputMode=null;
       
-      // ✅ ACCESSIBILITÀ: Ripristina il focus all'elemento che ha aperto l'input
-      if(lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
-        setTimeout(() => {
-          lastFocusedElement.focus();
-        }, 100);
-      }
+      // ✅ NON ripristiniamo il focus per evitare strattonamenti che fanno uscire NVDA dalla focus mode
     }
 
     async function submitInput(){

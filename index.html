@@ -576,7 +576,7 @@
     let myId, myIndex, roomId, isHost=false;
     let currentFrase=null, currentStanza=null, currentPuzzleText="", currentHintText="", fullSolutionText="";
     let lastTimestamp="", isSpinning=false, inputMode=null, parsedBoard=[];
-    let isFetching=false, isProcessingInput=false, isHandlingTimeout=false;
+    let isFetching=false, isProcessingInput=false, isHandlingTimeout=false, justClosedInput=false;
     let vowelsBoughtThisTurn=0, wasMyTurn=false;
     let actionHistory=[];
     let isAccessibleMode=false;
@@ -2724,7 +2724,9 @@
       // ✅ APERTURA AUTOMATICA CAMPO CONSONANTE: 
       // Si apre SOLO se non c'è già un campo aperto (inputMode è null)
       // Se l'utente ha manualmente aperto vocale o risolvi, NON sovrascrivere
-      const willOpenInput = canManual && wasInputModeNull;
+      // NON riapre se è ancora in fase di processing (evita riapertura dopo submit)
+      // NON riapre se il campo è appena stato chiuso (evita loop di apertura/chiusura)
+      const willOpenInput = canManual && wasInputModeNull && !isProcessingInput && !justClosedInput;
       if(willOpenInput) {
         openInput('letter');
       }
@@ -3255,6 +3257,10 @@
       
       document.getElementById('input-area').classList.add('hidden'); 
       inputMode=null;
+      
+      // ✅ FIX: Imposta flag per impedire riapertura automatica immediata
+      justClosedInput = true;
+      setTimeout(() => { justClosedInput = false; }, 1000);
       
       // ✅ NON ripristiniamo il focus per evitare strattonamenti che fanno uscire NVDA dalla focus mode
     }

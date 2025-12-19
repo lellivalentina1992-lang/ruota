@@ -166,9 +166,9 @@
   <div id="flash-overlay" aria-hidden="true" style="position:fixed;top:20%;left:50%;transform:translate(-50%,-50%);font-size:2em;font-weight:bold;color:#fff;background:#000;padding:20px;border:3px solid #fff;opacity:0;pointer-events:none;transition:opacity .3s;z-index:5000;"><p id="flash-message"></p></div>
 
   <div style="display:flex; justify-content:space-between; width:95%; max-width:900px; margin:10px auto;">
+    <button onclick="openHelp()" style="background:transparent; border:1px solid #555; color:#888; padding:5px 10px; border-radius:5px; font-size:0.8em;" aria-label="Aiuto tasti rapidi (H)">Aiuto (H)</button>
     <button onclick="toggleContrast()" style="background:transparent; border:1px solid #555; color:#888; padding:5px 10px; border-radius:5px; font-size:0.8em;">Contrasto</button>
     <button onclick="toggleAccessibleMode()" id="btn-acc-mode" style="background:transparent; border:1px solid #555; color:#fff; font-weight:bold; padding:5px 10px; border-radius:5px; font-size:0.8em;" aria-pressed="false">VISTA TESTO</button>
-    <button onclick="openHelp()" style="background:transparent; border:1px solid #555; color:#888; padding:5px 10px; border-radius:5px; font-size:0.8em;" aria-label="Aiuto tasti rapidi (H)">Aiuto (H)</button>
     <button onclick="openActionHistory(true)" style="background:transparent; border:1px solid #555; color:#888; padding:5px 10px; border-radius:5px; font-size:0.8em;">Storico (A)</button>
   </div>
 
@@ -329,7 +329,30 @@
 
   <div id="help-panel" class="hidden" style="position:fixed; top:0; left:0; right:0; bottom:0; width:100vw; height:100vh; background:var(--bg-body); z-index:9999; overflow-y:auto; padding:20px;">
     <div style="max-width:700px; margin:0 auto; text-align:left;">
-      <h2 style="color:var(--col-neon); margin-top:20px;">TASTI RAPIDI</h2>
+      <h1 style="color:var(--col-accent); text-align:center; margin-top:10px;">GUIDA COMPLETA</h1>
+      
+      <h2 style="color:var(--col-neon); margin-top:30px;">PULSANTI PRINCIPALI (in alto)</h2>
+      <div style="color:#ddd; line-height:1.6;">
+        <ul>
+          <li><strong>Aiuto (H)</strong> - Apre questa guida</li>
+          <li><strong>Contrasto</strong> - Cambia il tema dei colori per una migliore visibilità. Alterna tra tema normale e tema ad alto contrasto (nero/bianco/giallo/verde). Utile per persone con problemi di vista o in ambienti molto luminosi.</li>
+          <li><strong>VISTA TESTO</strong> - Attiva la modalità accessibile per screen reader. Quando attiva, il tabellone visuale viene sostituito da un elenco testuale delle parole con pulsanti cliccabili. Ogni parola mostra le lettere trovate e quelle nascoste. Include anche pulsanti di navigazione rapida alle diverse sezioni della pagina.</li>
+          <li><strong>Storico (A)</strong> - Mostra tutte le azioni recenti del gioco (giri, lettere chiamate, passaggi di turno, ecc.)</li>
+        </ul>
+      </div>
+      
+      <h2 style="color:var(--col-neon); margin-top:30px;">PULSANTI HOST (solo per il creatore della stanza)</h2>
+      <div style="color:#ddd; line-height:1.6;">
+        <p>Questi pulsanti appaiono nella schermata <strong>CLASSIFICA (S)</strong> e sono disponibili solo per l'host:</p>
+        <ul>
+          <li><strong>PAUSA</strong> - Mette in pausa il gioco. Tutti i giocatori vedranno una schermata di pausa. Utile per fare una pausa o risolvere problemi tecnici. Premi di nuovo per riprendere.</li>
+          <li><strong>RESET PARTITA</strong> - Azzera tutti i punteggi e ricomincia da capo. ATTENZIONE: questa azione cancella tutti i progressi!</li>
+          <li><strong>ARRENDITI</strong> - L'host si arrende alla frase corrente. Il round termina e si passa al round successivo. Usalo se la frase è troppo difficile o se nessuno riesce a risolverla.</li>
+          <li><strong>BOT</strong> - Aggiunge un giocatore automatico (bot) alla partita. Il bot gioca in automatico quando è il suo turno.</li>
+        </ul>
+      </div>
+      
+      <h2 style="color:var(--col-neon); margin-top:30px;">TASTI RAPIDI</h2>
       <ul style="line-height:1.8; color:#ddd; font-size:1.1em;">
         <li><strong>G</strong> o <strong>Ctrl+G</strong>: Gira la ruota</li>
         <li><strong>V</strong> o <strong>Ctrl+V</strong>: Compra vocale</li>
@@ -343,11 +366,11 @@
         <li><strong>D</strong> o <strong>Ctrl+D</strong>: Ascolta punteggio (parziale e totale)</li>
         <li><strong>B</strong> o <strong>Ctrl+B</strong>: Aggiungi Bot veloce (Solo Host)</li>
         <li><strong>H</strong> o <strong>Ctrl+H</strong>: Aiuto</li>
-        <li><strong>I</strong>: Ispeziona parola (navigazione accessibile)</li>
+        <li><strong>I</strong>: Ispeziona parola (modalità accessibile) - Apre una finestra che mostra tutte le lettere della parola corrente, sia quelle trovate che quelle nascoste. Puoi cliccare su una lettera per selezionarla.</li>
         <li><strong>Spazio</strong>: Riapri ultimo input</li>
-        <li><strong>Frecce</strong>: Naviga tra parole e lettere</li>
+        <li><strong>Frecce ↑↓←→</strong>: <strong>(DA PC - MOLTO IMPORTANTE!)</strong> Naviga nel tabellone tra parole e lettere. Usa ↑/↓ per cambiare parola, ←/→ per spostarti tra le lettere della parola corrente. La lettera selezionata viene evidenziata con un bordo dorato brillante.</li>
         <li><strong>ESC</strong>: Chiudi finestre</li>
-        <li><strong>1-4</strong>: Effetti sonori (applauso, risata, fischi, ooh)</li>
+        <li><strong>1-4</strong>: Effetti sonori (1=applauso, 2=risata, 3=fischi, 4=ooh)</li>
       </ul>
       
       <h2 style="color:var(--col-neon); margin-top:30px;">REGOLE DEL GIOCO</h2>
@@ -357,26 +380,47 @@
         <h3 style="color:var(--col-accent);">Come si gioca:</h3>
         <ul>
           <li><strong>Gira la ruota (G)</strong> per scoprire quanto vale ogni consonante che indovini</li>
-          <li><strong>Di una consonante</strong> quando la ruota si ferma - se è presente guadagni!</li>
-          <li><strong>Compra vocale (V)</strong> costa 250€ ma ti aiuta a capire la frase</li>
-          <li><strong>Risolvi (R)</strong> quando pensi di sapere la frase completa</li>
-          <li><strong>Passa (P)</strong> se non sai cosa fare - il turno passa al prossimo</li>
+          <li><strong>Di una consonante</strong> quando la ruota si ferma - se è presente guadagni il valore della ruota moltiplicato per il numero di volte che appare!</li>
+          <li><strong>Compra vocale (V)</strong> costa tra 250€ e 2000€ (dipende dalla lunghezza della frase) ma ti aiuta a capire la frase. Puoi comprare solo una vocale per giro di ruota.</li>
+          <li><strong>Risolvi (R)</strong> quando pensi di sapere la frase completa - se sbagli perdi il turno!</li>
+          <li><strong>Passa (P)</strong> se non sai cosa fare - il turno passa al prossimo giocatore</li>
         </ul>
         
         <h3 style="color:var(--col-accent);">Settori speciali della ruota:</h3>
         <ul>
-          <li><strong>PERDE TUTTO ([PERDE TUTTO])</strong> - Perdi tutto il punteggio del round corrente!</li>
-          <li><strong>PASSA (→)</strong> - Il turno passa automaticamente</li>
-          <li><strong>JOLLY ([JOLLY])</strong> - Scegli qualsiasi consonante gratis</li>
-          <li><strong>MISTERO (?)</strong> - Scegli se aprire (rischio/opportunità) o prendere 500€ sicuri</li>
+          <li><strong>BANCAROTTA / PERDE TUTTO</strong> - Perdi tutto il punteggio del round corrente E il punteggio totale! Il settore più pericoloso.</li>
+          <li><strong>PASSA TURNO</strong> - Il turno passa automaticamente al giocatore successivo</li>
+          <li><strong>JOLLY</strong> - Ti protegge da bancarotta e passa turno per 5 round! Viene consumato automaticamente quando peschi uno di questi settori.</li>
+          <li><strong>MISTERO (?)</strong> - Scegli se aprire (rischio/opportunità) o prendere 500€ sicuri. Aprendo il mistero puoi trovare: RADDOPPIA, BANCAROTTA, +1000€, JOLLY, PASSA TURNO o PASSA ALL'AVVERSARIO</li>
+          <li><strong>RADDOPPIA</strong> - Il prossimo giro vale il doppio! Quando lo peschi, devi girare di nuovo e il valore sarà moltiplicato x2.</li>
+          <li><strong>+1000€</strong> - Aggiungi 1000€ al tuo punteggio di round e gira di nuovo!</li>
         </ul>
         
         <h3 style="color:var(--col-accent);">Punteggio:</h3>
         <ul>
-          <li>Ogni consonante presente vale quanto indicato dalla ruota</li>
+          <li>Ogni consonante presente vale quanto indicato dalla ruota moltiplicato per quante volte appare</li>
           <li>Chi risolve la frase guadagna 1000€ bonus</li>
           <li>Il punteggio del round si aggiunge al totale quando qualcuno risolve</li>
-          <li>Vince chi ha più soldi alla fine della partita!</li>
+          <li>Vince chi ha più soldi alla fine della partita (default: 10 round)!</li>
+        </ul>
+        
+        <h3 style="color:var(--col-accent);">Timer:</h3>
+        <ul>
+          <li>Hai 4 minuti (240 secondi) per ogni turno</li>
+          <li>Il timer appare in alto a sinistra e diventa rosso quando è il tuo turno</li>
+          <li>Se il tempo scade, il turno passa automaticamente</li>
+        </ul>
+      </div>
+      
+      <h2 style="color:var(--col-neon); margin-top:30px;">ALTRI PULSANTI</h2>
+      <div style="color:#ddd; line-height:1.6;">
+        <ul>
+          <li><strong>ISPEZIONA PAROLA</strong> - Apre una finestra dettagliata della parola su cui ti trovi, mostrando tutte le lettere</li>
+          <li><strong>LETTERE USCITE</strong> - Legge ad alta voce tutte le lettere già chiamate nel round corrente</li>
+          <li><strong>CHAT (K)</strong> - Apre la chat per comunicare con gli altri giocatori</li>
+          <li><strong>CLASSIFICA (S)</strong> - Mostra la classifica attuale, i punteggi di tutti i giocatori e (per l'host) i pulsanti di controllo del gioco</li>
+          <li><strong>ESCI</strong> - Esci dalla stanza (in basso alla pagina)</li>
+          <li><strong>Effetti audio</strong> - In fondo alla pagina trovi pulsanti per effetti sonori (applauso, risata, fischi, ooh) e controlli audio</li>
         </ul>
       </div>
       
@@ -2690,6 +2734,13 @@ const showSurrender = isHost && (
         
         openInput('letter');
       } else {
+        // ✅ CORREZIONE: Aggiorna manualmente currentStanza per sincronizzazione immediata
+        if(currentStanza) {
+          currentStanza.montepremi_round = finalPrize;
+          currentStanza.fase_speciale = nextFaseSpeciale;
+          currentStanza.ultima_azione = 'gira_ruota';
+          currentStanza.ultimo_messaggio = msg;
+        }
         
         if(val === 'JOLLY') {
           const endR = currentStanza.round_giocati + 4;

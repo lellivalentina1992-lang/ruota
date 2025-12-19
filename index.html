@@ -68,6 +68,14 @@
     body.accessible-mode .acc-nav { display: grid; grid-template-columns: 1fr; }
     .acc-nav button { font-size: 0.95em; padding: 12px 10px; min-height: 52px; }
     @media (min-width: 769px) { body.accessible-mode .acc-nav { grid-template-columns: repeat(2, 1fr); } }
+    
+    /* Nascondi pulsanti ridondanti in modalità STANDARD (con tastiera) */
+    body:not(.accessible-mode) #btn-inspect-word,
+    body:not(.accessible-mode) #btn-letters,
+    body:not(.accessible-mode) #btn-chat,
+    body:not(.accessible-mode) #btn-management {
+      display: none !important;
+    }
 
     #game-panel{width:100%;max-width:800px;margin-top:10px;display:flex;flex-direction:column;gap:5px;}
     .category-box{order:0;margin:5px 0;}
@@ -240,10 +248,33 @@
       <div id="double-indicator" class="hidden" style="color:orange; font-weight:bold; margin-top:5px; font-size:1.1em; text-shadow:0 0 5px red; border:1px solid red; padding:2px;">RADDOPPIA ATTIVO! GIRA ANCORA!</div>
       <div id="special-round-indicator" class="hidden" style="color:cyan; font-weight:bold; margin-top:5px; font-size:1.1em; text-shadow:0 0 5px cyan; border:1px solid cyan; padding:5px; border-radius:5px;"></div>
     
-    <div class="acc-nav" role="navigation" aria-label="Salti rapidi">
-      <button class="action-btn" onclick="jumpToSection('hdr-actions')">VAI AI COMANDI</button>
-      <button class="action-btn" onclick="jumpToSection('hdr-board')">VAI AL TABELLONE</button>
-      <button class="action-btn" onclick="jumpToSection('hdr-finish')">VAI A RISOLVI / INFO</button>
+    <div class="acc-nav" role="navigation" aria-label="Comandi principali touch">
+      <!-- AZIONI PRINCIPALI -->
+      <button class="action-btn btn-spin" onclick="doSpin()">GIRA (G)</button>
+      <button class="action-btn btn-vowel" onclick="tryOpenVowelInput()">VOCALE (V)</button>
+      <button class="action-btn btn-pass" onclick="passTurn()">PASSA (P)</button>
+      <button class="action-btn btn-solve" onclick="openInput('solve')">RISOLVI (R)</button>
+      
+      <!-- ANNUNCI VOCALI (funzioni solo da tastiera normalmente) -->
+      <button class="action-btn" style="background:#1a4d2e; border-color:#2ecc71;" onclick="announceTurn()">📢 ANNUNCIA TURNO (T)</button>
+      <button class="action-btn" style="background:#1a4d2e; border-color:#2ecc71;" onclick="announceScore()">💰 LEGGI PUNTEGGI (D)</button>
+      
+      <!-- NAVIGAZIONE E INFO -->
+      <button class="action-btn" onclick="openWordInspector()">ISPEZIONA PAROLA (I)</button>
+      <button class="action-btn" onclick="readRevealedLetters()">LETTERE USCITE (L)</button>
+      <button class="action-btn" onclick="openChat()">CHAT (K)</button>
+      <button class="action-btn" onclick="openPlayersPanel()">CLASSIFICA (S)</button>
+      <button class="action-btn" onclick="openActionHistory(true)">STORICO (A)</button>
+      <button class="action-btn" onclick="openHelp()">AIUTO (H)</button>
+      
+      <!-- EFFETTI SONORI (tasti 1-4) -->
+      <button class="action-btn" style="background:#2c3e50; font-size:0.9em;" onclick="playSharedAudio('snd-clap', 'Applauso')">👏 APPLAUSO (1)</button>
+      <button class="action-btn" style="background:#2c3e50; font-size:0.9em;" onclick="playSharedAudio('snd-laugh', 'Risata')">😂 RISATA (2)</button>
+      <button class="action-btn" style="background:#2c3e50; font-size:0.9em;" onclick="playSharedAudio('snd-boo', 'Fischi')">👎 FISCHI (3)</button>
+      <button class="action-btn" style="background:#2c3e50; font-size:0.9em;" onclick="playSharedAudio('snd-ooh', 'Ooh')">😮 OOH (4)</button>
+      
+      <!-- SALTI RAPIDI -->
+      <button class="action-btn" style="background:#222;" onclick="jumpToSection('hdr-board')">⬇️ VAI AL TABELLONE</button>
     </div>
 </div>
 
@@ -331,10 +362,11 @@
         <ul>
           <li><strong>Aiuto (H)</strong> - Apre questa guida</li>
           <li><strong>Contrasto</strong> - Cambia il tema dei colori per una migliore visibilità. Alterna tra tema normale e tema ad alto contrasto (nero/bianco/giallo/verde). Utile per persone con problemi di vista o in ambienti molto luminosi.</li>
-          <li><strong>VISTA TESTO</strong> - Attiva la modalità accessibile per screen reader. 
+          <li><strong>VISTA TESTO</strong> - Modalità con pulsanti completi per dispositivi touch. 
             <ul style="margin-top:8px; line-height:1.6;">
-              <li><strong>SMARTPHONE:</strong> Quando attiva, il tabellone visuale viene sostituito da un elenco testuale delle parole con pulsanti cliccabili. Ogni parola mostra le lettere trovate e quelle nascoste. Include anche pulsanti di navigazione rapida alle diverse sezioni della pagina. Ideale per dispositivi touch e screen reader.</li>
-              <li><strong>PC:</strong> Su computer è molto più comodo lasciare DISATTIVATA questa modalità e usare il tabellone visuale standard con le frecce direzionali per navigare (vedi sotto "Navigazione con Frecce da PC").</li>
+              <li><strong>SMARTPHONE SENZA TASTIERA:</strong> ATTIVA questa modalità! Il tabellone diventa testuale con pulsanti cliccabili. Avrai accesso a TUTTI i comandi tramite pulsanti dedicati (annuncia turno, punteggi, effetti sonori, ecc.). Ideale per touchscreen e screen reader.</li>
+              <li><strong>PC o SMARTPHONE CON TASTIERA ESTERNA:</strong> LASCIA DISATTIVATA questa modalità! Usa il tabellone visuale standard e i tasti rapidi (G, V, R, P, T, D, ecc.). Molto più veloce e comodo con la tastiera.</li>
+              <li><strong>Importante:</strong> Se hai una tastiera Bluetooth/USB collegata allo smartphone, usa sempre la modalità STANDARD con i tasti rapidi, non la Vista Testo!</li>
             </ul>
           </li>
           <li><strong>Storico (A)</strong> - Mostra tutte le azioni recenti del gioco (giri, lettere chiamate, passaggi di turno, ecc.)</li>
@@ -2188,7 +2220,7 @@
 
        
        
-       if(botMoney >= costVowel && ratio < 0.65 && Math.random() < 0.35) {
+       if(botMoney >= costVowel && ratio < 0.65 && Math.random() < 0.35 && vowelsBoughtThisTurn < 1) {
            
            
            chosenChar = getNextVowelHuman(lettersCalledThisRound);
@@ -2202,6 +2234,9 @@
            
            
            
+           // ✅ FIX COMPLETO: Gestione settori speciali corretta
+           
+           // MISTERO: il bot sceglie intelligentemente
            if(val === 'MISTERO') {
               let takeSafe = 0.5; 
               if(botMoney < 500) {
@@ -2211,16 +2246,76 @@
               }
               
               if(Math.random() < takeSafe) {
-                 val = 500; 
+                 // Prende 500€ sicuri
+                 await _supabase.from('stanze').update({montepremi_round:500,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} gira MISTERO: prende 500€ sicuri!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+                 isBotThinking = false;
+                 return;
               } else {
-                 
-                 val = 500; 
+                 // Apre il mistero - pesca un valore random da MISTERO_VALUES
+                 const MISTERO_VALUES_BOT = ['RADDOPPIA','BANCAROTTA','PASSA','+1000','JOLLY'];
+                 val = MISTERO_VALUES_BOT[Math.floor(Math.random()*MISTERO_VALUES_BOT.length)];
+                 // Continua sotto per processare il valore pescato
               }
            }
+           
+           // JOLLY: salvalo e gira ancora
+           if(val === 'JOLLY') {
+              const startR = s.round_giocati;
+              const newEndR = Math.min(startR + 4, 10);
+              await _supabase.from('giocatori').update({scadenza_jolly:newEndR}).eq('id', botPlayer.id);
+              await _supabase.from('stanze').update({montepremi_round:0,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} pesca JOLLY! Attivo fino al round ${newEndR}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+              isBotThinking = false;
+              return;
+           }
+           
+           // +1000: aggiungi 1000€ e gira ancora
+           if(val === '+1000') {
+              await _supabase.from('giocatori').update({punteggio_round:(botPlayer.punteggio_round||0)+1000}).eq('id', botPlayer.id);
+              await _supabase.from('stanze').update({montepremi_round:0,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} becca +1000€! Gira ancora!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+              isBotThinking = false;
+              return;
+           }
+           
+           // RADDOPPIA: attiva raddoppio e gira ancora
+           if(val === 'RADDOPPIA') {
+              await _supabase.from('stanze').update({montepremi_round:0,fase_speciale:2,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} trova RADDOPPIA! Gira ancora!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+              isBotThinking = false;
+              return;
+           }
+           
+           // BANCAROTTA: usa JOLLY se disponibile, altrimenti perde solo il round (NON il totale!)
+           if(val === 'BANCAROTTA') {
+               // ✅ Controlla se ha un JOLLY attivo
+               const hasJolly = botPlayer.scadenza_jolly && botPlayer.scadenza_jolly >= s.round_giocati;
+               
+               if(hasJolly) {
+                  // Usa il JOLLY per evitare la bancarotta
+                  await _supabase.from('giocatori').update({scadenza_jolly:0}).eq('id', botPlayer.id);
+                  await _supabase.from('stanze').update({montepremi_round:0,fase_speciale:0,ultima_azione:'jolly',ultimo_messaggio:`${botPlayer.nome} usa JOLLY per evitare BANCAROTTA!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+                  isBotThinking = false;
+                  return;
+               }
+               
+               // ✅ BANCAROTTA: azzera punteggio_round E punteggio_totale (perde tutto)!
+               await _supabase.from('giocatori').update({punteggio_round:0, punteggio_totale:0}).eq('id', botPlayer.id);
+               await _supabase.from('stanze').update({montepremi_round:0,fase_speciale:0,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} gira: BANCAROTTA! Perde tutto.`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+               passTurnBot();
+               isBotThinking = false;
+               return;
+           }
 
-           if(['BANCAROTTA','PASSA','PASSA_TURNO','PASSA_AVVERSARIO'].includes(val)) {
-               await _supabase.from('giocatori').update({punteggio_round:0}).eq('id', botPlayer.id);
-               await _supabase.from('stanze').update({ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} gira: ${val}. Cambio turno!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+           // PASSA/PASSA_TURNO: usa JOLLY se disponibile
+           if(val === 'PASSA' || val === 'PASSA_TURNO') {
+               const hasJolly = botPlayer.scadenza_jolly && botPlayer.scadenza_jolly >= s.round_giocati;
+               
+               if(hasJolly) {
+                  await _supabase.from('giocatori').update({scadenza_jolly:0}).eq('id', botPlayer.id);
+                  await _supabase.from('stanze').update({montepremi_round:0,fase_speciale:0,ultima_azione:'jolly',ultimo_messaggio:`${botPlayer.nome} usa JOLLY per evitare PASSA TURNO!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+                  isBotThinking = false;
+                  return;
+               }
+               
+               await _supabase.from('stanze').update({montepremi_round:0,fase_speciale:0,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} gira: PASSA TURNO!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
                passTurnBot();
                isBotThinking = false;
                return;
@@ -2263,13 +2358,17 @@
                let gain = 0;
                if(isVowel) {
                    await _supabase.from('giocatori').update({punteggio_round:(botPlayer.punteggio_round||0)-costVowel}).eq('id', botPlayer.id);
+                   vowelsBoughtThisTurn++; // ✅ FIX: Incrementa contatore vocali
                } else {
-                   gain = (s.fase_speciale === 3) ? (s.montepremi_round||0) : ((s.montepremi_round||0) * newFound.length);
+                   // ✅ FIX: Calcola gain con moltiplicatore RADDOPPIA (fase_speciale=2)
+                   const multiplier = (s.fase_speciale === 2) ? 2 : 1;
+                   gain = (s.fase_speciale === 3) ? (s.montepremi_round||0) * multiplier : ((s.montepremi_round||0) * newFound.length * multiplier);
                    await _supabase.from('giocatori').update({punteggio_round:(botPlayer.punteggio_round||0)+gain}).eq('id', botPlayer.id);
                }
-               await _supabase.from('stanze').update({lettere_rivelate:newRev,montepremi_round:0,ultima_azione:'chiama_lettera',ultimo_messaggio:`${botPlayer.nome}: Trovate ${newFound.length} "${chosenChar}"!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+               await _supabase.from('stanze').update({lettere_rivelate:newRev,montepremi_round:0,fase_speciale:0,ultima_azione:'chiama_lettera',ultimo_messaggio:`${botPlayer.nome}: Trovate ${newFound.length} "${chosenChar}"!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
            } else {
                if(isVowel) await _supabase.from('giocatori').update({punteggio_round:(botPlayer.punteggio_round||0)-costVowel}).eq('id', botPlayer.id);
+               vowelsBoughtThisTurn++; // ✅ FIX: Incrementa contatore vocali anche se non trovata
                await _supabase.from('stanze').update({ultima_azione:'errore',ultimo_messaggio:`${botPlayer.nome}: La "${chosenChar}" è assente.`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
                isBotThinking = false; 
                passTurnBot();
@@ -2454,10 +2553,10 @@
         vowelsBoughtThisTurn=0;
         parseAndRenderBoard(currentPuzzleText, s.lettere_rivelate, true); // ✅ Reset navigazione per nuova frase
         
-        const speakText = currentHintText 
-          ? `Nuovo Round. Categoria: ${currentFrase.categoria}. ${currentHintText}` 
-          : `Nuovo Round. Categoria: ${currentFrase.categoria}`;
-        speak(speakText);
+//         const speakText = currentHintText 
+//           ? `Nuovo Round. Categoria: ${currentFrase.categoria}. ${currentHintText}` 
+//           : `Nuovo Round. Categoria: ${currentFrase.categoria}`;
+//         speak(speakText);
       }
 
       document.getElementById('round-indicator').textContent = `R ${s.round_giocati}/10`;

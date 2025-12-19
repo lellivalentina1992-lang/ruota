@@ -2715,15 +2715,42 @@
         btnSurrender.classList.toggle('hidden', !showSurrender);
       }
       
+      // CORREZIONE: Salva il focus PRIMA di qualsiasi modifica al DOM
+      const focusedElement = document.activeElement;
+      const focusedId = focusedElement?.id;
+      const focusedTag = focusedElement?.tagName;
+      const wasInputModeNull = !inputMode; // Salva lo stato prima di openInput
+      
       // ✅ APERTURA AUTOMATICA CAMPO CONSONANTE: 
       // Si apre SOLO se non c'è già un campo aperto (inputMode è null)
       // Se l'utente ha manualmente aperto vocale o risolvi, NON sovrascrivere
-      if(canManual && !inputMode) {
+      const willOpenInput = canManual && wasInputModeNull;
+      if(willOpenInput) {
         openInput('letter');
       }
 
       parseAndRenderBoard(currentPuzzleText, s.lettere_rivelate);
       if(isAccessibleMode) updateAccessibleBoard();
+      
+      // CORREZIONE: Ripristina il focus dopo il rendering
+      // Ma SOLO se NON è stato appena aperto il campo consonante automaticamente
+      // (perché openInput ha il suo setTimeout che gestirà il focus)
+      if(!willOpenInput){
+        setTimeout(() => {
+          if(focusedId && focusedId !== 'body'){
+            const elementToFocus = document.getElementById(focusedId);
+            if(elementToFocus && document.body.contains(elementToFocus)){
+              elementToFocus.focus();
+            }
+          } else if(focusedTag === 'INPUT' && inputMode){
+            // Se era un input e c'è una modalità input attiva, ripristinalo
+            if(inputMode === 'letter') document.getElementById('consonant-input')?.focus();
+            else if(inputMode === 'vowel') document.getElementById('vowel-input')?.focus();
+            else if(inputMode === 'solve') document.getElementById('solve-input')?.focus();
+          }
+        }, 50);
+      }
+      
       if(me){
         const roundScore = me.punteggio_round||0;
         const totalScore = me.punteggio_totale||0;
@@ -2972,7 +2999,26 @@
       }
       
       addActionToHistory(msg);
+      
+      // CORREZIONE: Salva l'elemento con focus prima di fetchFullState
+      const focusedElement = document.activeElement;
+      const focusedId = focusedElement?.id;
+      const focusedTag = focusedElement?.tagName;
+      
       await fetchFullState();
+      
+      // CORREZIONE: Ripristina il focus dopo fetchFullState
+      setTimeout(() => {
+        if(focusedId){
+          const elementToFocus = document.getElementById(focusedId);
+          if(elementToFocus){
+            elementToFocus.focus();
+          }
+        } else if(focusedTag === 'INPUT'){
+          // Se era un input, prova a rimettere il focus sul campo consonante
+          document.getElementById('consonant-input')?.focus();
+        }
+      }, 100);
       
       
       if(finalPrize > 0 && !mysterySafeFlat) {

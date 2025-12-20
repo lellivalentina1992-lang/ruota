@@ -2761,27 +2761,18 @@
       parseAndRenderBoard(currentPuzzleText, s.lettere_rivelate);
       if(isAccessibleMode) updateAccessibleBoard();
       
-      // CORREZIONE: Ripristina il focus dopo il rendering
-      // Se abbiamo appena aperto il campo, il focus va sul campo DOPO parseAndRenderBoard
-      if(willOpenInput){
+      // ✅ FIX NVDA: Forza il focus DOPO tutti gli aggiornamenti DOM
+      // Timeout lungo per essere SICURI di essere dopo parseAndRenderBoard e updateAccessibleBoard
+      if(willOpenInput || inputMode) {
         setTimeout(() => {
-          const inp = document.getElementById('game-input');
-          if(inp) {
-            inp.focus();
-          }
-        }, 50); // Breve delay per permettere al DOM di stabilizzarsi
-      } else if(!willOpenInput){
-        setTimeout(() => {
-          if(focusedId && focusedId !== 'body'){
-            const elementToFocus = document.getElementById(focusedId);
-            if(elementToFocus && document.body.contains(elementToFocus)){
-              elementToFocus.focus();
+          const inputArea = document.getElementById('input-area');
+          if(inputArea && !inputArea.classList.contains('hidden')) {
+            const inp = document.getElementById('game-input');
+            if(inp) {
+              inp.focus();
             }
-          } else if(focusedTag === 'INPUT' && inputMode){
-            // Se era un input e c'è una modalità input attiva, ripristinalo
-            document.getElementById('game-input')?.focus();
           }
-        }, 50);
+        }, 300); // Timeout lungo per essere DOPO tutto
       }
       
       if(me){
@@ -3252,13 +3243,12 @@
         }
       }
       
-      // ✅ FOCUS: Per apertura manuale (vocale/risolvi) il focus va qui
-      // Per apertura automatica (consonante dopo giro ruota) il focus è gestito in updateUI dopo parseAndRenderBoard
-      if(mode !== 'letter') {
-        setTimeout(() => {
-          inp.focus();
-        }, 100);
-      }
+      // ✅ FIX NVDA: Focus impostato SEMPRE per tutti i mode
+      // Ma con timeout corto perché il vero focus viene impostato DOPO parseAndRenderBoard
+      setTimeout(() => {
+        const inp = document.getElementById('game-input');
+        if(inp) inp.focus();
+      }, 50);
     }
     
     function tryCancelInput(){

@@ -3268,7 +3268,6 @@
       // ✅ FIX NVDA: Pre-focus immediato per feedback rapido all'utente
       // Il focus "definitivo" verrà poi impostato dal timeout principale (500ms)
       // Questo dà un feedback immediato senza interferire con NVDA
-      const inp = document.getElementById('game-input');
       if(inp) {
         inp.focus();
         // ✅ TRICK: Trigger immediato focus mode con select()

@@ -333,9 +333,8 @@
     <div class="modal-content">
       <h2 id="input-title" style="color:var(--col-accent);">INSERISCI</h2>
       <input id="game-input" type="text" autocomplete="off" autofocus aria-label="Campo di inserimento testo" aria-describedby="input-title">
-      <div class="controls-grid" style="grid-template-columns:1fr 1fr 1fr;">
+      <div class="controls-grid" style="grid-template-columns:1fr 1fr;">
         <button onclick="submitInput()" class="action-btn btn-spin">OK</button>
-        <button onclick="document.getElementById('game-input').value=''; document.getElementById('game-input').focus();" class="action-btn" style="background:linear-gradient(180deg,#ff8800,#cc6600); border-color:#ff8800;">SVUOTA</button>
         <button id="btn-cancel-input" onclick="tryCancelInput()" class="action-btn btn-pass">ANNULLA</button>
       </div>
     </div>
@@ -718,14 +717,14 @@
         }
       });
 
-      document.getElementById('game-input').addEventListener('keydown', (e) => {
+      document.getElementById('game-input')?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
             submitInput();
         }
       });
       
-      document.getElementById('chat-input').addEventListener('keydown', (e) => {
+      document.getElementById('chat-input')?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
             sendChatMessage();
@@ -744,7 +743,7 @@
       }
     });
 
-    function clearSpeechQueue(){ speechTimeouts.forEach(t=>clearTimeout(t)); speechTimeouts=[]; }
+    function clearSpeechQueue(){ if(speechTimeouts && Array.isArray(speechTimeouts)) speechTimeouts.forEach(t=>clearTimeout(t)); speechTimeouts=[]; }
     function speak(t){
       if(!t) return;
       const e=document.getElementById('sr-announcer'); e.textContent='';
@@ -785,7 +784,7 @@
     
     function playMultipleHits(count) {
         // ✅ FIX: Cancella qualsiasi timeout precedente ancora in esecuzione
-        multipleHitsTimeouts.forEach(timeout => clearTimeout(timeout));
+        if(multipleHitsTimeouts && Array.isArray(multipleHitsTimeouts)) multipleHitsTimeouts.forEach(timeout => clearTimeout(timeout));
         multipleHitsTimeouts = [];
         
         // ✅ FIX: Riproduci UN beep per OGNI lettera trovata
@@ -893,7 +892,7 @@
       if(!actionHistory.length){
         c.innerHTML='<p style="color:#aaa;">Nessuna azione.</p>';
       } else {
-        actionHistory.forEach((a, idx)=>{
+        if(actionHistory && Array.isArray(actionHistory)) actionHistory.forEach((a, idx)=>{
           const b=document.createElement('button');
           b.className='history-item';
           b.type='button';
@@ -983,10 +982,10 @@
         highlightNav();
         let w = parsedBoard[n];
         if(!w) return; 
-        let letterCount = w.chars.length;
+        let letterCount = (w && w.chars) ? w.chars.length : 0;
         let spelling = "";
-        w.chars.forEach(c => {
-          if(c.isLetter && !c.isRevealed) spelling += " asterisco";
+        if(w && w.chars && Array.isArray(w.chars)) w.chars.forEach(c => {
+          if(c && c.isLetter && !c.isRevealed) spelling += " asterisco";
           else spelling += " " + (c.char ? c.char.toLowerCase() : "");
         });
         speak(`Parola ${n + 1}, ${letterCount} lettere.${spelling}`);
@@ -996,10 +995,10 @@
         highlightNav();
         let w = parsedBoard[n];
         if(!w) return;
-        let letterCount = w.chars.length;
+        let letterCount = (w && w.chars) ? w.chars.length : 0;
         let spelling = "";
-        w.chars.forEach(c => {
-          if(c.isLetter && !c.isRevealed) spelling += " asterisco";
+        if(w && w.chars && Array.isArray(w.chars)) w.chars.forEach(c => {
+          if(c && c.isLetter && !c.isRevealed) spelling += " asterisco";
           else spelling += " " + (c.char ? c.char.toLowerCase() : "");
         });
         speak(`Parola ${n + 1}, ${letterCount} lettere.${spelling}`);
@@ -1293,7 +1292,7 @@
       let revealedLetters = 0;
       
       parsedBoard.forEach(w => {
-        w.chars.forEach(c => {
+        if(w && w.chars && Array.isArray(w.chars)) w.chars.forEach(c => {
           if(c.isLetter){
             totalLetters++;
             if(c.isRevealed) revealedLetters++;
@@ -1667,7 +1666,7 @@
       const list=document.getElementById('action-history-list');
       const items=[...list.querySelectorAll('.history-item')];
       if(!items.length) return;
-      const key=e.key.toLowerCase();
+      const key = (e.key || "").toLowerCase();
       if(!['arrowdown','arrowup','home','end'].includes(key)) return;
       e.preventDefault();
       const active=document.activeElement;
@@ -1684,7 +1683,7 @@
       if(!e.key) return;
       if((e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'r') || e.key.toLowerCase() === 'f5') return;
       
-      const k=e.key.toLowerCase();
+      const k = (e.key || "").toLowerCase();
       
       // ✅ FIX: I tasti rapidi di gioco funzionano SOLO quando sei nella stanza
       // Non interferire con i campi di input nella schermata di setup
@@ -2761,18 +2760,41 @@
       parseAndRenderBoard(currentPuzzleText, s.lettere_rivelate);
       if(isAccessibleMode) updateAccessibleBoard();
       
-      // ✅ FIX NVDA: Forza il focus DOPO tutti gli aggiornamenti DOM
-      // Timeout lungo per essere SICURI di essere dopo parseAndRenderBoard e updateAccessibleBoard
+      // ✅ FIX NVDA FOCUS MODE: Timeout aumentato a 500ms per dare tempo a NVDA
+      // di sincronizzarsi completamente DOPO tutti gli aggiornamenti DOM
       if(willOpenInput || inputMode) {
         setTimeout(() => {
           const inputArea = document.getElementById('input-area');
           if(inputArea && !inputArea.classList.contains('hidden')) {
             const inp = document.getElementById('game-input');
             if(inp) {
+              // ✅ CRITICO: Prima imposta il focus
               inp.focus();
+              
+              // ✅ CRITICO: Poi forza NVDA in focus mode selezionando il testo
+              // Questo fa sì che NVDA entri automaticamente in focus mode
+              setTimeout(() => {
+                if(inp.value && inp.value.length > 0) {
+                  // Se c'è del testo (modalità risolvi), seleziona l'inizio
+                  inp.setSelectionRange(0, 0);
+                } else {
+                  // Se il campo è vuoto (consonante/vocale), seleziona tutto
+                  inp.select();
+                }
+                
+                // ✅ Annuncio esplicito dello stato per NVDA
+                const ariaLabel = inp.getAttribute('aria-label');
+                if(ariaLabel) {
+                  // Forza NVDA a rilevare il campo aggiornando aria-label
+                  inp.setAttribute('aria-label', ariaLabel + ' ');
+                  setTimeout(() => {
+                    inp.setAttribute('aria-label', ariaLabel);
+                  }, 50);
+                }
+              }, 100);
             }
           }
-        }, 300); // Timeout lungo per essere DOPO tutto
+        }, 500); // ✅ Aumentato da 300ms a 500ms per NVDA
       }
       
       if(me){
@@ -3243,12 +3265,17 @@
         }
       }
       
-      // ✅ FIX NVDA: Focus impostato SEMPRE per tutti i mode
-      // Ma con timeout corto perché il vero focus viene impostato DOPO parseAndRenderBoard
-      setTimeout(() => {
-        const inp = document.getElementById('game-input');
-        if(inp) inp.focus();
-      }, 50);
+      // ✅ FIX NVDA: Pre-focus immediato per feedback rapido all'utente
+      // Il focus "definitivo" verrà poi impostato dal timeout principale (500ms)
+      // Questo dà un feedback immediato senza interferire con NVDA
+      const inp = document.getElementById('game-input');
+      if(inp) {
+        inp.focus();
+        // ✅ TRICK: Trigger immediato focus mode con select()
+        if(mode !== 'solve') {
+          inp.select(); // Per consonante/vocale, seleziona subito il campo vuoto
+        }
+      }
     }
     
     function tryCancelInput(){

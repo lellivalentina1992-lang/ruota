@@ -246,8 +246,8 @@
     </div>
 
     <div class="category-box">
-      <h2 id="live-category">...</h2>
-      <h3 id="round-hint"></h3>
+      <h2 id="live-category" aria-live="polite" aria-atomic="true">...</h2>
+      <h3 id="round-hint" aria-live="polite"></h3>
       <div id="jolly-indicator" class="hidden" style="color:#ff00ff; font-weight:bold; margin-top:5px; font-size:1.1em; text-shadow:0 0 5px #ff00ff;"></div>
       <div id="double-indicator" class="hidden" style="color:orange; font-weight:bold; margin-top:5px; font-size:1.1em; text-shadow:0 0 5px red; border:1px solid red; padding:2px;">RADDOPPIA ATTIVO! GIRA ANCORA!</div>
       <div id="special-round-indicator" class="hidden" style="color:cyan; font-weight:bold; margin-top:5px; font-size:1.1em; text-shadow:0 0 5px cyan; border:1px solid cyan; padding:5px; border-radius:5px;"></div>
@@ -1465,10 +1465,12 @@
       
       let categoryMsg = '';
       if(category && category !== '...') {
-        categoryMsg = ` Categoria: ${category}.`;
-      }
-      if(hint) {
-        categoryMsg += ` ${hint}.`;
+        // ✅ FIX: Annuncia sempre la categoria completa senza duplicare il hint
+        // Se category già include il hint (formato "CATEGORIA - Hint"), usalo direttamente
+        // Altrimenti aggiungi il hint separatamente
+        categoryMsg = ` Categoria: ${category}`;
+        // ✅ Non aggiungere hint separato se è già incluso in category
+        // (category contiene già il formato "CATEGORIA - Hint" se presente)
       }
       
       speak(`${turnMsg} ${boardMsg}${categoryMsg}`);
@@ -3786,10 +3788,10 @@
             if(currentStanza) {
               currentStanza.montepremi_round = 0;
               currentStanza.fase_speciale = 0;
+              // ✅ IMMEDIATO: Chiama updateUI subito per riabilitare il pulsante GIRA
+              // DEVE usare currentStanza aggiornato, non aspettare il fetch DB
+              await updateUI(currentStanza);
             }
-            
-            // ✅ IMMEDIATO: Chiama updateUI subito per riabilitare il pulsante GIRA
-            updateUI();
             
             const resultMsg = `Trovate ${newFoundIndices.length} ${char}! Guadagni ${gain} euro`;
             speak(resultMsg);

@@ -114,6 +114,34 @@
     .acc-word-btn{display:flex;justify-content:space-between;width:100%;background:#222;border:1px solid #555;color:#fff;padding:15px;margin-bottom:8px;border-radius:8px;font-size:1.3em;font-family:monospace;letter-spacing:1px;cursor:pointer;}
     body.accessible-mode #board-container{display:none;}
     body.accessible-mode #accessible-board-container{display:block;}
+    
+    /* Nascondi sezioni duplicate in Vista Testo */
+    body.accessible-mode .top-controls-wrapper{display:none;}
+    body.accessible-mode .bottom-controls-wrapper{display:none;}
+    body.accessible-mode #wheel-visual-wrap{display:none;}
+    body.accessible-mode #audio-panel{display:none;}
+    
+    /* Disabilita animazioni e effetti pesanti in Vista Testo */
+    body.accessible-mode *{
+      animation: none !important;
+      transition: none !important;
+      backdrop-filter: none !important;
+      filter: none !important;
+      box-shadow: none !important;
+      text-shadow: none !important;
+      background-image: none !important;
+    }
+    
+    /* Sfondi semplici per i pulsanti principali */
+    body.accessible-mode .btn-spin{background: #b8860b !important;}
+    body.accessible-mode .btn-vowel{background: #008b8b !important;}
+    body.accessible-mode .btn-solve{background: #8b0000 !important;}
+    body.accessible-mode button.action-btn{background: #222 !important;}
+    
+    /* Mantieni solo il focus outline */
+    body.accessible-mode *:focus{
+      box-shadow: 0 0 0 4px var(--col-neon) !important;
+    }
 
     #wheel-visual-wrap{width:100%;display:flex;flex-direction:column;align-items:center;gap:8px;margin:8px 0;}
     #wheel-visual{
@@ -251,16 +279,15 @@
         <span id="category-main">...</span>
         <span id="round-hint"></span>
       </h2>
-      </h2>
       <div id="jolly-indicator" class="hidden" style="color:#ff00ff; font-weight:bold; margin-top:5px; font-size:1.1em; text-shadow:0 0 5px #ff00ff;"></div>
       <div id="double-indicator" class="hidden" style="color:orange; font-weight:bold; margin-top:5px; font-size:1.1em; text-shadow:0 0 5px red; border:1px solid red; padding:2px;">RADDOPPIA ATTIVO! GIRA ANCORA!</div>
       <div id="special-round-indicator" class="hidden" style="color:cyan; font-weight:bold; margin-top:5px; font-size:1.1em; text-shadow:0 0 5px cyan; border:1px solid cyan; padding:5px; border-radius:5px;"></div>
     
     <div class="acc-nav" role="navigation" aria-label="Comandi principali touch">
-      <!-- Ordine per flick con screen reader: -->
-      <!-- Tabellone (flick sx) <- GIRA (centro) -> VOCALE -> RISOLVI -> [PASSA se round speciale] -> PASSA TURNO -> ALTRI COMANDI -->
+      <!-- Vista Testo semplificata per smartphone -->
+      <!-- Ordine: TABELLONE -> GIRA -> VOCALE -> [PASSA solo nei round speciali] -> RISOLVI -> ALTRI COMANDI -->
       
-      <!-- NAVIGAZIONE TABELLONE - a sinistra di GIRA -->
+      <!-- NAVIGAZIONE TABELLONE -->
       <button class="action-btn" onclick="navigateTextBoard('first')" style="background:#222;border-color:#555;grid-column:1/-1;">
         TABELLONE - PRIMA PAROLA
       </button>
@@ -268,15 +295,14 @@
       <!-- GIRA - pulsante principale (focus di default) -->
       <button id="btn-acc-spin" class="action-btn btn-spin" onclick="doSpin()" style="grid-column:1/-1;">GIRA</button>
       
-      <!-- COMANDI PRINCIPALI - a destra di GIRA -->
+      <!-- VOCALE -->
       <button class="action-btn btn-vowel" onclick="tryOpenVowelInput()" style="grid-column:1/-1;">VOCALE</button>
       
-      <button class="action-btn btn-solve" onclick="openInput('solve')" style="grid-column:1/-1;">RISOLVI</button>
-      
-      <!-- PASSA - visibile SOLO nei round speciali -->
+      <!-- PASSA - visibile SOLO nei round speciali (prima di RISOLVI) -->
       <button id="btn-acc-pass-special" class="action-btn btn-pass" onclick="passTurn()" style="grid-column:1/-1;display:none;">PASSA</button>
       
-      <button class="action-btn btn-pass" onclick="passTurn()" style="grid-column:1/-1;">PASSA TURNO</button>
+      <!-- RISOLVI -->
+      <button class="action-btn btn-solve" onclick="openInput('solve')" style="grid-column:1/-1;">RISOLVI</button>
       
       <!-- Pulsante Altri Comandi -->
       <button id="btn-acc-more" class="action-btn" onclick="toggleAccMoreCommands()" style="background:#333;border-color:#666;grid-column:1/-1;">
@@ -286,6 +312,9 @@
       <!-- COMANDI SECONDARI - nascosti inizialmente -->
       <div id="acc-more-commands" style="display:none;grid-column:1/-1;">
         <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px;">
+          <!-- PASSA TURNO spostato qui -->
+          <button class="action-btn btn-pass" onclick="passTurn()">PASSA TURNO</button>
+          
           <button class="action-btn" onclick="openChat()">CHAT</button>
           <button class="action-btn" onclick="openPlayersPanel()">CLASSIFICA</button>
           <button class="action-btn" onclick="openHelp()">AIUTO</button>
@@ -321,7 +350,7 @@
     </div>
 
     <h3 id="hdr-wheel" class="section-header" tabindex="-1">RUOTA</h3>
-    <div id="wheel-visual-wrap" aria-label="Ruota visuale">
+    <div id="wheel-visual-wrap" role="region" aria-label="Ruota visuale">
       <div id="wheel-pointer" aria-hidden="true"></div>
       <div id="wheel-visual" aria-hidden="true"></div>
     </div>
@@ -331,7 +360,7 @@
     <div class="board-wrapper">
       <div id="board-container" role="grid" aria-label="Tabellone di gioco"></div>
     </div>
-    <div id="accessible-board-container" aria-label="Tabellone testuale">
+    <div id="accessible-board-container" role="region" aria-label="Tabellone testuale">
       <div id="acc-board-summary"></div>
       <div id="acc-word-list"></div>
     </div>
@@ -367,6 +396,20 @@
       <div class="controls-grid" style="grid-template-columns:1fr 1fr;">
         <button onclick="submitInput()" class="action-btn btn-spin">OK</button>
         <button id="btn-cancel-input" onclick="tryCancelInput()" class="action-btn btn-pass">ANNULLA</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Overlay SPECIALE per Vista Testo: input consonante a schermo intero -->
+  <div id="accessible-letter-input" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;background:#000;z-index:10000;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:20px;">
+    <div style="width:100%;max-width:600px;display:flex;flex-direction:column;gap:20px;">
+      <h1 id="accessible-input-title" style="color:var(--col-accent);font-size:2em;margin:0;text-align:center;">INSERISCI CONSONANTE</h1>
+      <p id="accessible-input-info" style="color:#fff;font-size:1.3em;margin:0;text-align:center;">Hai girato 800 €</p>
+      <input id="accessible-game-input" type="text" autocomplete="off" aria-label="Campo per inserire consonante" style="font-size:3em;padding:20px;text-align:center;width:100%;background:#111;color:#fff;border:4px solid var(--col-accent);border-radius:15px;font-family:var(--font-main);text-transform:uppercase;box-sizing:border-box;">
+      <div style="display:grid;grid-template-columns:1fr;gap:15px;width:100%;">
+        <button onclick="submitAccessibleLetterInput()" class="action-btn btn-spin" style="font-size:1.5em;padding:25px;">CONFERMA</button>
+        <button onclick="showAccessibleRevealedLetters()" class="action-btn" style="background:#2c3e50;border-color:#3498db;font-size:1.3em;padding:20px;">LETTERE CHIAMATE</button>
+        <button onclick="closeAccessibleLetterInput()" class="action-btn btn-pass" style="font-size:1.3em;padding:20px;">ANNULLA</button>
       </div>
     </div>
   </div>
@@ -2107,6 +2150,7 @@
             <div style="display:flex;flex-direction:column;gap:10px;">
               <button id="btn-quick-inspect" class="action-btn" style="background:#1a4d2e;border-color:#2ecc71;font-size:1.2em;padding:18px;">ISPEZIONA PAROLA</button>
               <button id="btn-quick-spin" class="action-btn btn-spin" style="font-size:1.2em;padding:18px;">GIRA LA RUOTA</button>
+              <button id="btn-quick-letters" class="action-btn" style="background:#2c3e50;border-color:#3498db;font-size:1.1em;padding:18px;">LETTERE SCOPERTE</button>
               <button id="btn-quick-close" class="action-btn btn-pass" style="font-size:1.1em;">CHIUDI</button>
             </div>
           </div>
@@ -2129,6 +2173,10 @@
       document.getElementById('btn-quick-spin').onclick = () => {
         closeWordQuickMenu();
         doSpin();
+      };
+      document.getElementById('btn-quick-letters').onclick = () => {
+        closeWordQuickMenu();
+        readRevealedLetters();
       };
       document.getElementById('btn-quick-close').onclick = () => {
         closeWordQuickMenu();
@@ -2571,7 +2619,7 @@
        const minLettersNeeded = Math.max(5, Math.floor(totalLetters * 0.5));
        
        if(ratio >= 0.80 && revealedInCurrentPhrase >= minLettersNeeded && Math.random() > 0.3) {
-          // ⏱️ PAUSA DRAMMATICA: Il bot "pensa" prima di tentare la soluzione
+          //⏱️ PAUSA DRAMMATICA: Il bot "pensa" prima di tentare la soluzione
           const thinkTimeBeforeSolve = 1500 + Math.random() * 1500; // 1.5-3 secondi
           await new Promise(r => setTimeout(r, thinkTimeBeforeSolve));
           
@@ -3219,9 +3267,9 @@
             // ✅ FIX: Riproduci il suono SOLO se il timestamp è cambiato
             // Questo previene sovrapposizioni quando updateUI viene chiamato più volte
             const match = (s.ultimo_messaggio || "").match(/Trovate (\d+)/);
-            const count = match ? parseInt(match[1]) : 1;
+            const count = match ? parseInt(match[1]) : 0; // ✅ FIX: Default 0 invece di 1
             
-            // ✅ DEBUG: Verifica che il count sia corretto
+            // ✅ Riproduci beep SOLO se count > 0
             if(count > 0 && count <= 20) {  // Sanity check: max 20 beep
               playMultipleHits(count);
             }
@@ -3663,6 +3711,14 @@
     let lastFocusedElement = null;
     
     function openInput(mode){
+      // ✅ NUOVO: In Vista Testo, usa overlay speciale per le consonanti
+      if(isAccessibleMode && mode === 'letter'){
+        const montepremi = currentStanza?.montepremi_round || 0;
+        openAccessibleLetterInput(montepremi);
+        inputMode = 'letter'; // Mantieni il flag per compatibilità
+        return;
+      }
+      
       // ✅ SICUREZZA: Per 'solve', verifica che sia il TUO turno (o che sia la fase 102 del round speciale)
       if(mode === 'solve' && currentStanza) {
         const isMyTurn = (currentStanza.id_giocatore_corrente === myId);
@@ -3857,12 +3913,114 @@
       inp.removeEventListener('input', uppercaseInputHandler);
       
       document.getElementById('input-area').classList.add('hidden'); 
+      
+      // ✅ NUOVO: Chiudi anche l'overlay accessibile se aperto
+      const accessibleOverlay = document.getElementById('accessible-letter-input');
+      if(accessibleOverlay && !accessibleOverlay.classList.contains('hidden')){
+        accessibleOverlay.classList.add('hidden');
+        const accessibleInput = document.getElementById('accessible-game-input');
+        if(accessibleInput){
+          accessibleInput.value = '';
+          accessibleInput.onkeydown = null;
+        }
+      }
+      
       inputMode=null;
       
       // In vista testo, ritorna focus su GIRA
       if(isAccessibleMode){
         setTimeout(()=> document.getElementById('btn-acc-spin')?.focus(), 100);
       }
+    }
+
+    // ✅ NUOVO: Overlay speciale per input consonante in Vista Testo
+    function openAccessibleLetterInput(montepremi){
+      const overlay = document.getElementById('accessible-letter-input');
+      const input = document.getElementById('accessible-game-input');
+      const infoText = document.getElementById('accessible-input-info');
+      
+      // Aggiorna info con i soldi girati
+      infoText.textContent = `Hai girato ${montepremi} €`;
+      
+      // Pulisci il campo
+      input.value = '';
+      
+      // Mostra overlay
+      overlay.classList.remove('hidden');
+      
+      // Listener per Enter
+      input.onkeydown = (e) => {
+        if(e.key === 'Enter') {
+          e.preventDefault();
+          submitAccessibleLetterInput();
+        }
+      };
+      
+      // ✅ FOCUS AUTOMATICO: Il campo è subito pronto per scrivere
+      setTimeout(() => {
+        input.focus();
+        input.click(); // Per aprire tastiera su mobile
+        
+        // Annuncio vocale DOPO il focus
+        setTimeout(() => {
+          speak(`Hai girato ${montepremi} euro. Scrivi una consonante.`);
+        }, 500);
+      }, 100);
+    }
+
+    function closeAccessibleLetterInput(){
+      const overlay = document.getElementById('accessible-letter-input');
+      const input = document.getElementById('accessible-game-input');
+      
+      // Nascondi overlay
+      overlay.classList.add('hidden');
+      
+      // Pulisci
+      input.value = '';
+      input.onkeydown = null;
+      
+      // Ritorna focus su GIRA
+      setTimeout(()=> document.getElementById('btn-acc-spin')?.focus(), 100);
+    }
+
+    async function submitAccessibleLetterInput(){
+      const input = document.getElementById('accessible-game-input');
+      const letter = input.value.trim().toUpperCase();
+      
+      if(!letter || letter.length !== 1){
+        speak("Inserisci una sola lettera!");
+        playAudio('snd-miss');
+        return;
+      }
+      
+      // Verifica che sia una consonante
+      const isVowel = "AEIOU".includes(letter);
+      if(isVowel){
+        speak("Devi inserire una consonante, non una vocale!");
+        playAudio('snd-miss');
+        input.value = '';
+        setTimeout(() => input.focus(), 100);
+        return;
+      }
+      
+      // Usa la logica di submitInput per le consonanti
+      // Impostiamo temporaneamente inputMode per far funzionare submitInput
+      const oldInputMode = inputMode;
+      inputMode = 'letter';
+      
+      // Copia la lettera nel campo normale (per compatibilità con submitInput)
+      document.getElementById('game-input').value = letter;
+      
+      // Chiama submitInput - se ha successo, closeInput chiuderà tutto
+      await submitInput();
+      
+      // Ripristina
+      inputMode = oldInputMode;
+    }
+
+    function showAccessibleRevealedLetters(){
+      // Chiama la funzione esistente per leggere le lettere
+      readRevealedLetters();
     }
 
     async function submitInput(){

@@ -80,7 +80,8 @@
     #game-panel{width:100%;max-width:800px;margin-top:10px;display:flex;flex-direction:column;gap:5px;}
     .category-box{order:0;margin:5px 0;}
     #live-category{color:var(--col-neon);font-size:1.8em;margin:0;text-transform:uppercase;letter-spacing:2px;text-shadow:0 0 10px var(--col-neon);}
-    #round-hint{color:#fff;font-size:1.2em;font-weight:normal;margin:5px 0;opacity:.8;}
+    #category-main{display:block;}
+    #round-hint{display:block;color:#fff;font-size:0.67em;font-weight:normal;margin-top:5px;opacity:.8;text-transform:none;letter-spacing:normal;text-shadow:none;}
 
     .top-controls-wrapper{order:1;width:100%;margin-bottom:5px;}
     .controls-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;width:98%;margin:0 auto;}
@@ -123,7 +124,7 @@
     }
     #wheel-pointer{width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-bottom:18px solid var(--col-accent);filter:drop-shadow(0 0 6px rgba(255,215,0,.6));margin-bottom:-6px;}
 
-    #audio-panel{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;background:#222;border-top:2px solid #333;padding:15px;width:100%;position: relative; margin-top: 40px;}
+    #audio-panel{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;background:#222;border-top:2px solid #333;padding:15px;width:100%;position:relative;margin-top:40px;}
     #audio-panel button{min-height:auto;padding:10px 12px;border-radius:10px;font-size:1.1em;}
     #audio-panel .mutebtn{border-color:#777;background:#222;color:#ddd;}
     #audio-panel .label{color:#777;font-size:.85em;margin-right:6px;}
@@ -246,8 +247,11 @@
     </div>
 
     <div class="category-box">
-      <h2 id="live-category" aria-live="polite" aria-atomic="true">...</h2>
-      <h3 id="round-hint" aria-live="polite"></h3>
+      <h2 id="live-category" aria-live="polite" aria-atomic="true">
+        <span id="category-main">...</span>
+        <span id="round-hint"></span>
+      </h2>
+      </h2>
       <div id="jolly-indicator" class="hidden" style="color:#ff00ff; font-weight:bold; margin-top:5px; font-size:1.1em; text-shadow:0 0 5px #ff00ff;"></div>
       <div id="double-indicator" class="hidden" style="color:orange; font-weight:bold; margin-top:5px; font-size:1.1em; text-shadow:0 0 5px red; border:1px solid red; padding:2px;">RADDOPPIA ATTIVO! GIRA ANCORA!</div>
       <div id="special-round-indicator" class="hidden" style="color:cyan; font-weight:bold; margin-top:5px; font-size:1.1em; text-shadow:0 0 5px cyan; border:1px solid cyan; padding:5px; border-radius:5px;"></div>
@@ -288,6 +292,7 @@
         <button id="btn-spin" class="action-btn btn-spin" onclick="doSpin()">GIRA</button>
         <button id="btn-vowel" class="action-btn btn-vowel" onclick="tryOpenVowelInput()">VOCALE</button>
         <button id="btn-pass" class="action-btn btn-pass" onclick="passTurn()">PASSA</button>
+        <button id="btn-pass-opponent" class="action-btn btn-pass" onclick="passToOpponent()">PASSA ALL'AVVERSARIO</button>
         <button id="btn-inspect-word" class="action-btn" style="border-color:#555;background:#222;" onclick="openWordInspector()">ISPEZIONA PAROLA</button>
         <button id="btn-letters" class="action-btn" onclick="readRevealedLetters()" style="border-color:#aaa; background:#111; font-size:0.9em;">LETTERE USCITE</button>
       </div>
@@ -1459,18 +1464,18 @@
       
       const boardMsg = `Tabellone: ${totalWords} parole, ${totalLetters} lettere totali, ${revealedLetters} scoperte.`;
       
-      // Aggiungi categoria e hint
-      const category = document.getElementById('live-category')?.textContent || '';
-      const hint = document.getElementById('round-hint')?.textContent || '';
+      // ✅ Leggi categoria e tema dai due span dentro l'H2
+      const categoryMain = document.getElementById('category-main')?.textContent || '';
+      const hintText = document.getElementById('round-hint')?.textContent || '';
       
       let categoryMsg = '';
-      if(category && category !== '...') {
-        // ✅ FIX: Annuncia sempre la categoria completa senza duplicare il hint
-        // Se category già include il hint (formato "CATEGORIA - Hint"), usalo direttamente
-        // Altrimenti aggiungi il hint separatamente
-        categoryMsg = ` Categoria: ${category}`;
-        // ✅ Non aggiungere hint separato se è già incluso in category
-        // (category contiene già il formato "CATEGORIA - Hint" se presente)
+      if(categoryMain && categoryMain !== '...') {
+        categoryMsg = ` Categoria: ${categoryMain}.`;
+        
+        // Se c'è un tema/argomento, leggilo separatamente
+        if(hintText) {
+          categoryMsg += ` ${hintText}.`;
+        }
       }
       
       speak(`${turnMsg} ${boardMsg}${categoryMsg}`);
@@ -1812,29 +1817,32 @@
     }
 
     window.addEventListener('keydown', (e)=>{
-      const panel=document.getElementById('action-history-panel');
-      const open = panel && !panel.classList.contains('hidden');
-      if(!open) return;
-      if(!e.key) return; 
-
-      const list=document.getElementById('action-history-list');
-      const items=[...list.querySelectorAll('.history-item')];
-      if(!items.length) return;
-      const key = (e.key || "").toLowerCase();
-      if(!['arrowdown','arrowup','home','end'].includes(key)) return;
-      e.preventDefault();
-      const active=document.activeElement;
-      let idx=items.indexOf(active);
-      if(idx<0) idx=0;
-      if(key==='arrowdown') idx=Math.min(items.length-1, idx+1);
-      if(key==='arrowup') idx=Math.max(0, idx-1);
-      if(key==='home') idx=0;
-      if(key==='end') idx=items.length-1;
-      items[idx].focus();
-    });
-
-    window.addEventListener('keydown', e=>{
       if(!e.key) return;
+      
+      // ✅ GESTIONE NAVIGAZIONE PANNELLO CRONOLOGIA (prima di tutto)
+      const historyPanel=document.getElementById('action-history-panel');
+      const historyOpen = historyPanel && !historyPanel.classList.contains('hidden');
+      if(historyOpen) {
+        const list=document.getElementById('action-history-list');
+        const items=[...list.querySelectorAll('.history-item')];
+        if(items.length) {
+          const key = (e.key || "").toLowerCase();
+          if(['arrowdown','arrowup','home','end'].includes(key)) {
+            e.preventDefault();
+            const active=document.activeElement;
+            let idx=items.indexOf(active);
+            if(idx<0) idx=0;
+            if(key==='arrowdown') idx=Math.min(items.length-1, idx+1);
+            if(key==='arrowup') idx=Math.max(0, idx-1);
+            if(key==='home') idx=0;
+            if(key==='end') idx=items.length-1;
+            items[idx].focus();
+            return;
+          }
+        }
+      }
+
+      // ✅ GESTIONE TASTI RAPIDI DI GIOCO
       if((e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'r') || e.key.toLowerCase() === 'f5') return;
       
       const k = (e.key || "").toLowerCase();
@@ -2268,6 +2276,16 @@
     }
     
     function tryOpenVowelInput(){
+      // ✅ SICUREZZA: Verifica che sia il TUO turno
+      if(!currentStanza) return;
+      const isMyTurn = (currentStanza.id_giocatore_corrente === myId);
+      
+      if(!isMyTurn) {
+        speak("Non è il tuo turno!");
+        playAudio('snd-miss');
+        return;
+      }
+      
       // Controlla condizioni PRIMA di aprire l'input
       const cost = getVowelCost();
       const me = currentStanza?.giocatori?.find(p=>p.id===myId);
@@ -2630,6 +2648,34 @@
       currentStanza=s;
       s.giocatori.sort((a,b)=>a.indice-b.indice);
       
+      // ✅ SINCRONIZZA variabili round speciale con il database
+      // Questo è critico perché solo l'host esegue i loop, ma TUTTI i client devono sapere lo stato
+      if(s.fase_speciale === 100) {
+        // Fase vocali
+        isSpecialRound = true;
+        specialVowelsPhase = true;
+      } else if(s.fase_speciale === 101) {
+        // Fase consonanti
+        isSpecialRound = true;
+        specialVowelsPhase = false;
+      } else if(s.fase_speciale === 102) {
+        // Tutti possono risolvere
+        isSpecialRound = true;
+        specialVowelsPhase = false;
+      } else if(s.fase_speciale === 0 && isSpecialRound) {
+        // Round speciale terminato
+        isSpecialRound = false;
+        specialVowelsPhase = true;
+      }
+      
+      // ✅ Estrai specialPhraseIndex dal messaggio (formato: "Frase X/4")
+      if(isSpecialRound) {
+        const phraseMatch = (s.ultimo_messaggio || '').match(/Frase (\d+)\/4/);
+        if(phraseMatch) {
+          specialPhraseIndex = parseInt(phraseMatch[1]) - 1; // Converti da 1-based a 0-based
+        }
+      }
+      
       // ✅ FIX CHATGPT: Usa is_host dal DB come fonte di verità (non indice 0)
       if(myId){
         const me = s.giocatori.find(p => p.id === myId);
@@ -2735,11 +2781,17 @@
         fullSolutionText=currentFrase.soluzione;
         
         
-        if(currentFrase.hint){
+        // ✅ PRIORITÀ 1: Usa il campo 'tema' se presente nel database
+        if(currentFrase.tema){
+          currentHintText = currentFrase.tema;
+          currentPuzzleText = fullSolutionText;
+        }
+        // ✅ PRIORITÀ 2: Usa il campo 'hint' (per retrocompatibilità)
+        else if(currentFrase.hint){
           currentHintText = currentFrase.hint;
           currentPuzzleText = fullSolutionText;
         }
-        
+        // ✅ PRIORITÀ 3: Split sul trattino (per frasi vecchie come CURIOSITÀ)
         else if(fullSolutionText.includes(" - ") || fullSolutionText.includes("–") || fullSolutionText.includes(" – ")){
           // Gestisci diversi formati di trattino
           let p;
@@ -2757,12 +2809,9 @@
           currentPuzzleText=fullSolutionText;
         }
         
-        // ✅ Mostra categoria + hint (se presente) per TUTTE le categorie
-        const categoryDisplay = currentHintText 
-          ? `${currentFrase.categoria} - ${currentHintText}` 
-          : currentFrase.categoria;
-        
-        document.getElementById('live-category').textContent = categoryDisplay;
+        // ✅ Mostra categoria + hint (se presente) in elementi separati ma dentro lo stesso H2
+        // Così NVDA legge tutto quando naviga con H
+        document.getElementById('category-main').textContent = currentFrase.categoria;
         document.getElementById('round-hint').textContent = currentHintText;
         vowelsBoughtThisTurn=0;
         parseAndRenderBoard(currentPuzzleText, s.lettere_rivelate, true); // ✅ Reset navigazione per nuova frase
@@ -2778,12 +2827,15 @@
       // ✅ Aggiorna sempre la categoria con hint (se presente) - persiste anche dopo cambio fase
       // Ma SOLO se è cambiata (per evitare troppi aggiornamenti DOM)
       if(currentFrase) {
-        const categoryDisplay = currentHintText 
-          ? `${currentFrase.categoria} - ${currentHintText}` 
-          : currentFrase.categoria;
-        const categoryElement = document.getElementById('live-category');
-        if(categoryElement.textContent !== categoryDisplay) {
-          categoryElement.textContent = categoryDisplay;
+        const categoryMain = document.getElementById('category-main');
+        const roundHint = document.getElementById('round-hint');
+        
+        if(categoryMain && categoryMain.textContent !== currentFrase.categoria) {
+          categoryMain.textContent = currentFrase.categoria;
+        }
+        
+        if(roundHint && roundHint.textContent !== currentHintText) {
+          roundHint.textContent = currentHintText;
         }
       }
       
@@ -2812,8 +2864,19 @@
       if(!wasMyTurn && isMe){ 
         vowelsBoughtThisTurn=0; 
         lastSpinTimestamp = new Date().toISOString(); 
-        speak("Tocca a te."); 
-        playAudio('snd-turn'); 
+        
+        // ✅ NON suonare il beep di cambio turno durante la fase consonanti del round speciale
+        // (verrà annunciato vocalmente "Consonante X di 10")
+        const isConsonantPhase = isSpecialRound && !specialVowelsPhase && s.fase_speciale === 101;
+        if(!isConsonantPhase) {
+          speak("Tocca a te."); 
+          playAudio('snd-turn');
+        } else {
+          // ✅ FASE CONSONANTI: Estrai il numero dal messaggio DB (formato: "Nome: ... (X/10)")
+          const match = (s.ultimo_messaggio || '').match(/\((\d+)\/10\)/);
+          const consonantNumber = match ? parseInt(match[1]) + 1 : 1;
+          speak(`Consonante ${consonantNumber} di 10. Tocca a te.`);
+        }
       }
       
       // ✅ FIX: Chiudi overlay di input quando il turno cambia e non è più il mio turno
@@ -2848,7 +2911,10 @@
         if(specialVowelsPhase){
           specialInd.textContent=`ROUND SPECIALE - FASE VOCALI (${specialVowelsGiven}/3) - Frase ${specialPhraseIndex + 1}/4`;
         } else {
-          specialInd.textContent=`ROUND SPECIALE - CONSONANTI (${specialConsonantsUsed}/10) - Frase ${specialPhraseIndex + 1}/4`;
+          // ✅ Estrai il numero di consonanti dal messaggio DB
+          const match = (s.ultimo_messaggio || '').match(/\((\d+)\/10\)/);
+          const consonantsCount = match ? parseInt(match[1]) : 0;
+          specialInd.textContent=`ROUND SPECIALE - CONSONANTI (${consonantsCount}/10) - Frase ${specialPhraseIndex + 1}/4`;
         }
         specialInd.classList.remove('hidden');
       } else {
@@ -2877,16 +2943,19 @@
           canSolve = false; 
           canPass = false;
         } else {
+          // Fase consonanti - Estrai contatore dal DB
+          const match = (s.ultimo_messaggio || '').match(/\((\d+)\/10\)/);
+          const consonantsCount = match ? parseInt(match[1]) : 0;
           
-          canSpin = isMe && !isSpinning && !inputMode && s.montepremi_round===0 && specialConsonantsUsed < 10;
+          canSpin = isMe && !isSpinning && !inputMode && s.montepremi_round===0 && consonantsCount < 10;
           canVowel = false; 
-          canSolve = isMe && !isSpinning && !inputMode;
+          canSolve = false; // ✅ NON si può risolvere prima delle 10 consonanti
           canPass = false; 
           
-          
-          if(specialConsonantsUsed >= 10 || s.fase_speciale === 102){
+          // Solo dopo 10 consonanti tutti possono risolvere
+          if(consonantsCount >= 10 || s.fase_speciale === 102){
             canSpin = false;
-            canSolve = !isSpinning && !inputMode; 
+            canSolve = !isSpinning && !inputMode; // Tutti possono risolvere
           }
         }
       } else {
@@ -2905,6 +2974,11 @@
       setBtnState('btn-spin', !canSpin);
       setBtnState('btn-solve', !canSolve);
       setBtnState('btn-pass', !canPass);
+      
+      // ✅ PASSA ALL'AVVERSARIO: disabilitato nei round speciali e se sei da solo
+      let canPassOpponent = canPass && s.giocatori.length > 1 && !isSpecialRound;
+      setBtnState('btn-pass-opponent', !canPassOpponent);
+      
       const btnV=document.getElementById('btn-vowel');
       setBtnState('btn-vowel', !canVowel);
       btnV.textContent=`VOCALE (€${vCost})`;
@@ -2975,9 +3049,15 @@
             // Questo previene sovrapposizioni quando updateUI viene chiamato più volte
             const match = (s.ultimo_messaggio || "").match(/Trovate (\d+)/);
             const count = match ? parseInt(match[1]) : 1;
-            playMultipleHits(count);
+            
+            // ✅ DEBUG: Verifica che il count sia corretto
+            if(count > 0 && count <= 20) {  // Sanity check: max 20 beep
+              playMultipleHits(count);
+            }
         }
         showFlashMessage(s.ultimo_messaggio, 'info');
+        
+        // ✅ Sempre fare speak di ultimo_messaggio
         speak(s.ultimo_messaggio);
       }
       
@@ -2996,6 +3076,16 @@
 
     async function doSpin(){
       if(isBtnDisabled('btn-spin') || !currentStanza) return;
+      
+      // ✅ SICUREZZA CRITICA: Verifica che sia il TUO turno
+      const s = currentStanza;
+      const isMyTurn = (s.id_giocatore_corrente === myId);
+      
+      if(!isMyTurn) {
+        speak("Non è il tuo turno!");
+        playAudio('snd-miss');
+        return;
+      }
       
       isSpinning=true;
       
@@ -3244,6 +3334,13 @@
     }
 
     async function passTurn(){
+      // ✅ BLOCCO NEI ROUND SPECIALI: Non si può passare il turno volontariamente
+      if(isSpecialRound) {
+        speak("Non puoi passare il turno nel round speciale");
+        playAudio('snd-miss');
+        return;
+      }
+      
       // ✅ CORREZIONE CHATGPT: Protezione - solo host o giocatore di turno possono passare
       if(!isHost && !isMe){
         speak("Non puoi passare il turno");
@@ -3294,11 +3391,117 @@
       // Forza refresh
       await fetchFullState();
     }
+    
+    async function passToOpponent(){
+      // ✅ BLOCCO NEI ROUND SPECIALI: Non si può passare all'avversario
+      if(isSpecialRound) {
+        speak("Non puoi passare all'avversario nel round speciale");
+        playAudio('snd-miss');
+        return;
+      }
+      
+      // ✅ Solo il giocatore di turno o l'host possono passare
+      if(!isHost && !isMe){
+        speak("Non puoi passare all'avversario");
+        return;
+      }
+      
+      const s=currentStanza;
+      if(!s || !s.giocatori || s.giocatori.length === 0) return;
+      
+      // ✅ Se 1 giocatore: non puoi passare
+      if(s.giocatori.length === 1) {
+        speak("Non puoi passare all'avversario se sei da solo");
+        playAudio('snd-miss');
+        return;
+      }
+      
+      // ✅ Se 2 giocatori: passa automaticamente all'altro
+      if(s.giocatori.length === 2) {
+        let currIdx=s.giocatori.findIndex(p=>p.id===s.id_giocatore_corrente);
+        if(currIdx === -1) currIdx = 0;
+        let nextIdx = (currIdx + 1) % 2;
+        let nextPlayerUUID = s.giocatori[nextIdx].id;
+        
+        await _supabase.from('stanze').update({
+          id_giocatore_corrente:nextPlayerUUID,
+          montepremi_round:0,
+          fase_speciale:0,
+          ultima_azione:'passa_avversario',
+          ultimo_messaggio:`Turno passato a ${s.giocatori[nextIdx].nome}`,
+          azione_timestamp:new Date().toISOString()
+        }).eq('id', roomId);
+        
+        speak(`Hai passato il turno a ${s.giocatori[nextIdx].nome}`);
+        await fetchFullState();
+        return;
+      }
+      
+      // ✅ Se 3+ giocatori: chiedi a chi passare
+      const currIdx=s.giocatori.findIndex(p=>p.id===s.id_giocatore_corrente);
+      const opponents = s.giocatori.filter((p, idx) => idx !== currIdx);
+      
+      // Mostra dialog per scegliere
+      const choiceHTML = opponents.map((p, idx) => 
+        `<button onclick="confirmPassTo('${p.id}')" style="display:block; width:100%; padding:15px; margin:5px 0; background:#333; color:#fff; border:2px solid #555; border-radius:8px; font-size:1.2em; cursor:pointer;">${p.nome}</button>`
+      ).join('');
+      
+      const overlay = document.createElement('div');
+      overlay.id = 'pass-choice-overlay';
+      overlay.style = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:9999; display:flex; align-items:center; justify-content:center;';
+      overlay.innerHTML = `
+        <div style="background:#222; border:3px solid var(--col-neon); padding:30px; border-radius:15px; max-width:400px; width:90%;">
+          <h2 style="color:var(--col-neon); margin-top:0;">Passa il turno a...</h2>
+          ${choiceHTML}
+          <button onclick="document.getElementById('pass-choice-overlay').remove()" style="display:block; width:100%; padding:10px; margin-top:15px; background:#555; color:#aaa; border:1px solid #666; border-radius:8px; cursor:pointer;">ANNULLA</button>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      speak("Scegli a chi passare il turno");
+    }
+    
+    async function confirmPassTo(targetPlayerUUID) {
+      const s=currentStanza;
+      const targetPlayer = s.giocatori.find(p => p.id === targetPlayerUUID);
+      
+      document.getElementById('pass-choice-overlay')?.remove();
+      
+      // ✅ Verifica che il giocatore esista ancora
+      if(!targetPlayer) {
+        speak("Errore: giocatore non trovato");
+        playAudio('snd-miss');
+        return;
+      }
+      
+      await _supabase.from('stanze').update({
+        id_giocatore_corrente:targetPlayerUUID,
+        montepremi_round:0,
+        fase_speciale:0,
+        ultima_azione:'passa_avversario',
+        ultimo_messaggio:`Turno passato a ${targetPlayer.nome}`,
+        azione_timestamp:new Date().toISOString()
+      }).eq('id', roomId);
+      
+      speak(`Hai passato il turno a ${targetPlayer.nome}`);
+      await fetchFullState();
+    }
 
     // ✅ ACCESSIBILITÀ: Variabile per salvare l'elemento che ha aperto l'input
     let lastFocusedElement = null;
     
     function openInput(mode){
+      // ✅ SICUREZZA: Per 'solve', verifica che sia il TUO turno (o che sia la fase 102 del round speciale)
+      if(mode === 'solve' && currentStanza) {
+        const isMyTurn = (currentStanza.id_giocatore_corrente === myId);
+        const canEveryoneSolve = (currentStanza.fase_speciale === 102); // Round speciale, 10 consonanti usate
+        
+        if(!isMyTurn && !canEveryoneSolve) {
+          speak("Non è il tuo turno!");
+          playAudio('snd-miss');
+          return;
+        }
+      }
+      
       // ✅ PROBLEMA 2: Controllo della "porta aperta"
       // Se il campo è già aperto, NON fare NULLA
       // Questo evita di re-forzare il focus mentre l'utente sta scrivendo
@@ -3427,7 +3630,8 @@
             if(mode === 'solve') {
               speak("Risolvi. Completa gli asterischi con le lettere mancanti.");
             } else if(mode === 'vowel') {
-              speak("Scrivi una vocale.");
+              // ✅ Nel round speciale: annuncio semplice senza conteggio
+              speak("Scrivi la vocale.");
             } else {
               const montepremi = currentStanza?.montepremi_round || 0;
               speak(`Hai girato ${montepremi} euro. Scrivi una consonante.`);
@@ -3688,7 +3892,8 @@
         
         
         if(isSpecialRound && !specialVowelsPhase && mode==='letter'){
-          if(specialConsonantsUsed >= 10){
+          // ✅ Controlla se siamo già passati alla fase 102 (10 consonanti raggiunte)
+          if(s.fase_speciale === 102){
             alert("Limite 10 consonanti raggiunto! Tutti possono risolvere o l'host si arrende.");
             isProcessingInput=false;
             return;
@@ -3794,7 +3999,10 @@
             }
             
             const resultMsg = `Trovate ${newFoundIndices.length} ${char}! Guadagni ${gain} euro`;
-            speak(resultMsg);
+            // ✅ Nel round speciale NON annunciare subito - lo farà waitForPlayerConsonant dopo i beep
+            if(!isSpecialRound || specialVowelsPhase) {
+              speak(resultMsg);
+            }
             addActionToHistory(`${myName}: ${char} - Trovate ${newFoundIndices.length}, guadagno €${gain}`);
             
             await _supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)+gain}).eq('id', myId);
@@ -3804,13 +4012,18 @@
               specialConsonantsUsed++;
               
               // ✅ LOGICA CONSONANTE AUTOMATICA: Se 3 giocatori e 9 consonanti, il sistema rivela la 10ª
-              if(specialConsonantsUsed === 9 && s.giocatori.length === 3){
+              // Estrai il numero reale dal messaggio appena creato
+              const countMsg = `${myName}: Trovate ${newFoundIndices.length} ${char} (${specialConsonantsUsed}/10 consonanti)`;
+              const countMatch = countMsg.match(/\((\d+)\/10\)/);
+              const actualCount = countMatch ? parseInt(countMatch[1]) : specialConsonantsUsed;
+              
+              if(actualCount === 9 && s.giocatori.length === 3){
                 // Aggiorna database con le lettere correnti
                 await _supabase.from('stanze').update({
                   lettere_rivelate:newRev,
                   montepremi_round:0,
                   ultima_azione:'chiama_lettera',
-                  ultimo_messaggio:`${myName}: Trovate ${newFoundIndices.length} ${char} (${specialConsonantsUsed}/10 consonanti)`,
+                  ultimo_messaggio:countMsg,
                   azione_timestamp:new Date().toISOString()
                 }).eq('id', roomId);
                 
@@ -3823,7 +4036,7 @@
                 return; // Non passare il turno, lo farà revealAutomaticConsonant
               }
               
-              if(specialConsonantsUsed >= 10){
+              if(actualCount >= 10){
                 await _supabase.from('stanze').update({
                   lettere_rivelate:newRev,
                   montepremi_round:0,
@@ -3857,11 +4070,27 @@
         } else {
           playAudio('snd-miss'); 
           
-          speak(`${char} non trovata! Passi il turno`);
-          addActionToHistory(`${myName}: ${char} NON PRESENTE`);
-          
-          await _supabase.from('stanze').update({ultima_azione:'errore',ultimo_messaggio:`${myName}: ${char} assente`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
-          await passTurn();
+          // ✅ Nel round speciale consonanti NON si passa il turno per lettera mancante
+          // Il turno è gestito dal loop di startConsonantCollection
+          if(isSpecialRound && !specialVowelsPhase) {
+            // ✅ CRITICO: Incrementa il contatore anche se la lettera non è trovata!
+            specialConsonantsUsed++;
+            
+            // ✅ NON annunciare subito - lo farà waitForPlayerConsonant dopo i beep
+            addActionToHistory(`${myName}: ${char} NON PRESENTE`);
+            await _supabase.from('stanze').update({
+              ultima_azione:'errore',
+              ultimo_messaggio:`${myName}: ${char} assente (${specialConsonantsUsed}/10 consonanti)`,
+              azione_timestamp:new Date().toISOString()
+            }).eq('id', roomId);
+            // NON chiamare passTurn() - il loop gestisce i turni
+          } else {
+            // Round normale: passa il turno
+            speak(`${char} non trovata! Passi il turno`);
+            addActionToHistory(`${myName}: ${char} NON PRESENTE`);
+            await _supabase.from('stanze').update({ultima_azione:'errore',ultimo_messaggio:`${myName}: ${char} assente`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+            await passTurn();
+          }
         }
       }
       
@@ -4103,34 +4332,26 @@
       
       const numPlayers = s.giocatori.length;
       
-      // ✅ FIX: Con 1 giocatore il sistema regala direttamente tutte le vocali
-      if(numPlayers === 1) {
-        await giveSystemVowels(3, s);
-        
-        // Completa la fase vocali e passa alle consonanti
-        specialVowelsPhase = false;
-        specialConsonantsUsed = 0;
-        specialVowelsGiven = 3;
-        
-        await _supabase.from('stanze').update({
-          fase_speciale: 101,
-          ultimo_messaggio: `Sistema ha regalato 3 vocali! Fase consonanti: 10 consonanti totali`,
-          azione_timestamp: new Date().toISOString()
-        }).eq('id', roomId);
-        
-        speak("Sistema ha regalato 3 vocali. Inizia la fase consonanti.");
-        
-        // ✅ Dopo 2 secondi, inizia la raccolta delle consonanti (più tempo per vedere le vocali)
-        setTimeout(() => startConsonantCollection(), 2000);
-        return;
-      }
+      // ✅ LOGICA VOCALI:
+      // 1 giocatore: giocatore sceglie 1, sistema dà 2
+      // 2 giocatori: ogni giocatore sceglie 1, sistema dà 1
+      // 3 giocatori: ogni giocatore sceglie 1, sistema non dà nulla
       
-      const vowelsPerPlayer = 1; // Sempre 1 per giocatore
-      const systemVowels = numPlayers === 2 ? 1 : 0;
+      const vowelsPerPlayer = 1;
+      let systemVowels = 0;
+      if(numPlayers === 1) systemVowels = 2;
+      else if(numPlayers === 2) systemVowels = 1;
+      else systemVowels = 0; // 3 o più giocatori
       
       // Chiedi le vocali ai giocatori in sequenza
       for(let i = 0; i < numPlayers; i++) {
         const player = s.giocatori[i];
+        
+        // ✅ Annuncia il cambio turno se siamo in 2 o 3 giocatori
+        if(numPlayers > 1) {
+          speak(`Turno di ${player.nome}`);
+          await new Promise(resolve => setTimeout(resolve, 800));
+        }
         
         // Imposta il turno su questo giocatore
         await _supabase.from('stanze').update({
@@ -4219,6 +4440,24 @@
         for(let i = 0; i < numPlayers && totalConsonants < consonantsPerPlayer * numPlayers; i++) {
           const player = s.giocatori[i];
           
+          // ✅ Protezione: Verifica che il giocatore esista ancora
+          if(!player) {
+            continue;
+          }
+          
+          // ✅ Annuncia il turno PRIMA della prima consonante (totalConsonants === 0)
+          if(totalConsonants === 0) {
+            speak(`Turno di ${player.nome}`);
+            await new Promise(resolve => setTimeout(resolve, 800));
+          }
+          
+          // ✅ Calcola quale sarà il prossimo giocatore per l'annuncio
+          const nextIndex = (i + 1) % numPlayers;
+          const nextPlayer = s.giocatori[nextIndex];
+          // ✅ FIX: Considera che con 3 giocatori la 10ª consonante è automatica
+          const totalConsonantsNeeded = (numPlayers === 3) ? 9 : (consonantsPerPlayer * numPlayers);
+          const willBeLastConsonant = (totalConsonants + 1 >= totalConsonantsNeeded);
+          
           // Imposta il turno
           await _supabase.from('stanze').update({
             id_giocatore_corrente: player.id,
@@ -4227,12 +4466,23 @@
             azione_timestamp: new Date().toISOString()
           }).eq('id', roomId);
           
-          // Aspetta consonante
-          await waitForPlayerConsonant(player.id);
+          // ✅ Pausa per permettere ai client di ricevere l'update
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Aspetta consonante e passa info sul prossimo giocatore
+          await waitForPlayerConsonant(player.id, nextPlayer, willBeLastConsonant);
           totalConsonants++;
           
-          // ✅ Pausa di 2 secondi per vedere bene la consonante
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          // ✅ Pausa per far finire i beep di lettera presente/assente
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // ✅ Beep sintetico breve DOPO aver scelto la consonante (per conferma/transizione)
+          if(totalConsonants < consonantsPerPlayer * numPlayers) {
+            playSound(600, 80, 'sine'); // Beep breve di conferma
+          }
+          
+          // ✅ Pausa di 1 secondo aggiuntivo per vedere bene la consonante
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
       
@@ -4251,14 +4501,45 @@
       speak("Dieci consonanti completate! Tutti possono provare a risolvere.");
     }
     
-    async function waitForPlayerConsonant(playerId) {
-      // ✅ Aspetta che il giocatore scelga una consonante (con timeout di 2 minuti)
+    async function waitForPlayerConsonant(playerId, nextPlayer, isLastConsonant) {
+      // ✅ Aspetta che il giocatore scelga una consonante (controllando il database)
       return new Promise((resolve) => {
-        const initialCount = specialConsonantsUsed;
-        const checkInterval = setInterval(() => {
-          if(specialConsonantsUsed > initialCount) {
+        // ✅ Leggi il numero iniziale dal DB
+        const initialMsg = currentStanza?.ultimo_messaggio || '';
+        const initialMatch = initialMsg.match(/\((\d+)\/10\)/);
+        const initialCount = initialMatch ? parseInt(initialMatch[1]) : 0;
+        
+        const checkInterval = setInterval(async () => {
+          // ✅ Ricarica stato fresco dal DB
+          const { data: freshState } = await _supabase
+            .from('stanze')
+            .select('ultimo_messaggio, fase_speciale')
+            .eq('id', roomId)
+            .single();
+          
+          if(!freshState) return;
+          
+          // ✅ Controlla se il numero di consonanti è aumentato
+          const currentMsg = freshState.ultimo_messaggio || '';
+          const currentMatch = currentMsg.match(/\((\d+)\/10\)/);
+          const currentCount = currentMatch ? parseInt(currentMatch[1]) : 0;
+          
+          // ✅ Oppure controlla se siamo passati alla fase 102 (tutte le consonanti usate)
+          if(currentCount > initialCount || freshState.fase_speciale === 102) {
             clearInterval(checkInterval);
             clearTimeout(timeoutId);
+            
+            // ✅ ANNUNCIO: "X di 10, turno di Y" dopo 500ms dai beep
+            setTimeout(() => {
+              if(freshState.fase_speciale === 102 || isLastConsonant) {
+                speak(`${currentCount} di 10. Fase consonanti completata!`);
+              } else if(nextPlayer) {
+                speak(`${currentCount} di 10, turno di ${nextPlayer.nome}`);
+              } else {
+                speak(`${currentCount} di 10`);
+              }
+            }, 500);
+            
             resolve();
           }
         }, 500);
@@ -4390,24 +4671,21 @@
             await _supabase.from('stanze').update({lettere_rivelate:newRev,ultimo_messaggio:`Sistema regala vocale: ${v} - Trovate ${foundIndices.length}`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
             stanza.lettere_rivelate = newRev;
             
-            // ✅ Suona una volta per ogni occorrenza trovata
-            for(let i = 0; i < foundIndices.length; i++) {
-              playRandomCorrectSound();
-              await new Promise(resolve => setTimeout(resolve, 400)); // ✅ 400ms tra i suoni
-            }
+            // ✅ Usa il beep audio reale (snd-hit) tante volte quante sono le occorrenze
+            playMultipleHits(foundIndices.length);
             
             speak(`Sistema regala vocale ${v}. Trovate ${foundIndices.length}.`);
           } else {
             
             await _supabase.from('stanze').update({ultimo_messaggio:`Sistema regala vocale: ${v} (non presente)`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
-            // ✅ FIX: NON riprodurre playIncorrectSound() qui - verrà riprodotto automaticamente da updateUI()
+            playAudio('snd-miss'); // ✅ Beep audio per lettera non trovata
             speak(`Sistema regala vocale ${v}. Non presente.`);
           }
           
           count--;
           
-          // ✅ Pausa di 1.5 secondi tra le vocali del sistema
-          await new Promise(resolve => setTimeout(resolve, 1500));
+          // ✅ Pausa di 1 secondo tra le vocali del sistema
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
     }
@@ -4508,11 +4786,6 @@
       location.reload(); 
     }
     
-    async function surrenderSpecialRound(){
-      // Alias per surrenderPhrase - stessa funzione
-      await surrenderPhrase();
-    }
-    
     async function surrenderPhrase(){
       if(!isHost) return;
       
@@ -4596,8 +4869,8 @@
       if (!audioEnabled) return;
       const frequencies = [523.25, 587.33, 659.25, 783.99]; 
       const randomFreq = frequencies[Math.floor(Math.random() * frequencies.length)];
-      playSound(randomFreq, 100, 'sine');
-      setTimeout(() => playSound(randomFreq * 1.5, 150, 'sine'), 120);
+      playSound(randomFreq, 60, 'sine');
+      setTimeout(() => playSound(randomFreq * 1.5, 80, 'sine'), 70);
     }
     
     function playIncorrectSound() {
@@ -4635,7 +4908,7 @@
       }
     }
     
-    // ✅ CORREZIONE CHATGPT: Sistema ping periodico per tracciare giocatori online
+    // Sistema ping periodico per tracciare giocatori online
     function startPeriodicPing(){
       if(pingInterval) clearInterval(pingInterval);
       

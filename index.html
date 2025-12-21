@@ -1267,7 +1267,19 @@
       });
       document.getElementById('word-inspector-overlay').classList.remove('hidden');
       setTimeout(() => { const first = cont.querySelector('.inspector-char-btn'); if(first) first.focus(); }, 100);
-      speak(`Dettaglio parola ${navWordIdx + 1}. Usa tab per scorrere le lettere.`);
+      
+      // ✅ FIX: Annuncia il numero di consonanti nel round speciale
+      const s = currentStanza;
+      const isSpecialRound = s && s.round_giocati === 7;
+      const specialVowelsPhase = s && s.fase_speciale === 100;
+      
+      if(isSpecialRound && !specialVowelsPhase && s.fase_speciale === 101) {
+        const match = (s.ultimo_messaggio || '').match(/\((\d+)\/10\)/);
+        const consonantsCount = match ? parseInt(match[1]) : 0;
+        speak(`Dettaglio parola ${navWordIdx + 1}. Consonanti usate: ${consonantsCount} su 10. Usa tab per scorrere le lettere.`);
+      } else {
+        speak(`Dettaglio parola ${navWordIdx + 1}. Usa tab per scorrere le lettere.`);
+      }
     }
 
     function closeWordInspector() {
@@ -2866,16 +2878,13 @@
         lastSpinTimestamp = new Date().toISOString(); 
         
         // ✅ NON suonare il beep di cambio turno durante la fase consonanti del round speciale
-        // (verrà annunciato vocalmente "Consonante X di 10")
         const isConsonantPhase = isSpecialRound && !specialVowelsPhase && s.fase_speciale === 101;
         if(!isConsonantPhase) {
           speak("Tocca a te."); 
           playAudio('snd-turn');
         } else {
-          // ✅ FASE CONSONANTI: Estrai il numero dal messaggio DB (formato: "Nome: ... (X/10)")
-          const match = (s.ultimo_messaggio || '').match(/\((\d+)\/10\)/);
-          const consonantNumber = match ? parseInt(match[1]) + 1 : 1;
-          speak(`Consonante ${consonantNumber} di 10. Tocca a te.`);
+          // ✅ Round speciale fase consonanti: solo "Tocca a te"
+          speak("Tocca a te.");
         }
       }
       
@@ -3246,9 +3255,10 @@
       } else if(val==='JOLLY'){
         const startR=currentStanza.round_giocati;
         
-        // ✅ FIX: Il Jolly dura 5 round dal round corrente (incluso)
-        // Ma NON può andare oltre il round 10 (fine partita)
-        const idealEndR = startR + 4; // +4 perché il round corrente è già incluso
+        // ✅ FIX: Il Jolly dura 5 round completi dal round SUCCESSIVO
+        // Esempio: Se sei al round 4, dura fino al round 8 (round 5, 6, 7, 8 = 4 round di protezione)
+        // Ma il messaggio deve dire "fino al round 8" (5 round totali: 4, 5, 6, 7, 8)
+        const idealEndR = startR + 4; // Esempio: round 4 + 4 = 8
         const newEndR = Math.min(idealEndR, 10); // Cap a round 10
         
         const currentJollyEnd = me && me.scadenza_jolly ? me.scadenza_jolly : 0;
@@ -3260,10 +3270,11 @@
         } else {
           // Nuovo Jolly
           await _supabase.from('giocatori').update({scadenza_jolly:newEndR}).eq('id', myId);
+          const roundsProtected = newEndR - startR; // Calcola quanti round di protezione
           if(newEndR === 10 && idealEndR > 10) {
-            msg=`${myName} pesca il JOLLY! Attivo fino alla fine (round ${newEndR})`;
+            msg=`${myName} pesca il JOLLY! Attivo fino alla fine della partita (round ${newEndR})`;
           } else {
-            msg=`${myName} pesca il JOLLY! Attivo per 5 round (fino al round ${newEndR})`;
+            msg=`${myName} pesca il JOLLY! Protegge per ${roundsProtected + 1} round (fino al round ${newEndR})`;
           }
         }
         

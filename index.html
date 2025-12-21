@@ -257,32 +257,54 @@
       <div id="special-round-indicator" class="hidden" style="color:cyan; font-weight:bold; margin-top:5px; font-size:1.1em; text-shadow:0 0 5px cyan; border:1px solid cyan; padding:5px; border-radius:5px;"></div>
     
     <div class="acc-nav" role="navigation" aria-label="Comandi principali touch">
-      <!-- AZIONI PRINCIPALI -->
-      <button class="action-btn btn-spin" onclick="doSpin()">GIRA (G)</button>
-      <button class="action-btn btn-vowel" onclick="tryOpenVowelInput()">VOCALE (V)</button>
-      <button class="action-btn btn-pass" onclick="passTurn()">PASSA (P)</button>
-      <button class="action-btn btn-solve" onclick="openInput('solve')">RISOLVI (R)</button>
+      <!-- Ordine per flick con screen reader: -->
+      <!-- Tabellone (flick sx) <- GIRA (centro) -> VOCALE -> RISOLVI -> [PASSA se round speciale] -> PASSA TURNO -> ALTRI COMANDI -->
       
-      <!-- ANNUNCI VOCALI (funzioni solo da tastiera normalmente) -->
-      <button class="action-btn" style="background:#1a4d2e; border-color:#2ecc71;" onclick="announceTurn()">📢 ANNUNCIA TURNO (T)</button>
-      <button class="action-btn" style="background:#1a4d2e; border-color:#2ecc71;" onclick="announceScore()">💰 LEGGI PUNTEGGI (D)</button>
+      <!-- NAVIGAZIONE TABELLONE - a sinistra di GIRA -->
+      <button class="action-btn" onclick="navigateTextBoard('first')" style="background:#222;border-color:#555;grid-column:1/-1;">
+        TABELLONE - PRIMA PAROLA
+      </button>
       
-      <!-- NAVIGAZIONE E INFO -->
-      <button class="action-btn" onclick="openWordInspector()">ISPEZIONA PAROLA (I)</button>
-      <button class="action-btn" onclick="readRevealedLetters()">LETTERE USCITE (L)</button>
-      <button class="action-btn" onclick="openChat()">CHAT (K)</button>
-      <button class="action-btn" onclick="openPlayersPanel()">CLASSIFICA (S)</button>
-      <button class="action-btn" onclick="openActionHistory(true)">STORICO (A)</button>
-      <button class="action-btn" onclick="openHelp()">AIUTO (H)</button>
+      <!-- GIRA - pulsante principale (focus di default) -->
+      <button id="btn-acc-spin" class="action-btn btn-spin" onclick="doSpin()" style="grid-column:1/-1;">GIRA</button>
       
-      <!-- EFFETTI SONORI (tasti 1-4) -->
-      <button class="action-btn" style="background:#2c3e50; font-size:0.9em;" onclick="playSharedAudio('snd-clap', 'Applauso')">👏 APPLAUSO (1)</button>
-      <button class="action-btn" style="background:#2c3e50; font-size:0.9em;" onclick="playSharedAudio('snd-laugh', 'Risata')">😂 RISATA (2)</button>
-      <button class="action-btn" style="background:#2c3e50; font-size:0.9em;" onclick="playSharedAudio('snd-boo', 'Fischi')">👎 FISCHI (3)</button>
-      <button class="action-btn" style="background:#2c3e50; font-size:0.9em;" onclick="playSharedAudio('snd-ooh', 'Ooh')">😮 OOH (4)</button>
+      <!-- COMANDI PRINCIPALI - a destra di GIRA -->
+      <button class="action-btn btn-vowel" onclick="tryOpenVowelInput()" style="grid-column:1/-1;">VOCALE</button>
       
-      <!-- SALTI RAPIDI -->
-      <button class="action-btn" style="background:#222;" onclick="jumpToSection('hdr-board')">⬇️ VAI AL TABELLONE</button>
+      <button class="action-btn btn-solve" onclick="openInput('solve')" style="grid-column:1/-1;">RISOLVI</button>
+      
+      <!-- PASSA - visibile SOLO nei round speciali -->
+      <button id="btn-acc-pass-special" class="action-btn btn-pass" onclick="passTurn()" style="grid-column:1/-1;display:none;">PASSA</button>
+      
+      <button class="action-btn btn-pass" onclick="passTurn()" style="grid-column:1/-1;">PASSA TURNO</button>
+      
+      <!-- Pulsante Altri Comandi -->
+      <button id="btn-acc-more" class="action-btn" onclick="toggleAccMoreCommands()" style="background:#333;border-color:#666;grid-column:1/-1;">
+        ALTRI COMANDI ▼
+      </button>
+      
+      <!-- COMANDI SECONDARI - nascosti inizialmente -->
+      <div id="acc-more-commands" style="display:none;grid-column:1/-1;">
+        <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px;">
+          <button class="action-btn" onclick="openChat()">CHAT</button>
+          <button class="action-btn" onclick="openPlayersPanel()">CLASSIFICA</button>
+          <button class="action-btn" onclick="openHelp()">AIUTO</button>
+          
+          <!-- ANNUNCI VOCALI -->
+          <button class="action-btn" style="background:#1a4d2e; border-color:#2ecc71;" onclick="announceTurn()">ANNUNCIA TURNO</button>
+          <button class="action-btn" style="background:#1a4d2e; border-color:#2ecc71;" onclick="announceScore()">LEGGI PUNTEGGI</button>
+          <button class="action-btn" onclick="readRevealedLetters()">LETTERE USCITE</button>
+          
+          <!-- EFFETTI SONORI -->
+          <button class="action-btn" style="background:#2c3e50; font-size:0.9em;" onclick="playSharedAudio('snd-clap', 'Applauso')">APPLAUSO</button>
+          <button class="action-btn" style="background:#2c3e50; font-size:0.9em;" onclick="playSharedAudio('snd-laugh', 'Risata')">RISATA</button>
+          <button class="action-btn" style="background:#2c3e50; font-size:0.9em;" onclick="playSharedAudio('snd-boo', 'Fischi')">FISCHI</button>
+          <button class="action-btn" style="background:#2c3e50; font-size:0.9em;" onclick="playSharedAudio('snd-ooh', 'Ooh')">OOH</button>
+          
+          <button class="action-btn" onclick="openActionHistory(true)">STORICO AZIONI</button>
+          <button class="action-btn" onclick="toggleAudio()" id="btn-acc-audio">AUDIO</button>
+        </div>
+      </div>
     </div>
 </div>
 
@@ -1022,6 +1044,10 @@
     
     function closeResultPopup(){
       document.getElementById('result-popup').classList.add('hidden');
+      // In vista testo, ritorna focus su GIRA
+      if(isAccessibleMode){
+        setTimeout(()=> document.getElementById('btn-acc-spin')?.focus(), 100);
+      }
     }
     
     function openActionHistory(focusFirst=false){
@@ -2029,6 +2055,8 @@
         updateAccessibleBoard();
         document.getElementById('board-container').setAttribute('aria-hidden','true');
         speak("Vista Testo attivata.");
+        // Porta focus su GIRA
+        setTimeout(()=> document.getElementById('btn-acc-spin')?.focus(), 200);
       } else {
         document.getElementById('board-container').setAttribute('aria-hidden','false');
         speak("Vista Grafica attivata.");
@@ -2053,10 +2081,137 @@
           } else { visualText+=c.char+" "; srText+=(NATO[c.char] || c.char) + " "; }
         });
         btn.innerHTML=`<span>${idx+1}.</span> <strong>${visualText}</strong>`;
-        btn.onclick=()=>speak(srText);
+        btn.onclick=()=>{
+          navWordIdx = idx;
+          textNavWordIdx = idx;
+          speak(srText);
+          // Apri menu rapido con opzioni
+          openWordQuickMenu(idx);
+        };
         container.appendChild(btn);
       });
     }
+    
+    // Menu rapido per azioni sulla parola nel tabellone
+    function openWordQuickMenu(wordIdx){
+      const overlay = document.getElementById('word-quick-menu-overlay');
+      if(!overlay) {
+        // Crea overlay se non esiste
+        const newOverlay = document.createElement('div');
+        newOverlay.id = 'word-quick-menu-overlay';
+        newOverlay.className = 'hidden';
+        newOverlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;background:rgba(0,0,0,0.96);z-index:9999;display:flex;flex-direction:column;justify-content:center;align-items:center;backdrop-filter:blur(5px);';
+        newOverlay.innerHTML = `
+          <div class="modal-content" style="max-width:400px;">
+            <h2 style="color:var(--col-neon);margin-bottom:20px;">PAROLA <span id="quick-menu-word-num"></span></h2>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <button id="btn-quick-inspect" class="action-btn" style="background:#1a4d2e;border-color:#2ecc71;font-size:1.2em;padding:18px;">ISPEZIONA PAROLA</button>
+              <button id="btn-quick-spin" class="action-btn btn-spin" style="font-size:1.2em;padding:18px;">GIRA LA RUOTA</button>
+              <button id="btn-quick-close" class="action-btn btn-pass" style="font-size:1.1em;">CHIUDI</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(newOverlay);
+      }
+      
+      // Mostra overlay e aggiorna numero parola
+      const menuOverlay = document.getElementById('word-quick-menu-overlay');
+      const wordNumSpan = document.getElementById('quick-menu-word-num');
+      if(wordNumSpan) wordNumSpan.textContent = (wordIdx + 1);
+      
+      menuOverlay.classList.remove('hidden');
+      
+      // Riconfigura event listeners con il wordIdx corretto (closure)
+      document.getElementById('btn-quick-inspect').onclick = () => {
+        closeWordQuickMenu();
+        openWordInspectorForWord(wordIdx);
+      };
+      document.getElementById('btn-quick-spin').onclick = () => {
+        closeWordQuickMenu();
+        doSpin();
+      };
+      document.getElementById('btn-quick-close').onclick = () => {
+        closeWordQuickMenu();
+      };
+      
+      // Focus sul primo pulsante
+      setTimeout(() => document.getElementById('btn-quick-inspect')?.focus(), 100);
+    }
+    
+    function closeWordQuickMenu(){
+      const overlay = document.getElementById('word-quick-menu-overlay');
+      if(overlay) overlay.classList.add('hidden');
+      
+      // Ritorna focus su GIRA in vista accessibile
+      if(isAccessibleMode){
+        setTimeout(() => document.getElementById('btn-acc-spin')?.focus(), 100);
+      }
+    }
+    
+    // Variabile per tracciare l'indice della parola corrente nella navigazione
+    let textNavWordIdx = 0;
+    
+    // Toggle pannello "Altri Comandi"
+    function toggleAccMoreCommands(){
+      const panel = document.getElementById('acc-more-commands');
+      const btn = document.getElementById('btn-acc-more');
+      if(panel.style.display === 'none' || !panel.style.display){
+        panel.style.display = 'grid';
+        btn.textContent = 'ALTRI COMANDI ▲';
+        btn.style.background = '#444';
+      } else {
+        panel.style.display = 'none';
+        btn.textContent = 'ALTRI COMANDI ▼';
+        btn.style.background = '#333';
+        // Ritorna focus su GIRA
+        setTimeout(()=> document.getElementById('btn-acc-spin')?.focus(), 100);
+      }
+    }
+    
+    // Navigazione tabellone in vista testo
+    function navigateTextBoard(direction){
+      if(!parsedBoard.length) return;
+      
+      if(direction === 'first'){
+        textNavWordIdx = 0;
+      } else if(direction === 'next'){
+        textNavWordIdx = Math.min(textNavWordIdx + 1, parsedBoard.length - 1);
+      } else if(direction === 'prev'){
+        textNavWordIdx = Math.max(textNavWordIdx - 1, 0);
+      }
+      
+      announceCurrentWord();
+    }
+    
+    // Annuncia la parola corrente
+    function announceCurrentWord(){
+      if(!parsedBoard[textNavWordIdx]) return;
+      
+      const word = parsedBoard[textNavWordIdx];
+      let srText = `Parola ${textNavWordIdx + 1}: `;
+      
+      word.chars.forEach(c=>{
+        if(c.isLetter){
+          if(c.isRevealed){ 
+            srText += c.char + " "; 
+          } else { 
+            srText += "Nascosta "; 
+          }
+        } else { 
+          srText += (NATO[c.char] || c.char) + " "; 
+        }
+      });
+      
+      speak(srText);
+    }
+    
+    // Apri inspector per parola specifica
+    function openWordInspectorForWord(wordIdx){
+      if(!parsedBoard[wordIdx]) return;
+      navWordIdx = wordIdx;
+      openWordInspector();
+    }
+
 
     function askPrivacy(){
       const nm=document.getElementById('inp-name').value.trim();
@@ -2680,6 +2835,12 @@
         specialVowelsPhase = true;
       }
       
+      // ✅ Mostra/nascondi pulsante PASSA nella vista accessibile in base al round speciale
+      const btnAccPassSpecial = document.getElementById('btn-acc-pass-special');
+      if(btnAccPassSpecial) {
+        btnAccPassSpecial.style.display = isSpecialRound ? 'flex' : 'none';
+      }
+      
       // ✅ Estrai specialPhraseIndex dal messaggio (formato: "Frase X/4")
       if(isSpecialRound) {
         const phraseMatch = (s.ultimo_messaggio || '').match(/Frase (\d+)\/4/);
@@ -2958,10 +3119,11 @@
           
           canSpin = isMe && !isSpinning && !inputMode && s.montepremi_round===0 && consonantsCount < 10;
           canVowel = false; 
-          canSolve = false; // ✅ NON si può risolvere prima delle 10 consonanti
+          // ✅ Durante il proprio turno si può SEMPRE risolvere, anche prima delle 10 consonanti
+          canSolve = isMe && !isSpinning && !inputMode;
           canPass = false; 
           
-          // Solo dopo 10 consonanti tutti possono risolvere
+          // Solo dopo 10 consonanti tutti possono risolvere (anche se non è il proprio turno)
           if(consonantsCount >= 10 || s.fase_speciale === 102){
             canSpin = false;
             canSolve = !isSpinning && !inputMode; // Tutti possono risolvere
@@ -3580,6 +3742,8 @@
         
         // ✅ ACCESSIBILITÀ: Aggiungi label e descrizione per screen reader
         inp.setAttribute('aria-label', 'Campo per risolvere la frase. Completa gli asterischi con le lettere mancanti.');
+        // ✅ MOBILE: Ottimizza tastiera per testo completo
+        inp.setAttribute('inputmode', 'text');
         
         // ✅ FIX MEMORY LEAK: Rimuovi vecchio listener prima di aggiungerne uno nuovo
         // Usa la funzione globale uppercaseInputHandler
@@ -3601,11 +3765,15 @@
         // ✅ ACCESSIBILITÀ: Label appropriata per ogni modalità
         if(mode==='vowel') {
           inp.setAttribute('aria-label', 'Campo per inserire una vocale');
+          // ✅ MOBILE: Ottimizza tastiera per lettere
+          inp.setAttribute('inputmode', 'text');
           // ✅ NVDA FIX: speak() viene chiamato DOPO il setTimeout del focus
           // Vedi più in basso (dopo il setTimeout)
         } else {
           const montepremi = currentStanza?.montepremi_round || 0;
           inp.setAttribute('aria-label', `Campo per inserire una consonante. Hai girato ${montepremi} euro.`);
+          // ✅ MOBILE: Ottimizza tastiera per lettere
+          inp.setAttribute('inputmode', 'text');
           // ✅ NVDA FIX: speak() viene chiamato DOPO il setTimeout del focus
           // Vedi più in basso (dopo il setTimeout)
         }
@@ -3629,9 +3797,13 @@
       setTimeout(() => {
         const gameInput = document.getElementById('game-input');
         if(gameInput) {
-          // Imposta solo il focus - NESSUN select() o setSelectionRange
-          // Questi comandi causano "rumore" che confonde NVDA e lo fa uscire dalla modalità focus
+          // ✅ SMARTPHONE FIX: Attiva la tastiera virtuale automaticamente
+          // Su mobile, il semplice focus() non basta - serve anche click()
           gameInput.focus();
+          
+          // Forza l'apertura della tastiera virtuale su smartphone
+          // Il click() simula l'interazione utente necessaria per aprire la tastiera
+          gameInput.click();
           
           // ✅ NVDA FIX: speak() viene chiamato DOPO il focus, così NVDA è già in focus mode
           // e l'annuncio non interferisce con l'ingresso nella modalità focus
@@ -3686,6 +3858,11 @@
       
       document.getElementById('input-area').classList.add('hidden'); 
       inputMode=null;
+      
+      // In vista testo, ritorna focus su GIRA
+      if(isAccessibleMode){
+        setTimeout(()=> document.getElementById('btn-acc-spin')?.focus(), 100);
+      }
     }
 
     async function submitInput(){
@@ -4108,6 +4285,13 @@
       setTimeout(async () => {
         if(roomId) await fetchFullState();
         isProcessingInput=false; // ✅ Reset DOPO il fetch, così updateUI vede i dati freschi
+        
+        // ✅ SMARTPHONE FIX: Dopo aver trovato una consonante, aspetta 1 secondo e poi 
+        // forza un altro fetch per assicurarsi che il pulsante GIRA sia riabilitato
+        // Questo risolve race condition dove isProcessingInput blocca canSpin
+        setTimeout(async () => {
+          if(roomId) await fetchFullState();
+        }, 1000);
       }, 100); // ✅ Ridotto a 100ms per reattività ottimale
     }
 
@@ -4542,12 +4726,17 @@
             
             // ✅ ANNUNCIO: "X di 10, turno di Y" dopo 500ms dai beep
             setTimeout(() => {
-              if(freshState.fase_speciale === 102 || isLastConsonant) {
-                speak(`${currentCount} di 10. Fase consonanti completata!`);
+              if(freshState.fase_speciale === 102 || currentCount >= 10) {
+                // Decima consonante - annuncio finale
+                speak(`10 di 10. Non si possono chiamare più consonanti. Tutti possono risolvere!`);
               } else if(nextPlayer) {
-                speak(`${currentCount} di 10, turno di ${nextPlayer.nome}`);
+                // Prima consonante: "Consonante 1 di 10"
+                // Successive: "2 di 10", "3 di 10", ecc.
+                const prefix = (currentCount === 1) ? 'Consonante ' : '';
+                speak(`${prefix}${currentCount} di 10, turno di ${nextPlayer.nome}`);
               } else {
-                speak(`${currentCount} di 10`);
+                const prefix = (currentCount === 1) ? 'Consonante ' : '';
+                speak(`${prefix}${currentCount} di 10`);
               }
             }, 500);
             
@@ -4913,6 +5102,11 @@
       const btn = document.getElementById('btn-toggle-audio');
       if (btn) {
         btn.textContent = audioEnabled ? 'Audio ON' : 'Audio OFF';
+      }
+      // Aggiorna anche il pulsante nella vista accessibile
+      const accBtn = document.getElementById('btn-acc-audio');
+      if (accBtn) {
+        accBtn.textContent = audioEnabled ? 'AUDIO ON' : 'AUDIO OFF';
       }
       if (audioEnabled) {
         playSound(440, 100);

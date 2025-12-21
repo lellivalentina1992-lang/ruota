@@ -246,7 +246,9 @@
     </div>
 
     <div class="category-box">
-      <h2 id="live-category">...</h2>
+      <h2 id="live-category">
+        <span id="category-name">...</span><span id="category-hint"></span>
+      </h2>
       <h3 id="round-hint"></h3>
       <div id="jolly-indicator" class="hidden" style="color:#ff00ff; font-weight:bold; margin-top:5px; font-size:1.1em; text-shadow:0 0 5px #ff00ff;"></div>
       <div id="double-indicator" class="hidden" style="color:orange; font-weight:bold; margin-top:5px; font-size:1.1em; text-shadow:0 0 5px red; border:1px solid red; padding:2px;">RADDOPPIA ATTIVO! GIRA ANCORA!</div>
@@ -2719,11 +2721,9 @@
         }
         
         // ✅ Mostra categoria + hint (se presente) per TUTTE le categorie
-        const categoryDisplay = currentHintText 
-          ? `${currentFrase.categoria} - ${currentHintText}` 
-          : currentFrase.categoria;
+        document.getElementById('category-name').textContent = currentFrase.categoria;
+        document.getElementById('category-hint').textContent = currentHintText ? ` - ${currentHintText}` : '';
         
-        document.getElementById('live-category').textContent = categoryDisplay;
         document.getElementById('round-hint').textContent = currentHintText;
         vowelsBoughtThisTurn=0;
         parseAndRenderBoard(currentPuzzleText, s.lettere_rivelate, true); // ✅ Reset navigazione per nuova frase
@@ -2739,12 +2739,16 @@
       // ✅ Aggiorna sempre la categoria con hint (se presente) - persiste anche dopo cambio fase
       // Ma SOLO se è cambiata (per evitare troppi aggiornamenti DOM)
       if(currentFrase) {
-        const categoryDisplay = currentHintText 
-          ? `${currentFrase.categoria} - ${currentHintText}` 
-          : currentFrase.categoria;
-        const categoryElement = document.getElementById('live-category');
-        if(categoryElement.textContent !== categoryDisplay) {
-          categoryElement.textContent = categoryDisplay;
+        const categoryNameEl = document.getElementById('category-name');
+        const categoryHintEl = document.getElementById('category-hint');
+        
+        if(categoryNameEl.textContent !== currentFrase.categoria) {
+          categoryNameEl.textContent = currentFrase.categoria;
+        }
+        
+        const hintText = currentHintText ? ` - ${currentHintText}` : '';
+        if(categoryHintEl.textContent !== hintText) {
+          categoryHintEl.textContent = hintText;
         }
       }
       

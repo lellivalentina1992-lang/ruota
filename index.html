@@ -1081,16 +1081,36 @@
     };
 
     async function readRevealedLetters(){
-      if(!currentStanza) return;
+      if(!currentStanza || !currentPuzzleText) return;
       
+      // ✅ RICOSTRUISCE le lettere chiamate dal puzzle e dagli indici rivelati
+      // Questo garantisce che TUTTE le lettere chiamate (anche da altri giocatori o da bot) 
+      // vengano incluse nell'elenco, non solo quelle che hai chiamato tu
       
-      if(!lettersCalledThisRound || lettersCalledThisRound.length === 0) {
+      const revealedIndices = currentStanza.lettere_rivelate || [];
+      const allRevealedLetters = new Set();
+      
+      // Scansiona il puzzle e trova quali lettere corrispondono agli indici rivelati
+      const sol = currentPuzzleText.toUpperCase();
+      let globalIdx = 0;
+      
+      for(let i = 0; i < sol.length; i++) {
+        if(sol[i].match(/[A-ZÀ-Ù]/)) {
+          if(revealedIndices.includes(globalIdx)) {
+            const cleanLetter = cleanStr(sol[i]);
+            allRevealedLetters.add(cleanLetter);
+          }
+          globalIdx++;
+        }
+      }
+      
+      // Converti Set in array ordinato
+      const list = [...allRevealedLetters].sort();
+      
+      if(list.length === 0) {
         speak("Nessuna lettera chiamata ancora in questo round.");
         return;
       }
-      
-      const list = [...lettersCalledThisRound].sort();
-      
       
       clearSpeechQueue();
       speak(`Lettere chiamate: ${list.length}`);
@@ -1873,6 +1893,23 @@
 
       const isInInput = document.activeElement && document.activeElement.tagName==='INPUT';
       
+      // ✅ FIX: Se sei in un campo di input del gioco (consonante/vocale/soluzione/chat),
+      // blocca SOLO Ctrl+V (deve incollare) e Ctrl+A (deve selezionare tutto)
+      // MA lascia passare tutti gli altri Ctrl (G, L, T, ecc.) che attivano le funzioni del gioco
+      const gameInput = document.getElementById('game-input');
+      const chatInput = document.getElementById('chat-input');
+      if(isInInput && (document.activeElement === gameInput || document.activeElement === chatInput)) {
+        if(e.ctrlKey && k === 'v') {
+          // Lascia passare Ctrl+V al browser per incollare
+          return;
+        }
+        if(e.ctrlKey && k === 'a') {
+          // Lascia passare Ctrl+A al browser per selezionare tutto
+          return;
+        }
+        // Tutti gli altri Ctrl continuano nel codice sotto per attivare funzioni del gioco
+      }
+      
       // ✅ FIX: Se sei nella schermata di setup (prima di entrare in stanza),
       // NON intercettare i tasti - lascia funzionare tutto normalmente (Ctrl+A, ecc)
       if(isInSetupScreen && !e.key.toLowerCase().startsWith('f')) {
@@ -1924,8 +1961,8 @@
       
       if((k==='h' && !isInInput) || (e.ctrlKey && k==='h')){ e.preventDefault(); const p=document.getElementById('help-panel'); if(p.classList.contains('hidden')) openHelp(); else closeHelp(); return; }
       if((k==='g' && !isInInput) || (e.ctrlKey && k==='g')){ e.preventDefault(); doSpin(); return; }
-      // ✅ SOLO V è bloccato con Ctrl perché Ctrl+V deve incollare, non aprire vocale
-      if(k==='v' && !isInInput){ e.preventDefault(); tryOpenVowelInput(); return; }
+      // ✅ Ctrl+V apre vocale SOLO se NON sei in un campo input (altrimenti Ctrl+V = incolla)
+      if((k==='v' && !isInInput) || (e.ctrlKey && k==='v' && !isInInput)){ e.preventDefault(); tryOpenVowelInput(); return; }
       if((k==='p' && !isInInput) || (e.ctrlKey && k==='p')){ 
       e.preventDefault(); 
       // ✅ CORREZIONE CHATGPT: Passa solo se è il tuo turno o sei host
@@ -3755,6 +3792,9 @@
               currentStanza.fase_speciale = 0;
             }
             
+            // ✅ IMMEDIATO: Chiama updateUI subito per riabilitare il pulsante GIRA
+            updateUI();
+            
             const resultMsg = `Trovate ${newFoundIndices.length} ${char}! Guadagni ${gain} euro`;
             speak(resultMsg);
             addActionToHistory(`${myName}: ${char} - Trovate ${newFoundIndices.length}, guadagno €${gain}`);
@@ -3830,7 +3870,7 @@
       setTimeout(async () => {
         if(roomId) await fetchFullState();
         isProcessingInput=false; // ✅ Reset DOPO il fetch, così updateUI vede i dati freschi
-      }, 300); // ✅ Ridotto a 300ms per reattività migliore
+      }, 100); // ✅ Ridotto a 100ms per reattività ottimale
     }
 
     function checkTurnTimer(){

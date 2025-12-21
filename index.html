@@ -163,7 +163,11 @@
   </style>
 </head>
 <body>
-  <div id="sr-announcer" class="sr-only" aria-live="assertive"></div>
+  <!-- ✅ NVDA FIX: Cambiato da assertive a polite per evitare conflitti con focus mode
+       aria-live="assertive" interrompe NVDA anche quando sta entrando in modalità focus,
+       causando confusione e uscita dalla focus mode.
+       Con "polite", NVDA legge l'annuncio quando ha finito l'operazione corrente. -->
+  <div id="sr-announcer" class="sr-only" aria-live="polite"></div>
   <div id="sr-chat" class="sr-only" aria-live="polite"></div>
   <div id="flash-overlay" aria-hidden="true" style="position:fixed;top:20%;left:50%;transform:translate(-50%,-50%);font-size:2em;font-weight:bold;color:#fff;background:#000;padding:20px;border:3px solid #fff;opacity:0;pointer-events:none;transition:opacity .3s;z-index:5000;"><p id="flash-message"></p></div>
 
@@ -174,16 +178,16 @@
     <button onclick="openActionHistory(true)" style="background:transparent; border:1px solid #555; color:#888; padding:5px 10px; border-radius:5px; font-size:0.8em;">Storico (A)</button>
   </div>
 
-  <audio id="snd-spin" src="ruota.wav"></audio>
-  <audio id="snd-hit" src="lettera presente.wav"></audio>
-  <audio id="snd-miss" src="lettera assente.wav"></audio>
-  <audio id="snd-turn" src="tocca_a_te.mp3"></audio>
-  <audio id="snd-bankrupt" src="bancarotta.mp3"></audio>
-  <audio id="snd-win" src="vittoria.mp3"></audio>
-  <audio id="snd-clap" src="applausi.mp3"></audio>
-  <audio id="snd-laugh" src="risata.mp3"></audio>
-  <audio id="snd-boo" src="buuu.mp3"></audio>
-  <audio id="snd-ooh" src="peccato.mp3"></audio>
+  <audio id="snd-spin" src="sounds/ruota.wav"></audio>
+  <audio id="snd-hit" src="sounds/lettera presente.wav"></audio>
+  <audio id="snd-miss" src="sounds/lettera assente.wav"></audio>
+  <audio id="snd-turn" src="sounds/tocca_a_te.mp3"></audio>
+  <audio id="snd-bankrupt" src="sounds/bancarotta.mp3"></audio>
+  <audio id="snd-win" src="sounds/vittoria.mp3"></audio>
+  <audio id="snd-clap" src="sounds/applausi.mp3"></audio>
+  <audio id="snd-laugh" src="sounds/risata.mp3"></audio>
+  <audio id="snd-boo" src="sounds/buuu.mp3"></audio>
+  <audio id="snd-ooh" src="sounds/peccato.mp3"></audio>
 
   <div id="setup-panel" class="container">
     <h1 style="color:var(--col-accent); font-size:3em; margin-bottom:10px; text-shadow:0 0 20px rgba(255,215,0,0.3);">LA RUOTA</h1>
@@ -332,7 +336,7 @@
   <div id="input-area" class="hidden">
     <div class="modal-content">
       <h2 id="input-title" style="color:var(--col-accent);">INSERISCI</h2>
-      <input id="game-input" type="text" autocomplete="off" autofocus aria-label="Campo di inserimento testo" aria-describedby="input-title">
+      <input id="game-input" type="text" autocomplete="off" aria-label="Campo di inserimento testo" aria-describedby="input-title">
       <div class="controls-grid" style="grid-template-columns:1fr 1fr;">
         <button onclick="submitInput()" class="action-btn btn-spin">OK</button>
         <button id="btn-cancel-input" onclick="tryCancelInput()" class="action-btn btn-pass">ANNULLA</button>
@@ -594,6 +598,15 @@
     let isBotThinking = false;
     const BOT_BREATH_TIME = 1200; // Pausa tra azioni bot per far "respirare" il gioco
     
+    // ✅ FIX MEMORY LEAK: Funzione globale per convertire input in maiuscolo
+    // Definita una sola volta, può essere rimossa e ri-aggiunta senza accumulo
+    const uppercaseInputHandler = function(e) {
+      const cursorPos = e.target.selectionStart;
+      const upperValue = e.target.value.toUpperCase();
+      e.target.value = upperValue;
+      e.target.setSelectionRange(cursorPos, cursorPos);
+    };
+    
     // Helper per resettare isBotThinking con delay
     function botFinishAction(delayMs = BOT_BREATH_TIME) {
       setTimeout(() => {
@@ -620,16 +633,6 @@
     
     
     (function(){
-      const originalLog = console.log;
-      console.log = function(...args){
-        const filtered = args.map(arg => {
-          if(typeof arg === 'string' && arg.length > 10 && arg === currentPuzzleText) {
-            return '[SOLUZIONE NASCOSTA]';
-          }
-          return arg;
-        });
-        originalLog.apply(console, filtered);
-      };
       
       
       Object.defineProperty(window, 'currentPuzzleText', {
@@ -746,18 +749,35 @@
     function clearSpeechQueue(){ if(speechTimeouts && Array.isArray(speechTimeouts)) speechTimeouts.forEach(t=>clearTimeout(t)); speechTimeouts=[]; }
     function speak(t){
       if(!t) return;
-      const e=document.getElementById('sr-announcer'); e.textContent='';
+      const e=document.getElementById('sr-announcer');
+      
+      // ✅ NVDA FIX: NON usare il "flicker" (svuota/riempi)
+      // Il pattern e.textContent=''; setTimeout(()=>e.textContent=t, 50);
+      // causa un "sussulto" del cursore virtuale che può far uscire NVDA da Focus Mode
+      // 
+      // SOLUZIONE: Aggiungi un carattere zero-width space invisibile per forzare
+      // NVDA a rilevare il cambiamento senza causare il flicker visivo del DOM
       clearSpeechQueue();
-      const timeout=setTimeout(()=>{ e.textContent=t; },50);
-      speechTimeouts.push(timeout);
+      
+      // Alterna tra testo normale e testo con zero-width space
+      // Questo forza NVDA a rilevare il cambiamento anche se il testo è uguale
+      const currentText = e.textContent;
+      const hasZWS = currentText.endsWith('\u200B');
+      const newText = hasZWS ? t : t + '\u200B';
+      
+      e.textContent = newText;
     }
     function speakChat(t){
       if(!t) return;
-      const e=document.getElementById('sr-chat'); 
-      e.textContent='';
-      // Non usare setTimeout qui - aggiorna direttamente
-      // Il delay di 50ms non è critico per la chat
-      setTimeout(()=>{ e.textContent=t; },50);
+      const e=document.getElementById('sr-chat');
+      
+      // ✅ NVDA FIX: Stesso problema di speak() - elimina il flicker
+      // Usa zero-width space invece di svuotare/riempire
+      const currentText = e.textContent;
+      const hasZWS = currentText.endsWith('\u200B');
+      const newText = hasZWS ? t : t + '\u200B';
+      
+      e.textContent = newText;
     }
     function playAudio(id){
       if(isMuted) return;
@@ -813,6 +833,13 @@
     
     
     function getNextConsonantHuman(alreadyRevealed){
+      // 🧠 INTELLIGENZA SEMANTICA: Prova a completare parole quasi finite
+      const smartLetter = tryCompleteWord(alreadyRevealed);
+      if(smartLetter) {
+        return smartLetter;
+      }
+      
+      // Fallback: usa frequenze statistiche
       for(let group of FREQ_CONS_GROUPS){
         const shuffled = [...group].sort(() => Math.random() - 0.5);
         for(let c of shuffled){
@@ -820,6 +847,112 @@
         }
       }
       return null;
+    }
+    
+    function tryCompleteWord(alreadyRevealed){
+      // Analizza il parsedBoard per trovare parole con 1-2 lettere mancanti
+      if(!parsedBoard || parsedBoard.length === 0) return null;
+      
+      const vowels = ['A','E','I','O','U'];
+      const allRevealed = alreadyRevealed.map(l => l.toUpperCase());
+      
+      // Costruisci una rappresentazione delle parole con _ per lettere nascoste
+      const wordsWithBlanks = parsedBoard.map(wordObj => {
+        let word = '';
+        wordObj.chars.forEach(charData => {
+          if(!charData.isLetter) {
+            word += charData.char; // Punteggiatura rimane
+          } else if(charData.isRevealed) {
+            word += charData.char; // Lettera rivelata
+          } else {
+            word += '_'; // Lettera nascosta
+          }
+        });
+        return word.toUpperCase();
+      });
+      
+      // Dizionario di pattern comuni per parole italiane
+      const patterns = [
+        // Pattern con 1 lettera mancante
+        {pattern: /^G_TTO$/i, missing: 1, suggest: 'A'}, // GATTO
+        {pattern: /^C_NE$/i, missing: 1, suggest: 'A'}, // CANE
+        {pattern: /^C_SA$/i, missing: 1, suggest: 'A'}, // CASA
+        {pattern: /^M_RE$/i, missing: 1, suggest: 'A'}, // MARE
+        {pattern: /^P_NE$/i, missing: 1, suggest: 'A'}, // PANE
+        {pattern: /^S_LE$/i, missing: 1, suggest: 'O'}, // SOLE
+        {pattern: /^L_NA$/i, missing: 1, suggest: 'U'}, // LUNA
+        {pattern: /^V_NO$/i, missing: 1, suggest: 'I'}, // VINO
+        {pattern: /^F_ME$/i, missing: 1, suggest: 'A'}, // FAME
+        {pattern: /^R_SO$/i, missing: 1, suggest: 'I'}, // RISO
+        {pattern: /^_ORA$/i, missing: 1, suggest: 'O'}, // ORA -> MORA, NORA...
+        {pattern: /^PI_ZA$/i, missing: 1, suggest: 'Z'}, // PIZZA
+        {pattern: /^PA_TA$/i, missing: 1, suggest: 'S'}, // PASTA
+        {pattern: /^_ORTE$/i, missing: 1, suggest: 'P'}, // PORTE
+        {pattern: /^LI_RO$/i, missing: 1, suggest: 'B'}, // LIBRO
+        {pattern: /^MO_DO$/i, missing: 1, suggest: 'N'}, // MONDO
+        {pattern: /^TE_PO$/i, missing: 1, suggest: 'M'}, // TEMPO
+        {pattern: /^_IOCO$/i, missing: 1, suggest: 'G'}, // GIOCO
+        {pattern: /^_UOCO$/i, missing: 1, suggest: 'F'}, // FUOCO
+        {pattern: /^FI_ME$/i, missing: 1, suggest: 'L'}, // FILME
+        {pattern: /^_ONTE$/i, missing: 1, suggest: 'F'}, // FONTE
+        {pattern: /^CA_TO$/i, missing: 1, suggest: 'N'}, // CANTO
+        {pattern: /^_ESTO$/i, missing: 1, suggest: 'T'}, // TESTO
+        {pattern: /^VI_A$/i, missing: 1, suggest: 'T'}, // VITA
+        
+        // Pattern con 2 lettere mancanti
+        {pattern: /^G__TO$/i, missing: 2, suggest: 'T'}, // GATTO (manca T se manca anche A)
+        {pattern: /^C__E$/i, missing: 2, suggest: 'N'}, // CANE (manca N)
+        {pattern: /^C__A$/i, missing: 2, suggest: 'S'}, // CASA (manca S)
+        {pattern: /^M__E$/i, missing: 2, suggest: 'R'}, // MARE (manca R)
+        {pattern: /^P__E$/i, missing: 2, suggest: 'N'}, // PANE (manca N)
+        {pattern: /^S__E$/i, missing: 2, suggest: 'L'}, // SOLE (manca L)
+        {pattern: /^L__A$/i, missing: 2, suggest: 'N'}, // LUNA (manca N)
+        {pattern: /^V__O$/i, missing: 2, suggest: 'N'}, // VINO (manca N)
+        {pattern: /^PI__A$/i, missing: 2, suggest: 'Z'}, // PIZZA (manca Z)
+        {pattern: /^PA__A$/i, missing: 2, suggest: 'S'}, // PASTA (manca S)
+        {pattern: /^LI__O$/i, missing: 2, suggest: 'B'}, // LIBRO (manca B)
+        {pattern: /^MO__O$/i, missing: 2, suggest: 'N'}, // MONDO (manca N)
+        {pattern: /^TE__O$/i, missing: 2, suggest: 'M'}, // TEMPO (manca M)
+        
+        // Pattern comuni di fine parola
+        {pattern: /_IONE$/i, missing: 0, suggest: 'Z'}, // -ZIONE
+        {pattern: /_MENTE$/i, missing: 0, suggest: 'L'}, // -MENTE
+        {pattern: /_ZZO$/i, missing: 0, suggest: 'P'}, // -AZZO, -OZZO
+        {pattern: /AZIO_E$/i, missing: 0, suggest: 'N'}, // -AZIONE
+        {pattern: /_TTO$/i, missing: 0, suggest: 'T'}, // -ETTO, -ATTO, -OTTO
+      ];
+      
+      // Analizza ogni parola
+      for(const word of wordsWithBlanks){
+        const blankCount = (word.match(/_/g) || []).length;
+        
+        // Considera solo parole con 1-2 lettere mancanti
+        if(blankCount < 1 || blankCount > 2) continue;
+        
+        // Prova ogni pattern
+        for(const p of patterns){
+          if(p.pattern.test(word)){
+            const suggestedLetter = p.suggest.toUpperCase();
+            
+            // Verifica che non sia già stata chiamata e non sia una vocale
+            if(!allRevealed.includes(suggestedLetter) && !vowels.includes(suggestedLetter)){
+              return suggestedLetter;
+            }
+          }
+        }
+        
+        // Analisi generica: se manca solo 1 lettera, prova consonanti comuni nell'ordine
+        if(blankCount === 1){
+          const commonConsonants = ['N', 'R', 'T', 'L', 'S', 'C', 'D', 'P', 'M', 'B', 'G', 'V', 'F', 'Z'];
+          for(const c of commonConsonants){
+            if(!allRevealed.includes(c)){
+              return c;
+            }
+          }
+        }
+      }
+      
+      return null; // Nessun completamento trovato
     }
     
     function getNextVowelHuman(alreadyRevealed){
@@ -1146,7 +1279,6 @@
         .order('indice');
         
       if(error || !players || players.length === 0){
-        console.error('reorganizePlayers: errore o nessun giocatore', error);
         return;
       }
       
@@ -1193,16 +1325,21 @@
       if(!isHost || !currentStanza) return;
       const newState = !currentStanza.in_pausa;
       
+      // ✅ FIX TIMER PAUSA: Non aggiornare azione_timestamp qui
+      // Sarà aggiornato da reorganizePlayers() quando si toglie la pausa
       await _supabase.from('stanze').update({
         in_pausa: newState, 
-        ultimo_messaggio: newState ? "GIOCO IN PAUSA" : "GIOCO RIPRESO", 
-        azione_timestamp: new Date().toISOString()
+        ultimo_messaggio: newState ? "GIOCO IN PAUSA" : "GIOCO RIPRESO"
       }).eq('id', roomId);
       
-      // Se togli la pausa, riorganizza i giocatori
+      // Se togli la pausa, riorganizza i giocatori (che aggiornerà azione_timestamp)
       if(!newState){
         await reorganizePlayers();
       } else {
+        // Se METTI in pausa, aggiorna timestamp ora (per fermare il timer)
+        await _supabase.from('stanze').update({
+          azione_timestamp: new Date().toISOString()
+        }).eq('id', roomId);
         await fetchFullState();
       }
     }
@@ -1471,7 +1608,6 @@
           .eq('id', playerId);
           
         if(deleteError){
-          console.error('Errore eliminazione giocatore:', deleteError);
           alert('Errore nell\'eliminazione: ' + deleteError.message);
           return;
         }
@@ -1488,7 +1624,6 @@
         setTimeout(() => openPlayersPanel(), 500);
         
       } catch(e){
-        console.error('Errore removePlayer:', e);
         alert('Errore: ' + e.message);
       }
     }
@@ -1501,7 +1636,6 @@
         // Rimuovi host al vecchio
         const {error: removeError} = await _supabase.from('giocatori').update({is_host: false}).eq('id', myId);
         if(removeError){
-          console.error('Errore rimozione host:', removeError);
           alert('Errore: ' + removeError.message);
           return;
         }
@@ -1509,7 +1643,6 @@
         // Assegna host al nuovo
         const {error: assignError} = await _supabase.from('giocatori').update({is_host: true}).eq('id', newHostId);
         if(assignError){
-          console.error('Errore assegnazione host:', assignError);
           alert('Errore: ' + assignError.message);
           return;
         }
@@ -1533,7 +1666,6 @@
         setTimeout(() => openPlayersPanel(), 300);
         
       } catch(e){
-        console.error('Errore transferHost:', e);
         alert('Errore: ' + e.message);
       }
     }
@@ -1780,7 +1912,7 @@
       if(k==='arrowleft'){ e.preventDefault(); moveNav(-1); return; }
       if(k==='arrowright'){ e.preventDefault(); moveNav(1); return; }
       if(k===' ' && !isInInput){ e.preventDefault(); reopenLastInput(); return; }
-      if(k==='i' && !isInInput){ e.preventDefault(); openWordInspector(); return; }
+      if((k==='i' && !isInInput) || (e.ctrlKey && k==='i')){ e.preventDefault(); openWordInspector(); return; }
       
       if(k==='1'){ playSharedAudio('snd-clap', 'Applauso'); return; }
       if(k==='2'){ playSharedAudio('snd-laugh', 'Risata'); return; }
@@ -1987,7 +2119,6 @@
           }).select().maybeSingle();
           
           if(plError || !pl) {
-            console.error('Errore inserimento giocatore:', plError);
             speak('Errore database: ' + (plError?.message || 'Controlla che il campo ultimo_ping esista nella tabella giocatori'));
             return;
           }
@@ -2078,7 +2209,6 @@
           }, 10000);
         } */
       } catch(e){
-        console.error(e);
         speak("Errore connessione.");
       }
     }
@@ -2217,15 +2347,17 @@
        const minLettersNeeded = Math.max(5, Math.floor(totalLetters * 0.5));
        
        if(ratio >= 0.80 && revealedInCurrentPhrase >= minLettersNeeded && Math.random() > 0.3) {
+          // ⏱️ PAUSA DRAMMATICA: Il bot "pensa" prima di tentare la soluzione
+          const thinkTimeBeforeSolve = 1500 + Math.random() * 1500; // 1.5-3 secondi
+          await new Promise(r => setTimeout(r, thinkTimeBeforeSolve));
           
           if(Math.random() < 0.10) {
              await _supabase.from('stanze').update({ultima_azione: 'errore', ultimo_messaggio: `${botPlayer.nome} tenta ma sbaglia la soluzione!`, azione_timestamp: new Date().toISOString()}).eq('id', roomId);
-             passTurnBot();
+             await passTurnBot();
              botFinishAction();
              return;
           }
           
-          console.log(`Bot risolve: ${revealedInCurrentPhrase}/${totalLetters} lettere (${Math.round(ratio*100)}%)`);
           await _supabase.from('giocatori').update({punteggio_totale:(botPlayer.punteggio_totale||0)+(botPlayer.punteggio_round||0)+1000, punteggio_round:0}).eq('id', botPlayer.id);
           await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${botPlayer.nome} HA RISOLTO LA FRASE!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
           botFinishAction();
@@ -2236,7 +2368,7 @@
        if(Math.random() < 0.07 && lettersCalledThisRound.length > 3) {
           const errorChar = lettersCalledThisRound[Math.floor(Math.random()*lettersCalledThisRound.length)];
           await _supabase.from('stanze').update({ultima_azione: 'errore', ultimo_messaggio: `${botPlayer.nome} richiama la "${errorChar}" già provata!`, azione_timestamp: new Date().toISOString()}).eq('id', roomId);
-          passTurnBot();
+          await passTurnBot();
           botFinishAction();
           return;
        }
@@ -2250,7 +2382,9 @@
        
        
        if(botMoney >= costVowel && ratio < 0.65 && Math.random() < 0.35 && vowelsBoughtThisTurn < 1) {
-           
+           // ⏱️ PAUSA REALISTICA: Il bot "pensa" prima di comprare la vocale
+           const thinkTimeBeforeVowel = 1000 + Math.random() * 1000; // 1-2 secondi
+           await new Promise(r => setTimeout(r, thinkTimeBeforeVowel));
            
            chosenChar = getNextVowelHuman(lettersCalledThisRound);
            if(chosenChar) isVowel = true;
@@ -2332,7 +2466,7 @@
                // ✅ BANCAROTTA: azzera punteggio_round E punteggio_totale (perde tutto)!
                await _supabase.from('giocatori').update({punteggio_round:0, punteggio_totale:0}).eq('id', botPlayer.id);
                await _supabase.from('stanze').update({montepremi_round:0,fase_speciale:0,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} gira: BANCAROTTA! Perde tutto.`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
-               passTurnBot();
+               await passTurnBot();
                botFinishAction();
                return;
            }
@@ -2349,7 +2483,7 @@
                }
                
                await _supabase.from('stanze').update({montepremi_round:0,fase_speciale:0,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} gira: PASSA TURNO!`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
-               passTurnBot();
+               await passTurnBot();
                botFinishAction();
                return;
            }
@@ -2367,7 +2501,9 @@
        } else {
            
            if(!chosenChar) {
-               
+               // ⏱️ PAUSA REALISTICA: Il bot "pensa" prima di scegliere la consonante
+               const thinkTimeBeforeChoice = 1000 + Math.random() * 1000; // 1-2 secondi
+               await new Promise(r => setTimeout(r, thinkTimeBeforeChoice));
                
                chosenChar = getNextConsonantHuman(lettersCalledThisRound);
            }
@@ -2410,7 +2546,7 @@
                vowelsBoughtThisTurn++; // ✅ FIX: Incrementa contatore vocali anche se non trovata
                await _supabase.from('stanze').update({ultima_azione:'errore',ultimo_messaggio:`${botPlayer.nome}: La "${chosenChar}" è assente.`,azione_timestamp:new Date().toISOString()}).eq('id', roomId);
                botFinishAction(); // Pausa prima di passare il turno
-               passTurnBot();
+               await passTurnBot();
                return; 
            }
        }
@@ -2429,7 +2565,7 @@
         return found;
     }
 
-    function passTurnBot(){
+    async function passTurnBot(){
       const s=currentStanza;
       if(!s || !s.giocatori || s.giocatori.length === 0) {
         return;
@@ -2446,8 +2582,8 @@
       let nextIdx = (currIdx + 1) % s.giocatori.length;
       let nextPlayerUUID = s.giocatori[nextIdx].id; // ← UUID invece di indice!
       
-      
-      _supabase.from('stanze').update({id_giocatore_corrente:nextPlayerUUID,montepremi_round:0,fase_speciale:0,ultima_azione:'timeout',ultimo_messaggio:'Cambio turno',azione_timestamp:new Date().toISOString()}).eq('id', roomId);
+      // ✅ FIX ASYNC: await per evitare race conditions
+      await _supabase.from('stanze').update({id_giocatore_corrente:nextPlayerUUID,montepremi_round:0,fase_speciale:0,ultima_azione:'timeout',ultimo_messaggio:'Cambio turno',azione_timestamp:new Date().toISOString()}).eq('id', roomId);
     }
 
     async function updateUI(s){
@@ -2757,45 +2893,24 @@
         openInput('letter');
       }
 
-      parseAndRenderBoard(currentPuzzleText, s.lettere_rivelate);
+      // ✅ GUARD: Non re-render se l'utente sta scrivendo
+      // IMPORTANTE: Usa inputMode invece di document.activeElement per evitare il paradosso:
+      // - openInput() imposta inputMode PRIMA di fare focus (a T=0ms)
+      // - Il focus arriva solo dopo 100ms
+      // - Se usiamo activeElement, isTyping è FALSE durante quei 100ms
+      // - Questo causa un re-render del DOM proprio mentre NVDA sta atterrando sul campo
+      const inputArea_check = document.getElementById('input-area');
+      const isTyping = inputArea_check && !inputArea_check.classList.contains('hidden') && inputMode !== null;
+      
+      if (!isTyping) {
+        parseAndRenderBoard(currentPuzzleText, s.lettere_rivelate);
+      }
       if(isAccessibleMode) updateAccessibleBoard();
       
-      // ✅ FIX NVDA FOCUS MODE: Timeout aumentato a 500ms per dare tempo a NVDA
-      // di sincronizzarsi completamente DOPO tutti gli aggiornamenti DOM
-      if(willOpenInput || inputMode) {
-        setTimeout(() => {
-          const inputArea = document.getElementById('input-area');
-          if(inputArea && !inputArea.classList.contains('hidden')) {
-            const inp = document.getElementById('game-input');
-            if(inp) {
-              // ✅ CRITICO: Prima imposta il focus
-              inp.focus();
-              
-              // ✅ CRITICO: Poi forza NVDA in focus mode selezionando il testo
-              // Questo fa sì che NVDA entri automaticamente in focus mode
-              setTimeout(() => {
-                if(inp.value && inp.value.length > 0) {
-                  // Se c'è del testo (modalità risolvi), seleziona l'inizio
-                  inp.setSelectionRange(0, 0);
-                } else {
-                  // Se il campo è vuoto (consonante/vocale), seleziona tutto
-                  inp.select();
-                }
-                
-                // ✅ Annuncio esplicito dello stato per NVDA
-                const ariaLabel = inp.getAttribute('aria-label');
-                if(ariaLabel) {
-                  // Forza NVDA a rilevare il campo aggiornando aria-label
-                  inp.setAttribute('aria-label', ariaLabel + ' ');
-                  setTimeout(() => {
-                    inp.setAttribute('aria-label', ariaLabel);
-                  }, 50);
-                }
-              }, 100);
-            }
-          }
-        }, 500); // ✅ Aumentato da 300ms a 500ms per NVDA
-      }
+      // ✅ FIX NVDA FOCUS: Il focus viene impostato SOLO quando il campo viene aperto per la prima volta
+      // NON viene più forzato continuamente durante gli aggiornamenti
+      // Questo evita che NVDA esca dalla modalità focus mentre l'utente sta scrivendo
+      // Il focus viene gestito ESCLUSIVAMENTE in openInput(), non qui
       
       if(me){
         const roundScore = me.punteggio_round||0;
@@ -3039,32 +3154,17 @@
       }).eq('id', roomId);
       
       if(updateResult.error) {
-        console.error('Errore update database:', updateResult.error);
         alert('ERRORE: ' + updateResult.error.message);
         return;
       }
       
       addActionToHistory(msg);
       
-      // CORREZIONE: Salva l'elemento con focus prima di fetchFullState
-      const focusedElement = document.activeElement;
-      const focusedId = focusedElement?.id;
-      const focusedTag = focusedElement?.tagName;
+      // ✅ FIX NVDA: NON gestire il focus qui - viene già gestito da openInput()
+      // Rimuovere questo blocco elimina il conflitto tra doSpin e updateUI
+      // che causava doppi comandi di focus e faceva uscire NVDA dalla modalità focus
       
       await fetchFullState();
-      
-      // CORREZIONE: Ripristina il focus dopo fetchFullState
-      setTimeout(() => {
-        if(focusedId){
-          const elementToFocus = document.getElementById(focusedId);
-          if(elementToFocus){
-            elementToFocus.focus();
-          }
-        } else if(focusedTag === 'INPUT'){
-          // Se era un input, prova a rimettere il focus sul campo di gioco
-          document.getElementById('game-input')?.focus();
-        }
-      }, 100);
       
       
       if(finalPrize > 0 && !mysterySafeFlat) {
@@ -3147,7 +3247,6 @@
       }).eq('id', roomId);
       
       if(error){
-        console.error('Errore passTurn:', error);
       } else {
       }
       
@@ -3161,18 +3260,30 @@
     let lastFocusedElement = null;
     
     function openInput(mode){
+      // ✅ PROBLEMA 2: Controllo della "porta aperta"
+      // Se il campo è già aperto, NON fare NULLA
+      // Questo evita di re-forzare il focus mentre l'utente sta scrivendo
+      const inputArea = document.getElementById('input-area');
+      const isAlreadyOpen = inputArea && !inputArea.classList.contains('hidden');
+      
+      if(isAlreadyOpen && inputMode) {
+        // Il campo è già aperto - NON toccare nulla
+        // L'utente sta già scrivendo, non disturbare
+        return;
+      }
+      
+      // ✅ Il campo è chiuso - possiamo aprirlo
       // ✅ ACCESSIBILITÀ: Salva l'elemento attualmente focalizzato
       lastFocusedElement = document.activeElement;
       
       inputMode=mode;
       lastInputMode=mode; 
-      const inputArea = document.getElementById('input-area');
       inputArea.classList.remove('hidden');
       
-      // ✅ ACCESSIBILITÀ: Imposta attributi ARIA per screen reader
-      inputArea.setAttribute('role', 'dialog');
-      inputArea.setAttribute('aria-modal', 'true');
-      inputArea.setAttribute('aria-labelledby', 'input-title');
+      // ✅ NVDA FIX: NON usare role="dialog" e aria-modal="true"!
+      // Questi attributi forzano NVDA in Browse Mode (modalità navigazione)
+      // invece di permettere l'ingresso automatico in Focus Mode
+      // Il campo di input è semplicemente un overlay, non un dialog da esplorare
       
       const inp=document.getElementById('game-input');
       
@@ -3207,49 +3318,43 @@
         }
         inp.value = template;
         
-        // ✅ MODIFICA LIBERA: Permetti editing completo del campo
-        // Rimuovi vecchi listener per evitare leak
-        const oldInput = inp.cloneNode(true);
-        inp.parentNode.replaceChild(oldInput, inp);
-        const inp2 = document.getElementById('game-input');
+        // ✅ NVDA FIX: NON sostituire l'elemento (replaceChild rompe NVDA)
+        // Invece, rimuovi i vecchi listener duplicando solo i listener necessari
+        // L'elemento rimane lo stesso, NVDA mantiene il riferimento
+        
+        // Rimuovi vecchi listener onkeydown se esistono
+        inp.onkeydown = null;
         
         // ✅ ACCESSIBILITÀ: Aggiungi label e descrizione per screen reader
-        inp2.setAttribute('aria-label', 'Campo per risolvere la frase. Completa gli asterischi con le lettere mancanti.');
+        inp.setAttribute('aria-label', 'Campo per risolvere la frase. Completa gli asterischi con le lettere mancanti.');
         
-        // Converti automaticamente in maiuscolo mentre l'utente digita
-        inp2.addEventListener('input', function(e) {
-          // Salva la posizione del cursore
-          const cursorPos = e.target.selectionStart;
-          
-          // Converti in maiuscolo
-          const upperValue = e.target.value.toUpperCase();
-          
-          // Aggiorna il valore
-          e.target.value = upperValue;
-          
-          // Ripristina la posizione del cursore
-          e.target.setSelectionRange(cursorPos, cursorPos);
-        });
+        // ✅ FIX MEMORY LEAK: Rimuovi vecchio listener prima di aggiungerne uno nuovo
+        // Usa la funzione globale uppercaseInputHandler
+        inp.removeEventListener('input', uppercaseInputHandler);
+        inp.addEventListener('input', uppercaseInputHandler);
         
         // Re-aggiungi listener per Enter
-        inp2.onkeydown = (e) => {
+        inp.onkeydown = (e) => {
           if(e.key === 'Enter') {
             e.preventDefault();
             submitInput();
           }
         };
         
-        speak("Risolvi. Completa gli asterischi con le lettere mancanti.");
+        // ✅ NVDA FIX: speak() viene chiamato DOPO il setTimeout del focus
+        // Vedi più in basso (dopo il setTimeout)
       } else {
         inp.value='';
         // ✅ ACCESSIBILITÀ: Label appropriata per ogni modalità
         if(mode==='vowel') {
           inp.setAttribute('aria-label', 'Campo per inserire una vocale');
-          speak("Scrivi una vocale.");
+          // ✅ NVDA FIX: speak() viene chiamato DOPO il setTimeout del focus
+          // Vedi più in basso (dopo il setTimeout)
         } else {
           const montepremi = currentStanza?.montepremi_round || 0;
           inp.setAttribute('aria-label', `Campo per inserire una consonante. Hai girato ${montepremi} euro.`);
-          speak(`Hai girato ${montepremi} euro. Scrivi una consonante.`);
+          // ✅ NVDA FIX: speak() viene chiamato DOPO il setTimeout del focus
+          // Vedi più in basso (dopo il setTimeout)
         }
       }
       
@@ -3265,16 +3370,32 @@
         }
       }
       
-      // ✅ FIX NVDA: Pre-focus immediato per feedback rapido all'utente
-      // Il focus "definitivo" verrà poi impostato dal timeout principale (500ms)
-      // Questo dà un feedback immediato senza interferire con NVDA
-      if(inp) {
-        inp.focus();
-        // ✅ TRICK: Trigger immediato focus mode con select()
-        if(mode !== 'solve') {
-          inp.select(); // Per consonante/vocale, seleziona subito il campo vuoto
+      // ✅ FIX NVDA: Focus viene impostato UNA SOLA VOLTA quando il campo viene aperto
+      // NON verrà più forzato continuamente da updateUI
+      // Usa setTimeout per dare tempo al DOM di aggiornarsi
+      setTimeout(() => {
+        const gameInput = document.getElementById('game-input');
+        if(gameInput) {
+          // Imposta solo il focus - NESSUN select() o setSelectionRange
+          // Questi comandi causano "rumore" che confonde NVDA e lo fa uscire dalla modalità focus
+          gameInput.focus();
+          
+          // ✅ NVDA FIX: speak() viene chiamato DOPO il focus, così NVDA è già in focus mode
+          // e l'annuncio non interferisce con l'ingresso nella modalità focus
+          // CRITICO: Delay di 500ms per dare a NVDA tempo SUFFICIENTE di stabilizzarsi
+          // Con 150ms era troppo veloce e NVDA veniva interrotto durante l'ingresso in Focus Mode
+          setTimeout(() => {
+            if(mode === 'solve') {
+              speak("Risolvi. Completa gli asterischi con le lettere mancanti.");
+            } else if(mode === 'vowel') {
+              speak("Scrivi una vocale.");
+            } else {
+              const montepremi = currentStanza?.montepremi_round || 0;
+              speak(`Hai girato ${montepremi} euro. Scrivi una consonante.`);
+            }
+          }, 500); // ✅ Aumentato da 150ms a 500ms - critico per NVDA!
         }
-      }
+      }, 100); // Timeout breve per permettere al DOM di aggiornarsi
     }
     
     function tryCancelInput(){
@@ -3293,17 +3414,21 @@
     function closeInput(){ 
       const inp = document.getElementById('game-input');
       
-      // Non svuotare il valore se è una consonante (letter mode)
+      // ✅ NVDA FIX: NON clonare e sostituire l'elemento (rompe NVDA)
+      // Invece, pulisci solo il valore e i listener
+      // L'elemento rimane lo stesso, NVDA mantiene il riferimento
+      
       if(inputMode !== 'letter') {
-        const newInp = inp.cloneNode(true);
-        inp.parentNode.replaceChild(newInp, inp);
-      } else {
-        // Per le consonanti, mantieni il valore
-        const currentValue = inp.value;
-        const newInp = inp.cloneNode(true);
-        newInp.value = currentValue;
-        inp.parentNode.replaceChild(newInp, inp);
+        // Per vocale/risolvi, svuota il campo
+        inp.value = '';
       }
+      // Per consonanti, mantieni il valore (già gestito)
+      
+      // Rimuovi listener per evitare duplicazioni
+      inp.onkeydown = null;
+      inp.oninput = null;
+      // ✅ FIX MEMORY LEAK: Rimuovi anche il listener addEventListener
+      inp.removeEventListener('input', uppercaseInputHandler);
       
       document.getElementById('input-area').classList.add('hidden'); 
       inputMode=null;
@@ -3438,7 +3563,6 @@
           .single();
         
         if(fetchError || !freshState) {
-          console.error('Errore fetch stato fresco:', fetchError);
           playAudio('snd-miss');
           alert("Errore di connessione. Riprova.");
           isProcessingInput = false;
@@ -3501,7 +3625,6 @@
             .single();
           
           if(fetchError || !freshState) {
-            console.error('Errore fetch stato fresco:', fetchError);
             playAudio('snd-miss');
             alert("Errore di connessione. Riprova.");
             isProcessingInput = false;
@@ -3603,7 +3726,6 @@
               .single();
             
             if(fetchError || !freshState) {
-              console.error('Errore fetch stato fresco:', fetchError);
               playAudio('snd-miss');
               alert("Errore di connessione. Riprova.");
               isProcessingInput = false;
@@ -4023,7 +4145,6 @@
         // Timeout dopo 2 minuti - risolvi comunque per evitare blocco
         const timeoutId = setTimeout(() => {
           clearInterval(checkInterval);
-          console.error('Timeout attesa vocale giocatore:', playerId);
           resolve(); // Risolvi comunque per continuare
         }, 120000);
       });
@@ -4103,7 +4224,6 @@
         // Timeout dopo 2 minuti - risolvi comunque per evitare blocco
         const timeoutId = setTimeout(() => {
           clearInterval(checkInterval);
-          console.error('Timeout attesa consonante giocatore:', playerId);
           resolve(); // Risolvi comunque per continuare
         }, 120000);
       });
@@ -4487,7 +4607,6 @@
             .eq('id', myId);
           
         } catch(e) {
-          console.error('Errore ping:', e);
         }
       }, 10000); // Ogni 10 secondi
     }

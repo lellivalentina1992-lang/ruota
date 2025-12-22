@@ -71,6 +71,12 @@
     .acc-nav button { font-size: 0.95em; padding: 12px 10px; min-height: 52px; }
     @media (min-width: 769px) { body.accessible-mode .acc-nav { grid-template-columns: repeat(2, 1fr); } }
     
+    /* Intestazioni e pulsanti extra visibili SOLO in modalità screenreader senza tastiera */
+    body.accessible-mode #heading-gioco { display: block !important; }
+    body.accessible-mode #heading-tabellone { display: block !important; }
+    body.accessible-mode #btn-navigate-board { display: block !important; }
+    body.accessible-mode #btn-solve-after-board { display: block !important; }
+    
     /* Nascondi pulsanti ridondanti in modalità STANDARD (con tastiera) */
     body:not(.accessible-mode) #btn-inspect-word,
     body:not(.accessible-mode) #btn-letters,
@@ -279,14 +285,12 @@
       <div id="double-indicator" class="hidden" style="color:orange; font-weight:bold; margin-top:5px; font-size:1.1em; text-shadow:0 0 5px red; border:1px solid red; padding:2px;">RADDOPPIA ATTIVO! GIRA ANCORA!</div>
       <div id="special-round-indicator" class="hidden" style="color:cyan; font-weight:bold; margin-top:5px; font-size:1.1em; text-shadow:0 0 5px cyan; border:1px solid cyan; padding:5px; border-radius:5px;"></div>
     
-    <div class="acc-nav" role="navigation" aria-label="Comandi principali touch">
+    <!-- ========== SEZIONE GIOCO ========== -->
+    <h2 id="heading-gioco" style="display:none;color:var(--col-neon);font-size:1.8em;margin:20px auto 15px auto;text-align:center;width:95%;max-width:800px;">Gioco</h2>
+    
+    <div class="acc-nav" role="navigation" aria-label="Comandi principali di gioco">
       <!-- Modalità Screen Reader senza tastiera (per smartphone) -->
-      <!-- Ordine: TABELLONE -> GIRA -> VOCALE -> [PASSA solo nei round speciali] -> RISOLVI -> ALTRI COMANDI -->
-      
-      <!-- NAVIGAZIONE TABELLONE -->
-      <button class="action-btn" onclick="navigateTextBoard('first')" style="background:#222;border-color:#555;grid-column:1/-1;">
-        TABELLONE - PRIMA PAROLA
-      </button>
+      <!-- Ordine: GIRA -> VOCALE -> [PASSA solo nei round speciali] -> RISOLVI -> ALTRI COMANDI -->
       
       <!-- GIRA - pulsante principale (focus di default) -->
       <button id="btn-acc-spin" class="action-btn btn-spin" onclick="doSpin()" style="grid-column:1/-1;">GIRA</button>
@@ -352,7 +356,14 @@
     </div>
     <div id="wheel-status-text" tabindex="-1" style="font-size:1.8em;font-weight:900;color:var(--col-accent);margin:10px 0;text-shadow:0 0 15px var(--col-accent);background:rgba(0,0,0,0.7);padding:15px 25px;border-radius:12px;border:2px solid var(--col-accent);min-height:60px;display:flex;align-items:center;justify-content:center;"></div>
 
-    <h2 class="section-header" id="board-section" tabindex="-1">Tabellone</h2>
+    <!-- ========== SEZIONE TABELLONE ========== -->
+    <h2 id="heading-tabellone" style="display:none;color:var(--col-neon);font-size:1.8em;margin:20px auto 15px auto;text-align:center;width:95%;max-width:800px;">Tabellone</h2>
+    
+    <!-- NAVIGAZIONE TABELLONE -->
+    <button id="btn-navigate-board" class="action-btn" onclick="navigateTextBoard('first')" style="background:#222;border-color:#555;width:98%;max-width:800px;margin:0 auto 10px auto;display:none;">
+      TABELLONE - PRIMA PAROLA
+    </button>
+    
     <div class="board-wrapper">
       <div id="board-container" role="grid" aria-label="Tabellone di gioco"></div>
     </div>
@@ -360,11 +371,14 @@
       <div id="acc-board-summary"></div>
       <div id="acc-word-list"></div>
     </div>
+    
+    <!-- PULSANTE RISOLVI DOPO IL TABELLONE - solo in modalità screenreader -->
+    <button id="btn-solve-after-board" class="action-btn btn-solve" onclick="openInput('solve')" style="width:98%;max-width:800px;margin:15px auto;display:none;font-size:1.5em;padding:20px;letter-spacing:2px;">RISOLVI</button>
 
     <h3 id="hdr-finish" class="section-header" tabindex="-1">CONCLUDI E INFO</h3>
     <div class="bottom-controls-wrapper">
       <button id="btn-solve" class="action-btn btn-solve" onclick="openInput('solve')">RISOLVI FRASE</button>
-      <button id="btn-surrender" class="action-btn hidden" onclick="surrenderSpecialRound()" style="background:linear-gradient(180deg,#8B0000,#400000); color:#fff; margin-top:10px; font-size:1.2em;">HOST: ARRENDITI</button>
+      <button id="btn-surrender" class="action-btn hidden" onclick="surrenderPhrase()" style="background:linear-gradient(180deg,#8B0000,#400000); color:#fff; margin-top:10px; font-size:1.2em;">HOST: ARRENDITI</button>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px; margin-top:10px;">
         <button id="btn-chat" class="action-btn btn-chat" onclick="openChat()" style="font-size:0.8em; padding:10px;">CHAT (K)</button>
         <button id="btn-management" class="action-btn" onclick="openPlayersPanel()" style="font-size:0.8em; padding:10px; background:#222;">CLASSIFICA (S)</button>
@@ -388,9 +402,10 @@
   <div id="input-area" class="hidden">
     <div class="modal-content">
       <h2 id="input-title" style="color:var(--col-accent);">INSERISCI</h2>
-      <input id="game-input" type="text" autocomplete="off" aria-label="Campo di inserimento testo" aria-describedby="input-title">
-      <div class="controls-grid" style="grid-template-columns:1fr 1fr;">
-        <button onclick="submitInput()" class="action-btn btn-spin">OK</button>
+      <input id="game-input" type="text" autocomplete="off" inputmode="text" enterkeyhint="done" aria-label="Campo di inserimento testo" aria-describedby="input-title">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+        <button onclick="submitInput()" class="action-btn btn-spin" style="grid-column:1/-1;">OK</button>
+        <button id="btn-clear-input" onclick="clearSolveInput()" class="action-btn" style="background:#666;display:none;">SVUOTA</button>
         <button id="btn-cancel-input" onclick="tryCancelInput()" class="action-btn btn-pass">ANNULLA</button>
       </div>
     </div>
@@ -662,15 +677,27 @@
     let specialPhase = 0; 
     let lastAutoPassTime = 0;
     let isBotThinking = false;
-    const BOT_BREATH_TIME = 1200; // Pausa tra azioni bot per far "respirare" il gioco
+    const BOT_BREATH_TIME = 800; // Pausa tra azioni bot per far "respirare" il gioco
     
     // ✅ FIX MEMORY LEAK: Funzione globale per convertire input in maiuscolo
     // Definita una sola volta, può essere rimossa e ri-aggiunta senza accumulo
     const uppercaseInputHandler = function(e) {
       const cursorPos = e.target.selectionStart;
-      const upperValue = e.target.value.toUpperCase();
+      let upperValue = e.target.value.toUpperCase();
+      
+      // ✅ FIX: Rimuovi asterischi quando l'utente scrive
+      // Conta quanti asterischi ci sono PRIMA del cursore per aggiustare la posizione
+      const beforeCursor = upperValue.substring(0, cursorPos);
+      const asterisksBefore = (beforeCursor.match(/\*/g) || []).length;
+      
+      // Rimuovi tutti gli asterischi
+      upperValue = upperValue.replace(/\*/g, '');
+      
+      // Aggiusta la posizione del cursore sottraendo gli asterischi rimossi
+      const newCursorPos = cursorPos - asterisksBefore;
+      
       e.target.value = upperValue;
-      e.target.setSelectionRange(cursorPos, cursorPos);
+      e.target.setSelectionRange(newCursorPos, newCursorPos);
     };
     
     // Helper per resettare isBotThinking con delay
@@ -1188,6 +1215,22 @@
         const letter = list[i].toUpperCase(); // ✅ Maiuscolo per trovare in NATO_ALPHABET
         const word = NATO_ALPHABET[letter] || letter;
         speak(`${letter}, ${word}`);
+      }
+      
+      // ✅ NEI ROUND SPECIALI: Annuncia quante consonanti mancano per arrivare a 10
+      if(isSpecialRound && !specialVowelsPhase) {
+        await new Promise(r => setTimeout(r, 800));
+        
+        // Estrai il numero di consonanti già chiamate dal messaggio DB
+        const match = (currentStanza.ultimo_messaggio || '').match(/\((\d+)\/10\)/);
+        const consonantsUsed = match ? parseInt(match[1]) : 0;
+        const consonantsRemaining = 10 - consonantsUsed;
+        
+        if(consonantsRemaining > 0) {
+          speak(`Round speciale: ${consonantsUsed} consonanti usate. Mancano ${consonantsRemaining} consonanti per arrivare a 10.`);
+        } else {
+          speak(`Round speciale: Tutte e 10 le consonanti sono state chiamate. Puoi risolvere.`);
+        }
       }
     }
     
@@ -2497,6 +2540,25 @@
         return;
       }
       
+      // ✅ BLOCCO: Nei round speciali durante fase consonanti, NON si possono chiamare vocali
+      if(isSpecialRound && !specialVowelsPhase) {
+        playAudio('snd-miss');
+        speak("Non puoi chiamare vocali durante la fase consonanti del round speciale!");
+        alert("Non puoi chiamare vocali durante la fase consonanti!");
+        return;
+      }
+      
+      // ✅ BLOCCO: Nei round speciali, max 3 vocali totali
+      if(isSpecialRound) {
+        const vowelsUsed = lettersCalledThisRound.filter(c => 'AEIOU'.includes(c)).length;
+        if(vowelsUsed >= 3) {
+          playAudio('snd-miss');
+          speak("Hai già usato tutte e 3 le vocali disponibili nel round speciale!");
+          alert("Hai già usato tutte e 3 le vocali disponibili!");
+          return;
+        }
+      }
+      
       // Controlla condizioni PRIMA di aprire l'input
       const cost = getVowelCost();
       const me = currentStanza?.giocatori?.find(p=>p.id===myId);
@@ -2588,7 +2650,7 @@
        }).eq('id', botPlayer.id);
 
        
-       const thinkTime = 2000 + Math.random() * 2000;
+       const thinkTime = 1500 + Math.random() * 1500; // 1.5-3 secondi
        await new Promise(r => setTimeout(r, thinkTime));
 
        const s = currentStanza;
@@ -2616,7 +2678,7 @@
        
        if(ratio >= 0.80 && revealedInCurrentPhrase >= minLettersNeeded && Math.random() > 0.3) {
           //⏱️ PAUSA DRAMMATICA: Il bot "pensa" prima di tentare la soluzione
-          const thinkTimeBeforeSolve = 1500 + Math.random() * 1500; // 1.5-3 secondi
+          const thinkTimeBeforeSolve = 1000 + Math.random() * 1000; // 1-2 secondi
           await new Promise(r => setTimeout(r, thinkTimeBeforeSolve));
           
           if(Math.random() < 0.10) {
@@ -2770,7 +2832,7 @@
            
            if(!chosenChar) {
                // ⏱️ PAUSA REALISTICA: Il bot "pensa" prima di scegliere la consonante
-               const thinkTimeBeforeChoice = 1000 + Math.random() * 1000; // 1-2 secondi
+               const thinkTimeBeforeChoice = 800 + Math.random() * 700; // 0.8-1.5 secondi
                await new Promise(r => setTimeout(r, thinkTimeBeforeChoice));
                
                chosenChar = getNextConsonantHuman(lettersCalledThisRound);
@@ -3028,7 +3090,9 @@
         
         // ✅ Mostra categoria + hint (se presente) in elementi separati ma dentro lo stesso H2
         // Così NVDA legge tutto quando naviga con H
-        document.getElementById('category-main').textContent = currentFrase.categoria;
+        // ✅ FIX: Nei round speciali, forza sempre "SITUAZIONI QUOTIDIANE" come categoria
+        const displayCategory = isSpecialRound ? 'SITUAZIONI QUOTIDIANE' : currentFrase.categoria;
+        document.getElementById('category-main').textContent = displayCategory;
         document.getElementById('round-hint').textContent = currentHintText;
         vowelsBoughtThisTurn=0;
         parseAndRenderBoard(currentPuzzleText, s.lettere_rivelate, true); // ✅ Reset navigazione per nuova frase
@@ -3047,8 +3111,11 @@
         const categoryMain = document.getElementById('category-main');
         const roundHint = document.getElementById('round-hint');
         
-        if(categoryMain && categoryMain.textContent !== currentFrase.categoria) {
-          categoryMain.textContent = currentFrase.categoria;
+        // ✅ FIX: Nei round speciali, forza sempre "SITUAZIONI QUOTIDIANE" come categoria
+        const displayCategory = isSpecialRound ? 'SITUAZIONI QUOTIDIANE' : currentFrase.categoria;
+        
+        if(categoryMain && categoryMain.textContent !== displayCategory) {
+          categoryMain.textContent = displayCategory;
         }
         
         if(roundHint && roundHint.textContent !== currentHintText) {
@@ -3143,26 +3210,32 @@
       
       if(isSpecialRound){
         if(specialVowelsPhase){
-          // FASE VOCALI
+          // ========== FASE VOCALI ==========
           canSpin = false;
-          
-          // ✅ FIX: Con 1 giocatore il sistema regala le vocali, non deve premere VOCALE
-          const numPlayers = s.giocatori.length;
-          if(numPlayers === 1) {
-            canVowel = false; // Sistema le regala automaticamente
-          } else {
-            canVowel = isMe && !isSpinning && !inputMode;
-          }
-          
+          canVowel = false; // Disabilita il pulsante normale VOCALE
           canSolve = false; 
           canPass = false;
+          
+          // ✅ Nascondi GIRA e VOCALE in modalità accessible
+          const btnAccSpin = document.getElementById('btn-acc-spin');
+          const btnAccVowel = document.querySelector('.acc-nav .btn-vowel');
+          if(btnAccSpin) btnAccSpin.style.display = 'none';
+          if(btnAccVowel) btnAccVowel.style.display = 'none';
+          
         } else {
-          // Fase consonanti - Estrai contatore dal DB
+          // ========== FASE CONSONANTI ==========
+          // Ripristina visualizzazione GIRA e VOCALE
+          const btnAccSpin = document.getElementById('btn-acc-spin');
+          const btnAccVowel = document.querySelector('.acc-nav .btn-vowel');
+          if(btnAccSpin) btnAccSpin.style.display = '';
+          if(btnAccVowel) btnAccVowel.style.display = '';
+          
+          // Estrai contatore dal DB
           const match = (s.ultimo_messaggio || '').match(/\((\d+)\/10\)/);
           const consonantsCount = match ? parseInt(match[1]) : 0;
           
           canSpin = isMe && !isSpinning && !inputMode && s.montepremi_round===0 && consonantsCount < 10;
-          canVowel = false; 
+          canVowel = false; // ✅ BLOCCA vocali durante le 10 consonanti
           // ✅ Durante il proprio turno si può SEMPRE risolvere, anche prima delle 10 consonanti
           canSolve = isMe && !isSpinning && !inputMode;
           canPass = false; 
@@ -3506,9 +3579,9 @@
       
       addActionToHistory(msg);
       
-      // ✅ FIX NVDA: NON gestire il focus qui - viene già gestito da openInput()
-      // Rimuovere questo blocco elimina il conflitto tra doSpin e updateUI
-      // che causava doppi comandi di focus e faceva uscire NVDA dalla modalità focus
+      // ✅ FIX RACE CONDITION: Aspetta 500ms prima di fetchare lo stato
+      // Questo dà tempo al database di propagare l'aggiornamento
+      await new Promise(r => setTimeout(r, 500));
       
       await fetchFullState();
       
@@ -3831,8 +3904,10 @@
         }
       }
       
-      // Nascondi/mostra bottone ANNULLA in base al mode
+      // Nascondi/mostra bottoni in base al mode
       const btnCancel = document.getElementById('btn-cancel-input');
+      const btnClear = document.getElementById('btn-clear-input');
+      
       if(btnCancel){
         if(mode === 'letter'){
           // Consonante: nascondi ANNULLA
@@ -3843,6 +3918,16 @@
         }
       }
       
+      if(btnClear){
+        if(mode === 'solve'){
+          // RISOLVI: mostra SVUOTA
+          btnClear.style.display = 'flex';
+        } else {
+          // Vocale/Consonante: nascondi SVUOTA
+          btnClear.style.display = 'none';
+        }
+      }
+      
       // ✅ FIX NVDA: Focus viene impostato UNA SOLA VOLTA quando il campo viene aperto
       // NON verrà più forzato continuamente da updateUI
       // Usa setTimeout per dare tempo al DOM di aggiornarsi
@@ -3850,12 +3935,37 @@
         const gameInput = document.getElementById('game-input');
         if(gameInput) {
           // ✅ SMARTPHONE FIX: Attiva la tastiera virtuale automaticamente
-          // Su mobile, il semplice focus() non basta - serve anche click()
+          // Combo di tecniche per forzare l'apertura della tastiera su tutti i dispositivi
+          
+          // 1. Focus normale
           gameInput.focus();
           
-          // Forza l'apertura della tastiera virtuale su smartphone
-          // Il click() simula l'interazione utente necessaria per aprire la tastiera
+          // 2. Simula touch per trigger eventi mobile (solo se supportato)
+          if(isAccessibleMode && typeof TouchEvent !== 'undefined') {
+            try {
+              const touchEvent = new TouchEvent('touchstart', {
+                bubbles: true,
+                cancelable: true,
+                view: window
+              });
+              gameInput.dispatchEvent(touchEvent);
+            } catch(e) {
+              // TouchEvent non supportato, continua senza
+            }
+          }
+          
+          // 3. Click per attivare
           gameInput.click();
+          
+          // 4. Seleziona tutto il testo per assicurare che sia editabile
+          gameInput.select();
+          
+          // 5. Se ancora non funziona, forza con setSelectionRange
+          setTimeout(() => {
+            if(gameInput === document.activeElement) {
+              gameInput.setSelectionRange(gameInput.value.length, gameInput.value.length);
+            }
+          }, 100);
           
           // ✅ NVDA FIX: speak() viene chiamato DOPO il focus, così NVDA è già in focus mode
           // e l'annuncio non interferisce con l'ingresso nella modalità focus
@@ -3863,10 +3973,16 @@
           // Con 150ms era troppo veloce e NVDA veniva interrotto durante l'ingresso in Focus Mode
           setTimeout(() => {
             if(mode === 'solve') {
-              speak("Risolvi. Completa gli asterischi con le lettere mancanti.");
+              speak("Risolvi. Completa gli asterischi con le lettere mancanti, oppure premi SVUOTA per scrivere da zero.");
             } else if(mode === 'vowel') {
-              // ✅ Nel round speciale: annuncio semplice senza conteggio
-              speak("Scrivi la vocale.");
+              // ✅ Nel round speciale fase vocali: annuncio personalizzato
+              if(isSpecialRound && specialVowelsPhase) {
+                const numPlayers = currentStanza?.giocatori?.length || 1;
+                const vowelsUsed = lettersCalledThisRound.filter(c => 'AEIOU'.includes(c)).length;
+                speak(`Round speciale: scrivi 1 vocale. ${vowelsUsed} di 3 vocali già date.`);
+              } else {
+                speak("Scrivi la vocale.");
+              }
             } else {
               const montepremi = currentStanza?.montepremi_round || 0;
               speak(`Hai girato ${montepremi} euro. Scrivi una consonante.`);
@@ -3887,6 +4003,16 @@
       
       // Altrimenti chiudi normalmente (vocale, risolvi)
       closeInput();
+    }
+    
+    function clearSolveInput(){
+      // ✅ Svuota completamente il campo per permettere di scrivere da zero
+      const inp = document.getElementById('game-input');
+      if(inp) {
+        inp.value = '';
+        inp.focus();
+        speak("Campo svuotato");
+      }
     }
     
     function closeInput(){ 
@@ -4134,14 +4260,7 @@
         }
         
         isProcessingInput=false;
-        
-        // ✅ Riapri automaticamente il campo per la prossima vocale se la fase vocali è ancora attiva
-        setTimeout(() => {
-          if(isSpecialRound && specialVowelsPhase){
-            openInput('vowel');
-          }
-        }, 500);
-        
+        // ✅ Non riaprire il campo - waitForPlayerVowel gestisce il turno successivo
         return;
       }
 
@@ -4702,18 +4821,25 @@
       for(let i = 0; i < numPlayers; i++) {
         const player = s.giocatori[i];
         
-        // ✅ Annuncia il cambio turno se siamo in 2 o 3 giocatori
-        if(numPlayers > 1) {
-          speak(`Turno di ${player.nome}`);
-          await new Promise(resolve => setTimeout(resolve, 800));
-        }
+        // ✅ Annuncia il cambio turno
+        const turnMsg = numPlayers > 1 
+          ? `Turno di ${player.nome}: scegli 1 vocale` 
+          : `Scegli 1 vocale`;
+        
+        speak(turnMsg);
+        await new Promise(resolve => setTimeout(resolve, 1500));
         
         // Imposta il turno su questo giocatore
         await _supabase.from('stanze').update({
           id_giocatore_corrente: player.id,
-          ultimo_messaggio: `${player.nome}: scegli 1 vocale`,
+          ultimo_messaggio: `${player.nome}: scegli 1 vocale (${i+1}/${numPlayers})`,
           azione_timestamp: new Date().toISOString()
         }).eq('id', roomId);
+        
+        // ✅ Se è il giocatore locale, apri automaticamente l'input
+        if(player.id === myId) {
+          setTimeout(() => openInput('vowel'), 500);
+        }
         
         // Aspetta che il giocatore scelga la vocale
         await waitForPlayerVowel(player.id);

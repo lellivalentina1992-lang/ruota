@@ -27,9 +27,11 @@
       box.id = 'airbag-error-box';
       box.setAttribute('role', 'alertdialog');
       box.setAttribute('aria-labelledby', 'error-title');
+      box.setAttribute('aria-describedby', 'error-desc');
       box.style = "position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:rgba(40,0,0,0.95); border:4px solid red; color:white; padding:30px; z-index:99999; font-family:sans-serif; text-align:center; box-shadow:0 0 50px red; border-radius:15px; min-width:300px;";
       box.innerHTML = `
         <h2 id='error-title' style='margin-top:0; color:#ff5555'>ERRORE RILEVATO</h2>
+        <p id='error-desc' style='margin:10px 0; color:#ccc;'>Si è verificato un errore nell'applicazione. Puoi ignorarlo e continuare oppure ricaricare la pagina.</p>
         <div style="display:flex; flex-direction:column; gap:10px;">
           <button id="btn-ignore-err" style="padding:15px; background:#444; color:#fff; border:1px solid #fff; font-weight:bold; cursor:pointer; font-size:1.1em;">IGNORA E CONTINUA</button>
           <button onclick="window.location.reload()" style="padding:10px; background:transparent; color:#aaa; border:1px solid #555; cursor:pointer;">Aggiorna Pagina (F5)</button>
@@ -115,13 +117,13 @@
     body.accessible-mode #board-container{display:none;}
     body.accessible-mode #accessible-board-container{display:block;}
     
-    /* Nascondi sezioni duplicate in Vista Testo */
+    /* Nascondi sezioni duplicate in Modalità Screen Reader senza tastiera */
     body.accessible-mode .top-controls-wrapper{display:none;}
     body.accessible-mode .bottom-controls-wrapper{display:none;}
     body.accessible-mode #wheel-visual-wrap{display:none;}
     body.accessible-mode #audio-panel{display:none;}
     
-    /* Disabilita animazioni e effetti pesanti in Vista Testo */
+    /* Disabilita animazioni e effetti pesanti in Modalità Screen Reader senza tastiera */
     body.accessible-mode *{
       animation: none !important;
       transition: none !important;
@@ -203,7 +205,7 @@
   <div style="display:flex; justify-content:space-between; width:95%; max-width:900px; margin:10px auto;">
     <button onclick="openHelp()" style="background:transparent; border:1px solid #555; color:#888; padding:5px 10px; border-radius:5px; font-size:0.8em;" aria-label="Aiuto tasti rapidi (H)">Aiuto (H)</button>
     <button onclick="toggleContrast()" style="background:transparent; border:1px solid #555; color:#888; padding:5px 10px; border-radius:5px; font-size:0.8em;">Contrasto</button>
-    <button onclick="toggleAccessibleMode()" id="btn-acc-mode" style="background:transparent; border:1px solid #555; color:#fff; font-weight:bold; padding:5px 10px; border-radius:5px; font-size:0.8em;" aria-pressed="false">VISTA TESTO</button>
+    <button onclick="toggleAccessibleMode()" id="btn-acc-mode" style="background:transparent; border:1px solid #555; color:#fff; font-weight:bold; padding:5px 10px; border-radius:5px; font-size:0.8em;" aria-pressed="false">SCREEN READER SENZA TASTIERA</button>
     <button onclick="openActionHistory(true)" style="background:transparent; border:1px solid #555; color:#888; padding:5px 10px; border-radius:5px; font-size:0.8em;">Storico (A)</button>
   </div>
 
@@ -237,13 +239,7 @@
     </div>
     <div id="inp-code-display" style="color:#0f0; font-size:1.5em; min-height:1.5em; margin:5px 0 10px 0;" aria-hidden="true"></div>
     
-    <div style="text-align:center; color:#aaa; font-size:1em; margin-bottom:15px;">
-      <strong style="color:#fff;">Vuoi creare o entrare?</strong><br>
-      CREA NUOVA: Nuova stanza (ignora codice)<br>
-      ENTRA: Usa il codice sopra
-    </div>
-    
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; width:100%;">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; width:100%; margin-top:15px;">
       <button id="btn-create-room" class="action-btn btn-spin">CREA NUOVA STANZA</button>
       <button id="btn-join-room" class="action-btn btn-vowel">ENTRA<br><span style="font-size:0.8em;">(con codice)</span></button>
     </div>
@@ -284,7 +280,7 @@
       <div id="special-round-indicator" class="hidden" style="color:cyan; font-weight:bold; margin-top:5px; font-size:1.1em; text-shadow:0 0 5px cyan; border:1px solid cyan; padding:5px; border-radius:5px;"></div>
     
     <div class="acc-nav" role="navigation" aria-label="Comandi principali touch">
-      <!-- Vista Testo semplificata per smartphone -->
+      <!-- Modalità Screen Reader senza tastiera (per smartphone) -->
       <!-- Ordine: TABELLONE -> GIRA -> VOCALE -> [PASSA solo nei round speciali] -> RISOLVI -> ALTRI COMANDI -->
       
       <!-- NAVIGAZIONE TABELLONE -->
@@ -400,7 +396,7 @@
     </div>
   </div>
 
-  <!-- Overlay SPECIALE per Vista Testo: input consonante a schermo intero -->
+  <!-- Overlay SPECIALE per Modalità Screen Reader senza tastiera: input consonante a schermo intero -->
   <div id="accessible-letter-input" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;background:#000;z-index:10000;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:20px;">
     <div style="width:100%;max-width:600px;display:flex;flex-direction:column;gap:20px;">
       <h1 id="accessible-input-title" style="color:var(--col-accent);font-size:2em;margin:0;text-align:center;">INSERISCI CONSONANTE</h1>
@@ -435,11 +431,11 @@
         <ul>
           <li><strong>Aiuto (H)</strong> - Apre questa guida</li>
           <li><strong>Contrasto</strong> - Cambia il tema dei colori per una migliore visibilità. Alterna tra tema normale e tema ad alto contrasto (nero/bianco/giallo/verde). Utile per persone con problemi di vista o in ambienti molto luminosi.</li>
-          <li><strong>VISTA TESTO</strong> - Modalità con pulsanti completi per dispositivi touch. 
+          <li><strong>SCREEN READER SENZA TASTIERA</strong> - Modalità ottimizzata per chi usa lo screen reader da smartphone senza tastiera fisica. 
             <ul style="margin-top:8px; line-height:1.6;">
-              <li><strong>SMARTPHONE SENZA TASTIERA:</strong> ATTIVA questa modalità! Il tabellone diventa testuale con pulsanti cliccabili. Avrai accesso a TUTTI i comandi tramite pulsanti dedicati (annuncia turno, punteggi, effetti sonori, ecc.). Ideale per touchscreen e screen reader.</li>
+              <li><strong>SMARTPHONE SENZA TASTIERA:</strong> ATTIVA questa modalità! Il tabellone diventa testuale con pulsanti cliccabili. Avrai accesso a TUTTI i comandi tramite pulsanti dedicati (annuncia turno, punteggi, effetti sonori, ecc.). Ideale per NVDA Touch, TalkBack, VoiceOver.</li>
               <li><strong>PC o SMARTPHONE CON TASTIERA ESTERNA:</strong> LASCIA DISATTIVATA questa modalità! Usa il tabellone visuale standard e i tasti rapidi (G, V, R, P, T, D, ecc.). Molto più veloce e comodo con la tastiera.</li>
-              <li><strong>Importante:</strong> Se hai una tastiera Bluetooth/USB collegata allo smartphone, usa sempre la modalità STANDARD con i tasti rapidi, non la Vista Testo!</li>
+              <li><strong>Importante:</strong> Se hai una tastiera Bluetooth/USB collegata allo smartphone, usa sempre la modalità STANDARD con i tasti rapidi, NON questa modalità!</li>
             </ul>
           </li>
           <li><strong>Storico (A)</strong> - Mostra tutte le azioni recenti del gioco (giri, lettere chiamate, passaggi di turno, ecc.)</li>
@@ -1087,7 +1083,7 @@
     
     function closeResultPopup(){
       document.getElementById('result-popup').classList.add('hidden');
-      // In vista testo, ritorna focus su GIRA
+      // In modalità screen reader senza tastiera, ritorna focus su GIRA
       if(isAccessibleMode){
         setTimeout(()=> document.getElementById('btn-acc-spin')?.focus(), 100);
       }
@@ -2097,7 +2093,7 @@
       if(isAccessibleMode){
         updateAccessibleBoard();
         document.getElementById('board-container').setAttribute('aria-hidden','true');
-        speak("Vista Testo attivata.");
+        speak("Modalità Screen Reader senza tastiera attivata.");
         // Porta focus su GIRA
         setTimeout(()=> document.getElementById('btn-acc-spin')?.focus(), 200);
       } else {
@@ -2216,7 +2212,7 @@
       }
     }
     
-    // Navigazione tabellone in vista testo
+    // Navigazione tabellone in modalità screen reader senza tastiera
     function navigateTextBoard(direction){
       if(!parsedBoard.length) return;
       
@@ -3711,7 +3707,7 @@
     let lastFocusedElement = null;
     
     function openInput(mode){
-      // ✅ NUOVO: In Vista Testo, usa overlay speciale per le consonanti
+      // ✅ NUOVO: In modalità screen reader senza tastiera, usa overlay speciale per le consonanti
       if(isAccessibleMode && mode === 'letter'){
         const montepremi = currentStanza?.montepremi_round || 0;
         openAccessibleLetterInput(montepremi);
@@ -3927,13 +3923,13 @@
       
       inputMode=null;
       
-      // In vista testo, ritorna focus su GIRA
+      // In modalità screen reader senza tastiera, ritorna focus su GIRA
       if(isAccessibleMode){
         setTimeout(()=> document.getElementById('btn-acc-spin')?.focus(), 100);
       }
     }
 
-    // ✅ NUOVO: Overlay speciale per input consonante in Vista Testo
+    // ✅ NUOVO: Overlay speciale per input consonante in modalità screen reader senza tastiera
     function openAccessibleLetterInput(montepremi){
       const overlay = document.getElementById('accessible-letter-input');
       const input = document.getElementById('accessible-game-input');
@@ -3979,6 +3975,9 @@
       input.value = '';
       input.onkeydown = null;
       
+      // ✅ CORREZIONE: Reset inputMode per permettere la riapertura del campo
+      inputMode = null;
+      
       // Ritorna focus su GIRA
       setTimeout(()=> document.getElementById('btn-acc-spin')?.focus(), 100);
     }
@@ -4016,6 +4015,9 @@
       
       // Ripristina
       inputMode = oldInputMode;
+      
+      // ✅ CORREZIONE: Chiudi l'overlay accessibile dopo aver processato la lettera
+      closeAccessibleLetterInput();
     }
 
     function showAccessibleRevealedLetters(){

@@ -683,20 +683,48 @@
     // Definita una sola volta, può essere rimossa e ri-aggiunta senza accumulo
     const uppercaseInputHandler = function(e) {
       const cursorPos = e.target.selectionStart;
-      let upperValue = e.target.value.toUpperCase();
+      let value = e.target.value;
       
       // ✅ FIX: Rimuovi asterischi quando l'utente scrive
       // Conta quanti asterischi ci sono PRIMA del cursore per aggiustare la posizione
-      const beforeCursor = upperValue.substring(0, cursorPos);
+      const beforeCursor = value.substring(0, cursorPos);
       const asterisksBefore = (beforeCursor.match(/\*/g) || []).length;
       
       // Rimuovi tutti gli asterischi
-      upperValue = upperValue.replace(/\*/g, '');
+      value = value.replace(/\*/g, '');
       
-      // Aggiusta la posizione del cursore sottraendo gli asterischi rimossi
-      const newCursorPos = cursorPos - asterisksBefore;
+      // ✅ Normalizza spazi multipli (causati dalla rimozione di " * ")
+      value = value.replace(/\s+/g, ' ');
       
-      e.target.value = upperValue;
+      // ✅ Maiuscolo/minuscolo intelligente: prima lettera maiuscola dopo punto, resto minuscolo
+      let result = '';
+      let isStartOfSentence = true;
+      for(let i = 0; i < value.length; i++) {
+        const char = value[i];
+        if(/[A-ZÀ-Ùa-zà-ù]/.test(char)) {
+          result += isStartOfSentence ? char.toUpperCase() : char.toLowerCase();
+          isStartOfSentence = false;
+        } else {
+          result += char;
+          if(/[.!?]/.test(char)) {
+            isStartOfSentence = true;
+          }
+        }
+      }
+      
+      // Calcola nuova posizione cursore
+      // Gli asterischi rimossi spostano il cursore indietro
+      let newCursorPos = cursorPos - asterisksBefore;
+      
+      // Aggiusta per spazi normalizzati
+      const originalSpacesBefore = (beforeCursor.match(/\s+/g) || []).join('').length;
+      const normalizedSpacesBefore = (result.substring(0, newCursorPos).match(/\s+/g) || []).join('').length;
+      newCursorPos -= (originalSpacesBefore - normalizedSpacesBefore);
+      
+      // Assicurati che il cursore sia in un range valido
+      newCursorPos = Math.max(0, Math.min(newCursorPos, result.length));
+      
+      e.target.value = result;
       e.target.setSelectionRange(newCursorPos, newCursorPos);
     };
     
@@ -706,6 +734,13 @@
         isBotThinking = false;
       }, delayMs);
     }
+    
+    // ✅ Helper per formattare categorie: Prima maiuscola, resto minuscolo
+    function formatCategory(cat) {
+      if(!cat) return '';
+      return cat.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+    }
+    
     let previousPlayersList = []; 
     
     
@@ -1212,9 +1247,10 @@
       
       for(let i=0; i<list.length; i++){
         await new Promise(r => setTimeout(r, 500));
-        const letter = list[i].toUpperCase(); // ✅ Maiuscolo per trovare in NATO_ALPHABET
-        const word = NATO_ALPHABET[letter] || letter;
-        speak(`${letter}, ${word}`);
+        const letterUpper = list[i].toUpperCase(); // Per trovare in NATO_ALPHABET
+        const letterLower = list[i].toLowerCase(); // ✅ Per pronuncia in minuscolo
+        const word = NATO_ALPHABET[letterUpper] || letterLower;
+        speak(`${letterLower}, ${word}`); // ✅ Pronuncia lettera in minuscolo
       }
       
       // ✅ NEI ROUND SPECIALI: Annuncia quante consonanti mancano per arrivare a 10
@@ -1251,10 +1287,12 @@
         let letterCount = (w && w.chars) ? w.chars.length : 0;
         let spelling = "";
         if(w && w.chars && Array.isArray(w.chars)) w.chars.forEach(c => {
-          if(c && c.isLetter && !c.isRevealed) spelling += " asterisco";
+          if(c && c.isLetter && !c.isRevealed) spelling += " * "; // ✅ Asterisco staccato
           else spelling += " " + (c.char ? c.char.toLowerCase() : "");
         });
-        speak(`Parola ${n + 1}, ${letterCount} lettere.${spelling}`);
+        // ✅ Normalizza spazi multipli e trim
+        spelling = spelling.replace(/\s+/g, ' ').trim();
+        speak(`Parola ${n + 1}, ${letterCount} lettere. ${spelling}`);
       } else {
         // ✅ FIX 3: Anche se non cambia parola, resetta il carattere
         navCharIdx = -1;
@@ -1264,10 +1302,12 @@
         let letterCount = (w && w.chars) ? w.chars.length : 0;
         let spelling = "";
         if(w && w.chars && Array.isArray(w.chars)) w.chars.forEach(c => {
-          if(c && c.isLetter && !c.isRevealed) spelling += " asterisco";
+          if(c && c.isLetter && !c.isRevealed) spelling += " * "; // ✅ Asterisco staccato
           else spelling += " " + (c.char ? c.char.toLowerCase() : "");
         });
-        speak(`Parola ${n + 1}, ${letterCount} lettere.${spelling}`);
+        // ✅ Normalizza spazi multipli e trim
+        spelling = spelling.replace(/\s+/g, ' ').trim();
+        speak(`Parola ${n + 1}, ${letterCount} lettere. ${spelling}`);
       }
     }
 
@@ -3091,7 +3131,7 @@
         // ✅ Mostra categoria + hint (se presente) in elementi separati ma dentro lo stesso H2
         // Così NVDA legge tutto quando naviga con H
         // ✅ FIX: Nei round speciali, forza sempre "SITUAZIONI QUOTIDIANE" come categoria
-        const displayCategory = isSpecialRound ? 'SITUAZIONI QUOTIDIANE' : currentFrase.categoria;
+        const displayCategory = isSpecialRound ? 'Situazioni Quotidiane' : formatCategory(currentFrase.categoria);
         document.getElementById('category-main').textContent = displayCategory;
         document.getElementById('round-hint').textContent = currentHintText;
         vowelsBoughtThisTurn=0;
@@ -3112,7 +3152,7 @@
         const roundHint = document.getElementById('round-hint');
         
         // ✅ FIX: Nei round speciali, forza sempre "SITUAZIONI QUOTIDIANE" come categoria
-        const displayCategory = isSpecialRound ? 'SITUAZIONI QUOTIDIANE' : currentFrase.categoria;
+        const displayCategory = isSpecialRound ? 'Situazioni Quotidiane' : formatCategory(currentFrase.categoria);
         
         if(categoryMain && categoryMain.textContent !== displayCategory) {
           categoryMain.textContent = displayCategory;
@@ -3839,11 +3879,14 @@
         
         let template = "";
         for(let i=0; i<currentPuzzleText.length; i++){
-          const char = currentPuzzleText[i].toUpperCase();
-          if(!char.match(/[A-ZÀ-Ù]/)){
+          const char = currentPuzzleText[i];
+          const charUpper = char.toUpperCase();
+          
+          if(!charUpper.match(/[A-ZÀ-Ù]/)){
+            // Non è una lettera (spazio, punteggiatura)
             template += char; 
           } else {
-            
+            // È una lettera
             let gIdx = 0;
             for(let j=0; j<=i; j++){
               if(currentPuzzleText[j].match(/[A-ZÀ-Ù]/)){
@@ -3853,9 +3896,30 @@
             }
             
             const isRevealed = currentStanza?.lettere_rivelate?.includes(gIdx);
-            template += isRevealed ? char : '*';
+            if(isRevealed) {
+              // ✅ Lettera rivelata: minuscolo (tranne inizio frase/dopo punto)
+              // Cerca l'ultimo carattere non-spazio prima di questa lettera
+              let isStartOfSentence = (i === 0);
+              if(i > 0) {
+                // Guarda indietro per trovare l'ultimo carattere significativo
+                const beforeText = template.trimEnd();
+                if(beforeText.length > 0) {
+                  const lastChar = beforeText[beforeText.length - 1];
+                  isStartOfSentence = /[.!?]/.test(lastChar);
+                }
+              }
+              template += isStartOfSentence ? charUpper : char.toLowerCase();
+            } else {
+              // ✅ Lettera coperta: asterisco con spazi
+              template += ' * ';
+            }
           }
         }
+        
+        // ✅ NORMALIZZA spazi multipli (causati da " * " + spazi originali)
+        // Mantieni gli spazi tra parole ma rimuovi doppi/tripli spazi
+        template = template.replace(/\s+/g, ' ').trim();
+        
         inp.value = template;
         
         // ✅ NVDA FIX: NON sostituire l'elemento (replaceChild rompe NVDA)

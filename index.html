@@ -10,7 +10,7 @@
     font-src 'self' https://fonts.gstatic.com;
     connect-src 'self' https://azcwkpdjbysnivknnino.supabase.co wss://azcwkpdjbysnivknnino.supabase.co https://cdn.jsdelivr.net;
     img-src 'self' data: https:;
-    media-src 'self' data: blob:;
+    media-src 'self' data: blob: https://raw.githubusercontent.com;
     base-uri 'self';
     form-action 'self';
   ">
@@ -122,7 +122,7 @@
   // Date utilities
   const DateUtils = {
     now() {
-      return DateUtils.now();
+      return new Date().toISOString();
     },
     
     formatForDisplay(isoString) {

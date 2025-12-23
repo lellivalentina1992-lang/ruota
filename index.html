@@ -1042,6 +1042,7 @@
     let currentFrase=null, currentStanza=null, currentPuzzleText="", currentHintText="", fullSolutionText="";
     let lastTimestamp="", isSpinning=false, inputMode=null, parsedBoard=[], localAnnouncementMade=false;
     let isFetching=false, isProcessingInput=false, isHandlingTimeout=false;
+    let processingInputTimeout=null; // ✅ Timeout di sicurezza per isProcessingInput
     let vowelsBoughtThisTurn=0, wasMyTurn=false, wasBotTurn=false;
     let actionHistory=[];
     let isAccessibleMode=false;
@@ -3092,7 +3093,15 @@
         "BOT Francesca", "BOT Alessandro", "BOT Federico", "BOT Lorenzo"
       ];
       const usedNames = freshStanza.giocatori.map(p => p.nome);
-      const name = botNames.find(n => !usedNames.includes(n)) || "BOT " + Math.floor(Math.random()*1000);
+      
+      // Filtra i nomi disponibili
+      const availableNames = botNames.filter(n => !usedNames.includes(n));
+      
+      // Scegli un nome casuale tra quelli disponibili
+      const name = availableNames.length > 0 
+        ? availableNames[Math.floor(Math.random() * availableNames.length)]
+        : "BOT " + Math.floor(Math.random()*1000);
+      
       const lastInd = freshStanza.giocatori[freshStanza.giocatori.length-1].indice;
       
       await _supabase.from('giocatori').insert({
@@ -3913,6 +3922,15 @@
       
       isSpinning=true;
       
+      // ✅ SAFETY: Timeout di sicurezza per resettare isSpinning se qualcosa va storto
+      const spinningTimeout = TimerManager.setTimeout(() => {
+        if(isSpinning) {
+          console.warn('SAFETY: isSpinning resettato dopo timeout di 10 secondi');
+          isSpinning = false;
+          if(currentStanza) updateUI(currentStanza);
+        }
+      }, 10000);
+      
       speak("Giro la ruota...");
       playAudio('snd-spin');
       animateWheelSpin();
@@ -3964,6 +3982,7 @@
 
       if(val==='BANCAROTTA'){
         isSpinning=false;
+        TimerManager.clearTimeout(spinningTimeout); // ✅ Cancella timeout di sicurezza
         
         
         const saved=await tryUseJollyToAvoid("BANCAROTTA");
@@ -4008,6 +4027,7 @@
 
       if(val==='PASSA' || val==='PASSA_TURNO' || val==='PASSA_AVVERSARIO'){
         isSpinning=false;
+        TimerManager.clearTimeout(spinningTimeout); // ✅ Cancella timeout di sicurezza
         const label=(val==='PASSA_AVVERSARIO') ? "PASSA ALL'AVVERSARIO" : "PASSA TURNO";
         const saved=await tryUseJollyToAvoid(label);
         if(saved) return;
@@ -4100,6 +4120,7 @@
       }
 
       isSpinning=false;
+      TimerManager.clearTimeout(spinningTimeout); // ✅ Cancella timeout di sicurezza
       lastSpinTimestamp = DateUtils.now();
       
       const updateResult = await _supabase.from('stanze').update({
@@ -4604,6 +4625,11 @@
       
       inputMode=null;
       
+      // ✅ FIX: Aggiorna UI subito dopo aver chiuso l'input per riabilitare i pulsanti
+      if(currentStanza){
+        updateUI(currentStanza);
+      }
+      
       // In modalità screen reader senza tastiera, ritorna focus su GIRA
       if(isAccessibleMode){
         TimerManager.setTimeout(()=> document.getElementById('btn-acc-spin')?.focus(), 100);
@@ -4721,8 +4747,25 @@
       }
       
       isProcessingInput=true;
+      
+      // ✅ SAFETY: Timeout di sicurezza per resettare isProcessingInput se qualcosa va storto
+      if(processingInputTimeout) TimerManager.clearTimeout(processingInputTimeout);
+      processingInputTimeout = TimerManager.setTimeout(() => {
+        if(isProcessingInput) {
+          console.warn('SAFETY: isProcessingInput resettato dopo timeout di 10 secondi');
+          isProcessingInput = false;
+          processingInputTimeout = null;
+          if(currentStanza) updateUI(currentStanza);
+        }
+      }, 10000);
+      
       const txt=document.getElementById('game-input').value.trim().toUpperCase();
-      if(!txt){ isProcessingInput=false; return; }
+      if(!txt){ 
+        isProcessingInput=false;
+        if(processingInputTimeout) TimerManager.clearTimeout(processingInputTimeout);
+        processingInputTimeout = null;
+        return;
+      }
       const mode=inputMode;
       
       // ✅ FIX: Valida l'input PRIMA di chiudere il campo!
@@ -5121,6 +5164,8 @@
       TimerManager.setTimeout(async () => {
         if(roomId) await fetchFullState();
         isProcessingInput=false; // ✅ Reset DOPO il fetch, così updateUI vede i dati freschi
+        if(processingInputTimeout) TimerManager.clearTimeout(processingInputTimeout); // ✅ Cancella timeout di sicurezza
+        processingInputTimeout = null;
         
         // ✅ SMARTPHONE FIX: Dopo aver trovato una consonante, aspetta 1 secondo e poi 
         // forza un altro fetch per assicurarsi che il pulsante GIRA sia riabilitato

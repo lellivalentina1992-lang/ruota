@@ -4434,7 +4434,7 @@
         inp.onkeydown = null;
         
         // ✅ ACCESSIBILITÀ: Aggiungi label e descrizione per screen reader
-        inp.setAttribute('aria-label', 'Campo per risolvere la frase. Completa gli asterischi con le lettere mancanti.');
+        inp.setAttribute('aria-label', 'Risolvi');
         // ✅ MOBILE: Ottimizza tastiera per testo completo
         inp.setAttribute('inputmode', 'text');
         
@@ -4457,14 +4457,14 @@
         inp.value='';
         // ✅ ACCESSIBILITÀ: Label appropriata per ogni modalità
         if(mode==='vowel') {
-          inp.setAttribute('aria-label', 'Campo per inserire una vocale');
+          inp.setAttribute('aria-label', 'Vocale');
           // ✅ MOBILE: Ottimizza tastiera per lettere
           inp.setAttribute('inputmode', 'text');
           // ✅ NVDA FIX: speak() viene chiamato DOPO il setTimeout del focus
           // Vedi più in basso (dopo il setTimeout)
         } else {
           const montepremi = currentStanza?.montepremi_round || 0;
-          inp.setAttribute('aria-label', `Campo per inserire una consonante. Hai girato ${montepremi} euro.`);
+          inp.setAttribute('aria-label', `Consonante`);
           // ✅ MOBILE: Ottimizza tastiera per lettere
           inp.setAttribute('inputmode', 'text');
           // ✅ NVDA FIX: speak() viene chiamato DOPO il setTimeout del focus
@@ -4540,7 +4540,7 @@
               }
             } else {
               const montepremi = currentStanza?.montepremi_round || 0;
-              speak(`Hai girato ${montepremi} euro. Scrivi una consonante.`);
+              speak(`${montepremi} euro, scrivi una consonante`);
             }
           }, 500); // ✅ Aumentato da 150ms a 500ms - critico per NVDA!
         }
@@ -4640,7 +4640,7 @@
         
         // Annuncio vocale DOPO il focus
         TimerManager.setTimeout(() => {
-          speak(`Hai girato ${montepremi} euro. Scrivi una consonante.`);
+          speak(`${montepremi} euro, scrivi una consonante`);
         }, 500);
       }, 100);
     }

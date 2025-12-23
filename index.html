@@ -4464,7 +4464,7 @@
           // Vedi più in basso (dopo il setTimeout)
         } else {
           const montepremi = currentStanza?.montepremi_round || 0;
-          inp.setAttribute('aria-label', `Consonante`);
+          inp.setAttribute('aria-label', `${montepremi} euro, scrivi una consonante`);
           // ✅ MOBILE: Ottimizza tastiera per lettere
           inp.setAttribute('inputmode', 'text');
           // ✅ NVDA FIX: speak() viene chiamato DOPO il setTimeout del focus
@@ -4539,8 +4539,7 @@
                 speak("Scrivi la vocale.");
               }
             } else {
-              const montepremi = currentStanza?.montepremi_round || 0;
-              speak(`${montepremi} euro, scrivi una consonante`);
+              // Consonante: annuncio già nell'aria-label, non servono speak aggiuntivi
             }
           }, 500); // ✅ Aumentato da 150ms a 500ms - critico per NVDA!
         }
@@ -4616,7 +4615,10 @@
       const input = document.getElementById('accessible-game-input');
       const infoText = document.getElementById('accessible-input-info');
       
-      // Aggiorna info con i soldi girati
+      // Aggiorna aria-label con i soldi e l'istruzione
+      input.setAttribute('aria-label', `${montepremi} euro, scrivi una consonante`);
+      
+      // Aggiorna info con i soldi girati (visivo)
       infoText.textContent = `Hai girato ${montepremi} €`;
       
       // Pulisci il campo
@@ -4638,10 +4640,7 @@
         input.focus();
         input.click(); // Per aprire tastiera su mobile
         
-        // Annuncio vocale DOPO il focus
-        TimerManager.setTimeout(() => {
-          speak(`${montepremi} euro, scrivi una consonante`);
-        }, 500);
+        // Annuncio già nell'aria-label del campo, non serve speak aggiuntivo
       }, 100);
     }
 

@@ -323,11 +323,11 @@
     `;
     
     box.innerHTML = `
-      <h2 id='error-title' style='margin-top:0; color:#ff5555'>ERRORE ASINCRONO</h2>
-      <p id='error-desc' style='margin:10px 0; color:#ccc;'>Si è verificato un errore asincrono. Ti consigliamo di ricaricare la pagina.</p>
+      <h2 id='error-title-async' style='margin-top:0; color:#ff5555'>ERRORE ASINCRONO</h2>
+      <p id='error-desc-async' style='margin:10px 0; color:#ccc;'>Si è verificato un errore asincrono. Ti consigliamo di ricaricare la pagina.</p>
       <div style="display:flex; flex-direction:column; gap:10px;">
-        <button id="btn-ignore-err" style="padding:15px; background:#444; color:#fff; border:1px solid #fff; font-weight:bold; cursor:pointer; font-size:1.1em;">IGNORA E CONTINUA</button>
-        <button id="btn-reload-err" style="padding:10px; background:transparent; color:#aaa; border:1px solid #555; cursor:pointer;">Aggiorna Pagina (F5)</button>
+        <button id="btn-ignore-err-async" style="padding:15px; background:#444; color:#fff; border:1px solid #fff; font-weight:bold; cursor:pointer; font-size:1.1em;">IGNORA E CONTINUA</button>
+        <button id="btn-reload-err-async" style="padding:10px; background:transparent; color:#aaa; border:1px solid #555; cursor:pointer;">Aggiorna Pagina (F5)</button>
       </div>
     `;
     
@@ -342,12 +342,12 @@
     document.addEventListener('keydown', handleKeydown);
     
     TimerManager.setTimeout(() => {
-      const btn = document.getElementById('btn-ignore-err');
+      const btn = document.getElementById('btn-ignore-err-async');
       if (btn) btn.focus();
     }, CONFIG.ERROR_DISPLAY_DELAY_MS);
     
-    const ignoreBtn = document.getElementById('btn-ignore-err');
-    const reloadBtn = document.getElementById('btn-reload-err');
+    const ignoreBtn = document.getElementById('btn-ignore-err-async');
+    const reloadBtn = document.getElementById('btn-reload-err-async');
     
     if (ignoreBtn) {
       ignoreBtn.onclick = function() {
@@ -418,7 +418,7 @@
     .stats-display{text-align:right;font-size:1.1em;line-height:1.2;color:#ddd;}
     .money-box{margin-top:5px;display:flex;gap:15px;justify-content:center;font-size:1.3em;color:var(--col-accent);text-shadow:0 0 5px rgba(255,215,0,.5);}
     .section-header{width:95%;text-align:left;margin:15px 0 5px 0;color:#888;border-bottom:1px solid #444;padding-bottom:5px;font-size:1em;text-transform:uppercase;letter-spacing:1px;display:none;}
-    body.accessible-mode .section-header{display:block;}
+    /* Regola section-header rimossa - le intestazioni H3 sono state eliminate */
     .acc-nav { display: none; width: 98%; max-width: 800px; margin: 10px auto 5px auto; gap: 8px; }
     body.accessible-mode .acc-nav { display: grid; grid-template-columns: 1fr; }
     .acc-nav button { font-size: 0.95em; padding: 12px 10px; min-height: 52px; }
@@ -674,7 +674,8 @@
     13. Pulsante RISOLVI (dopo le parole)
     -->
     
-    <h2 id="heading-gioco" style="display:none;color:var(--col-neon);font-size:1.8em;margin:20px auto 10px auto;text-align:center;width:95%;max-width:800px;">Comandi</h2>
+    <!-- ========== SEZIONE COMANDI ========== -->
+    <h2 id="heading-gioco" style="color:var(--col-neon);font-size:1.8em;margin:20px auto 10px auto;text-align:left;width:95%;max-width:800px;">Comandi</h2>
     
     <div class="acc-nav" role="navigation" aria-label="Comandi principali di gioco">
       <!-- GIRA - pulsante principale -->
@@ -714,7 +715,7 @@
     </div>
 </div>
 
-    <h3 id="hdr-actions" class="section-header" tabindex="-1">AZIONI DI GIOCO</h3>
+    <!-- Sezione comandi rimossa intestazione H3 ridondante -->
     <div class="top-controls-wrapper">
       <div class="controls-grid">
         <button id="btn-spin" class="action-btn btn-spin" onclick="doSpin()">GIRA</button>
@@ -726,7 +727,7 @@
       </div>
     </div>
 
-    <h3 id="hdr-wheel" class="section-header" tabindex="-1">RUOTA</h3>
+    <!-- Sezione ruota rimossa intestazione H3 ridondante -->
     <div id="wheel-visual-wrap" role="region" aria-label="Ruota visuale">
       <div id="wheel-pointer" aria-hidden="true"></div>
       <div id="wheel-visual" aria-hidden="true"></div>
@@ -734,7 +735,7 @@
     <div id="wheel-status-text" tabindex="-1" style="font-size:1.8em;font-weight:900;color:var(--col-accent);margin:10px 0;text-shadow:0 0 15px var(--col-accent);background:rgba(0,0,0,0.7);padding:15px 25px;border-radius:12px;border:2px solid var(--col-accent);min-height:60px;display:flex;align-items:center;justify-content:center;"></div>
 
     <!-- ========== SEZIONE TABELLONE ========== -->
-    <h2 id="heading-tabellone" style="display:none;color:var(--col-neon);font-size:1.8em;margin:20px auto 10px auto;text-align:center;width:95%;max-width:800px;">Tabellone</h2>
+    <h2 id="heading-tabellone" style="color:var(--col-neon);font-size:1.8em;margin:20px auto 10px auto;text-align:left;width:95%;max-width:800px;">Tabellone</h2>
     
     <div class="board-wrapper">
       <div id="board-container" role="grid" aria-label="Tabellone di gioco"></div>
@@ -755,7 +756,7 @@
       </button>
     </div>
 
-    <h3 id="hdr-finish" class="section-header" tabindex="-1">CONCLUDI E INFO</h3>
+    <!-- Sezione finale rimossa intestazione H3 ridondante -->
     <div class="bottom-controls-wrapper">
       <button id="btn-solve" class="action-btn btn-solve" onclick="openInput('solve')">RISOLVI FRASE</button>
       <button id="btn-surrender" class="action-btn hidden" onclick="surrenderPhrase()" style="background:linear-gradient(180deg,#8B0000,#400000); color:#fff; margin-top:10px; font-size:1.2em;">HOST: ARRENDITI</button>

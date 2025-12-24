@@ -3720,10 +3720,22 @@
         // Fase vocali
         isSpecialRound = true;
         specialVowelsPhase = true;
+        
+        // ✅ BUG FIX 12 (Gemini): Se sono il nuovo host e il loop non è in esecuzione, ripristinalo
+        if(isHost && !isVowelLoopRunning) {
+          console.log('[Host Recovery] Ripristino loop vocali interrotto');
+          TimerManager.setTimeout(() => startVowelCollection(), 1000);
+        }
       } else if(s.fase_speciale === 101) {
         // Fase consonanti
         isSpecialRound = true;
         specialVowelsPhase = false;
+        
+        // ✅ BUG FIX 12 (Gemini): Se sono il nuovo host e il loop non è in esecuzione, ripristinalo
+        if(isHost && !isConsonantLoopRunning) {
+          console.log('[Host Recovery] Ripristino loop consonanti interrotto');
+          TimerManager.setTimeout(() => startConsonantCollection(), 1000);
+        }
       } else if(s.fase_speciale === 102) {
         // Tutti possono risolvere
         isSpecialRound = true;
@@ -6102,8 +6114,24 @@
         let totalConsonants = 0;
         
       while(totalConsonants < consonantsPerPlayer * numPlayers) {
-        for(let i = 0; i < numPlayers && totalConsonants < consonantsPerPlayer * numPlayers; i++) {
-          const player = s.giocatori[i];
+        // ✅ BUG FIX 14 (Gemini): Ricarica lista giocatori ad ogni iterazione del while
+        // Questo previene blocchi se qualcuno entra/esce durante il loop
+        const { data: freshState } = await _supabase
+          .from('stanze')
+          .select('*, giocatori(*)')
+          .eq('id', roomId)
+          .single();
+        
+        if(!freshState || !freshState.giocatori || freshState.giocatori.length === 0) {
+          console.error('[Loop Consonanti] Nessun giocatore trovato, interrompo');
+          break;
+        }
+        
+        // Usa la lista fresca
+        const currentPlayers = freshState.giocatori.sort((a,b) => a.indice - b.indice);
+        
+        for(let i = 0; i < currentPlayers.length && totalConsonants < consonantsPerPlayer * currentPlayers.length; i++) {
+          const player = currentPlayers[i];
           
           // ✅ CORREZIONE 3: Verifica che il giocatore esista ancora
           if(!player || !player.id) {
@@ -6338,23 +6366,25 @@
     
     
     async function giveSystemVowels(count, stanza){
+      // ✅ BUG FIX 13 (Gemini): Calcola tutte le vocali PRIMA, poi singolo update
       const vowelsOrder = ['E','A','I','O','U']; 
-      
-      
       const calledVowels = lettersCalledThisRound.filter(c => 'AEIOU'.includes(c));
       
+      let vowelsToReveal = [];
+      let vowelsMessages = [];
+      let totalFoundCount = 0;
+      let allNewIndices = [];
       
+      // ✅ FASE 1: Calcola tutte le vocali da rivelare
       for(let v of vowelsOrder){
         if(count === 0) break;
         
-        
         if(!calledVowels.includes(v)){
-          
           if(!lettersCalledThisRound.includes(v)) {
             lettersCalledThisRound.push(v);
           }
           
-          
+          // Trova indici per questa vocale
           let foundIndices=[]; let gIdx=0;
           const sol=currentPuzzleTextWithoutHint.toUpperCase();
           for(let i=0;i<sol.length;i++){
@@ -6364,27 +6394,50 @@
             }
           }
           
-          if(foundIndices.length > 0){
-            const newRev=[...new Set([...(stanza.lettere_rivelate||[]), ...foundIndices])];
-            await _supabase.from('stanze').update({lettere_rivelate:newRev,ultimo_messaggio:`Sistema regala vocale: ${v} - Trovate ${foundIndices.length}`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
-            stanza.lettere_rivelate = newRev;
-            
-            // ✅ Usa il beep audio reale (snd-hit) tante volte quante sono le occorrenze
-            playMultipleHits(foundIndices.length);
-            
-            speak(`Sistema regala vocale ${v}. Trovate ${foundIndices.length}.`);
+          vowelsToReveal.push({
+            vowel: v,
+            indices: foundIndices,
+            count: foundIndices.length
+          });
+          
+          if(foundIndices.length > 0) {
+            allNewIndices.push(...foundIndices);
+            totalFoundCount += foundIndices.length;
+            vowelsMessages.push(`${v}(${foundIndices.length})`);
           } else {
-            
-            await _supabase.from('stanze').update({ultimo_messaggio:`Sistema regala vocale: ${v} (non presente)`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
-            playAudio('snd-miss'); // ✅ Beep audio per lettera non trovata
-            speak(`Sistema regala vocale ${v}. Non presente.`);
+            vowelsMessages.push(`${v}(assente)`);
           }
           
           count--;
-          
-          // ✅ Pausa di 1 secondo tra le vocali del sistema
-          await new Promise(resolve => TimerManager.setTimeout(resolve, 1000));
         }
+      }
+      
+      // ✅ FASE 2: Singolo update al database con tutti gli indici
+      if(allNewIndices.length > 0) {
+        const newRev=[...new Set([...(stanza.lettere_rivelate||[]), ...allNewIndices])];
+        await _supabase.from('stanze').update({
+          lettere_rivelate:newRev,
+          ultimo_messaggio:`Sistema regala vocali: ${vowelsMessages.join(', ')}`,
+          azione_timestamp:DateUtils.now()
+        }).eq('id', roomId);
+        stanza.lettere_rivelate = newRev;
+      } else {
+        await _supabase.from('stanze').update({
+          ultimo_messaggio:`Sistema regala vocali: ${vowelsMessages.join(', ')}`,
+          azione_timestamp:DateUtils.now()
+        }).eq('id', roomId);
+      }
+      
+      // ✅ FASE 3: Feedback audio/vocale progressivo
+      for(let vocalInfo of vowelsToReveal) {
+        if(vocalInfo.count > 0) {
+          playMultipleHits(vocalInfo.count);
+          speak(`Sistema regala vocale ${vocalInfo.vowel}. Trovate ${vocalInfo.count}.`);
+        } else {
+          playAudio('snd-miss');
+          speak(`Sistema regala vocale ${vocalInfo.vowel}. Non presente.`);
+        }
+        await new Promise(resolve => TimerManager.setTimeout(resolve, 800));
       }
     }
     

@@ -3870,11 +3870,13 @@
            }
            const newFound = foundIndices.filter(idx => !s.lettere_rivelate.includes(idx));
 
+           // ✅ FIX CRITICO: Verifica se chosenChar è EFFETTIVAMENTE una vocale
+           // Spostata qui per essere accessibile sia nel ramo if che nel ramo else
+           const isActuallyVowel = "AEIOU".includes(chosenChar);
+
            if(newFound.length > 0) {
                const newRev = [...s.lettere_rivelate, ...newFound];
                let gain = 0;
-               // ✅ FIX CRITICO: Verifica se chosenChar è EFFETTIVAMENTE una vocale
-               const isActuallyVowel = "AEIOU".includes(chosenChar);
                if(isActuallyVowel) {
                    // ✅ NEL ROUND SPECIALE FASE VOCALI: Non si paga!
                    if(isSpecialRound && specialVowelsPhase) {

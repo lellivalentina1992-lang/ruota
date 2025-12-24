@@ -15,7 +15,7 @@
     form-action 'self';
   ">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <title>La Ruota</title>
+  <title> </title>
   <link rel="icon" href="data:," />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -569,7 +569,7 @@
     }
   </style>
 </head>
-<body>
+<body aria-label="Ruota della Fortuna - Gioco in corso">
   <!-- ✅ SCREEN READER FIX: Cambiato in assertive + role alert per annuncio immediato
        aria-live="polite" causava la lettura di tutto il contenuto della pagina prima dell'annuncio.
        Con "assertive" + "alert", lo screen reader interrompe e annuncia SUBITO.
@@ -3484,6 +3484,20 @@
       currentStanza=s;
       s.giocatori.sort((a,b)=>a.indice-b.indice);
       
+      // ✅ TITLE DINAMICO: Solo per utenti visuali, non per screen reader
+      // Screen reader usa aria-live per gli annunci, non il title
+      if(!isAccessibleMode) {
+        const me = s.giocatori.find(p => p.id === myId);
+        if(me && s.giocatore_turno === myId) {
+          document.title = "Ruota - TUO TURNO";
+        } else {
+          document.title = "Ruota";
+        }
+      } else {
+        // In modalità accessibile, usa un titolo minimale per ridurre rumore
+        document.title = " "; // Spazio singolo invece di vuoto
+      }
+      
       // ✅ SINCRONIZZA variabili round speciale con il database
       // Questo è critico perché solo l'host esegue i loop, ma TUTTI i client devono sapere lo stato
       if(s.fase_speciale === 100) {
@@ -3745,7 +3759,9 @@
       const vCost=getVowelCost();
       const jInd=document.getElementById('jolly-indicator');
       if(hasActiveJolly(me, s)){
-        const jollyCount = me.scadenza_jolly || 0;
+        let jollyCount = me.scadenza_jolly || 0;
+        // ✅ VALIDAZIONE: Max 2 Jolly nel nuovo sistema
+        if (jollyCount > 2) jollyCount = 2;
         jInd.textContent = jollyCount === 1 ? `1 JOLLY ATTIVO` : `${jollyCount} JOLLY ATTIVI`;
         jInd.classList.remove('hidden');
       } else jInd.classList.add('hidden');
@@ -4185,9 +4201,24 @@
         }
         
         if(val === 'JOLLY') {
-          // ✅ NUOVO: Mostra il contatore jolly
-          const me = currentStanza.giocatori.find(p => p.id === myId);
-          const jollyCount = me?.scadenza_jolly || 0;
+          // ✅ CORRETTO: Ricarica il giocatore DOPO fetchFullState per avere il valore aggiornato
+          const { data: freshData, error: freshError } = await _supabase
+            .from('stanze')
+            .select('*, giocatori(*)')
+            .eq('id', roomId)
+            .single();
+          
+          const freshMe = freshData?.giocatori?.find(p => p.id === myId);
+          let jollyCount = freshMe?.scadenza_jolly || 0;
+          
+          // ✅ VALIDAZIONE: scadenza_jolly deve essere 0, 1 o 2 (sistema nuovo)
+          // Se è > 2 (vecchio sistema), convertilo a 2
+          if (jollyCount > 2) {
+            jollyCount = 2;
+            // Aggiorna anche il DB per correggere
+            await _supabase.from('giocatori').update({scadenza_jolly: 2}).eq('id', myId);
+          }
+          
           const jollyText = jollyCount === 1 ? '1 Jolly' : `${jollyCount} Jolly`;
           speak(`Hai pescato il JOLLY! Ora hai ${jollyText}. Protegge da bancarotta e passa turno. Gira di nuovo!`);
           localAnnouncementMade = true;

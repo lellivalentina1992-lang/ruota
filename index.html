@@ -1062,33 +1062,10 @@
     let frozenSolveFraseId = null;
     let frozenSolveRevealedLetters = null;
     
-    // ✅ FIX: Funzione per ottenere tutti gli indici rivelati includendo il tema
-    function getRevealedLettersWithHint(baseRevealed) {
-      if(!currentHintText) return baseRevealed; // Nessun tema, ritorna così
-      
-      // Calcola quante lettere ci sono nel tema (incluso " – ")
-      const hintWithSeparator = currentHintText + ' – ';
-      let hintLetterCount = 0;
-      for(let i = 0; i < hintWithSeparator.length; i++) {
-        if(hintWithSeparator[i].match(/[A-ZÀ-Ù]/i)) {
-          hintLetterCount++;
-        }
-      }
-      
-      // Crea array con tutti gli indici del tema (0, 1, 2, ..., hintLetterCount-1)
-      const hintIndices = [];
-      for(let i = 0; i < hintLetterCount; i++) {
-        hintIndices.push(i);
-      }
-      
-      // Aggiungi gli indici del tema a quelli rivelati (shiftati)
-      const allRevealed = [...hintIndices];
-      for(const idx of baseRevealed) {
-        allRevealed.push(idx + hintLetterCount);
-      }
-      
-      return allRevealed;
-    }
+    // ✅ RIMOSSA: getRevealedLettersWithHint() non serve più
+    // Il tabellone ora mostra solo currentPuzzleTextWithoutHint, quindi gli indici
+    // in lettere_rivelate puntano direttamente alle lettere da indovinare
+    
     let lastTimestamp="", isSpinning=false, inputMode=null, parsedBoard=[], localAnnouncementMade=false;
     let isFetching=false, isProcessingInput=false, isHandlingTimeout=false, actionJustCompleted=false;
     let processingInputTimeout=null; // ✅ Timeout di sicurezza per isProcessingInput
@@ -1108,7 +1085,7 @@
     let specialPhase = 0; 
     let lastAutoPassTime = 0;
     let isBotThinking = false;
-    const BOT_BREATH_TIME = 300; // ✅ VELOCIZZATO: 300ms - Pausa tra azioni bot
+    const BOT_BREATH_TIME = 200; // ✅ VELOCIZZATO: 200ms - Pausa tra azioni bot
     
     // ✅ FIX MEMORY LEAK: Funzione globale per convertire input in maiuscolo
     // Definita una sola volta, può essere rimossa e ri-aggiunta senza accumulo
@@ -3212,7 +3189,8 @@
     }
 
     function getVowelCost(){
-      const len=(currentPuzzleText||"").length;
+      // ✅ FIX: Usa currentPuzzleTextWithoutHint per calcolare il costo, non il tema
+      const len=(currentPuzzleTextWithoutHint||"").length;
       if(!len) return 1000;
       if(len<=50) return 500;
       if(len<=80) return 1000;
@@ -3528,7 +3506,7 @@
        }).eq('id', botPlayer.id);
 
        
-       const thinkTime = 300 + Math.random() * 500; // ✅ VELOCIZZATO: 0.3-0.8 secondi
+       const thinkTime = 200 + Math.random() * 300; // ✅ VELOCIZZATO: 0.2-0.5 secondi
        await new Promise(r => TimerManager.setTimeout(r, thinkTime));
 
        const s = currentStanza;
@@ -3557,7 +3535,7 @@
        
        if(ratio >= 0.80 && revealedInCurrentPhrase >= minLettersNeeded && Math.random() > 0.3) {
           //⏱️ PAUSA DRAMMATICA: Il bot "pensa" prima di tentare la soluzione
-          const thinkTimeBeforeSolve = 200 + Math.random() * 300; // ✅ VELOCIZZATO: 0.2-0.5 secondi
+          const thinkTimeBeforeSolve = 100 + Math.random() * 200; // ✅ VELOCIZZATO: 0.1-0.3 secondi
           await new Promise(r => TimerManager.setTimeout(r, thinkTimeBeforeSolve));
           
           if(Math.random() < 0.10) {
@@ -3572,7 +3550,21 @@
           lastRoundWinnerUUID = botPlayer.id;
           
           await _supabase.from('giocatori').update({punteggio_totale:(botPlayer.punteggio_totale||0)+(botPlayer.punteggio_round||0)+1000, punteggio_round:0}).eq('id', botPlayer.id);
-          await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${botPlayer.nome} HA RISOLTO LA FRASE!`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
+          
+          // ✅ GESTIONE ROUND SPECIALE
+          if(isSpecialRound){
+            if(specialPhraseIndex < 3){
+              // Non è l'ultima frase, passa alla successiva
+              await nextSpecialPhrase(botPlayer.nome);
+            } else {
+              // Ultima frase completata
+              await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${botPlayer.nome} HA COMPLETATO IL ROUND SPECIALE!`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
+            }
+          } else {
+            // Round normale
+            await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${botPlayer.nome} HA RISOLTO LA FRASE!`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
+          }
+          
           botFinishAction();
           return;
        }
@@ -3593,16 +3585,31 @@
        const botMoney = botPlayer.punteggio_round || 0;
 
        
-       
-       if(botMoney >= costVowel && ratio < 0.65 && Math.random() < 0.35 && vowelsBoughtThisTurn < 1) {
+       // ✅ REGOLE ROUND SPECIALE - FASE VOCALI
+       // Nella fase vocali, il bot deve scegliere 1 vocale (non comprarla, semplicemente sceglierla)
+       if(isSpecialRound && specialVowelsPhase) {
+           // ⏱️ PAUSA REALISTICA: Il bot "pensa" prima di scegliere la vocale
+           const thinkTimeBeforeVowel = 200 + Math.random() * 300;
+           await new Promise(r => TimerManager.setTimeout(r, thinkTimeBeforeVowel));
+           
+           chosenChar = getNextVowelHuman(lettersCalledThisRound);
+           if(chosenChar) {
+               isVowel = true;
+               // NON paga nulla - è il round speciale!
+           }
+       }
+       // ✅ REGOLE ROUND NORMALE: Le vocali si COMPRANO pagando dal montepremi personale
+       // Il bot può comprarle SOLO se ha abbastanza soldi, SENZA girare la ruota!
+       else if(!isSpecialRound && botMoney >= costVowel && ratio < 0.65 && Math.random() < 0.35 && vowelsBoughtThisTurn < 1) {
            // ⏱️ PAUSA REALISTICA: Il bot "pensa" prima di comprare la vocale
-           const thinkTimeBeforeVowel = 400 + Math.random() * 400; // ✅ VELOCIZZATO: 0.4-0.8 secondi
+           const thinkTimeBeforeVowel = 200 + Math.random() * 300; // ✅ VELOCIZZATO: 0.2-0.5 secondi
            await new Promise(r => TimerManager.setTimeout(r, thinkTimeBeforeVowel));
            
            chosenChar = getNextVowelHuman(lettersCalledThisRound);
            if(chosenChar) isVowel = true;
        }
 
+       // ✅ REGOLE UFFICIALI: La ruota si gira SOLO per le CONSONANTI, MAI per le vocali!
        if(s.montepremi_round === 0 && !isVowel) {
            
            // ✅ FIX CRITICO: Nel round speciale, rimuovi BANCAROTTA, PASSA e JOLLY dalla ruota!
@@ -3622,6 +3629,14 @@
            
            // MISTERO: il bot sceglie intelligentemente
            if(val === 'MISTERO') {
+              // ✅ Nel round speciale: MISTERO dà automaticamente 500€ (no scelta, no rischi)
+              if(isSpecialRound && !specialVowelsPhase) {
+                 await _supabase.from('stanze').update({montepremi_round:500,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} gira MISTERO: 500€ automatici nel round speciale!`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
+                 botFinishAction();
+                 return;
+              }
+              
+              // Round normale: il bot decide se rischiare
               let takeSafe = 0.5; // default 50%
               
               // ✅ LOGICA CORRETTA: 
@@ -3787,16 +3802,25 @@
            botFinishAction(); 
            return; 
        } else {
-           
+           // ✅ FIX REGOLE CRITICHE: Dopo aver girato la ruota, il bot può chiamare SOLO CONSONANTI!
+           // Le vocali si comprano PRIMA di girare, non dopo!
            if(!chosenChar) {
                // ⏱️ PAUSA REALISTICA: Il bot "pensa" prima di scegliere la consonante
-               const thinkTimeBeforeChoice = 300 + Math.random() * 500; // ✅ VELOCIZZATO: 0.3-0.8 secondi
+               const thinkTimeBeforeChoice = 200 + Math.random() * 300; // ✅ VELOCIZZATO: 0.2-0.5 secondi
                await new Promise(r => TimerManager.setTimeout(r, thinkTimeBeforeChoice));
                
+               // ✅ DEVE essere una consonante, mai una vocale!
                chosenChar = getNextConsonantHuman(lettersCalledThisRound);
            }
 
-           if(!chosenChar) chosenChar = "Z"; 
+           if(!chosenChar) chosenChar = "Z";
+           
+           // ✅ VALIDAZIONE: Se per qualche motivo è una vocale, cambiala con una consonante
+           if("AEIOU".includes(chosenChar)) {
+               console.warn(`⚠️ BUG: Il bot ha scelto una vocale (${chosenChar}) dopo aver girato! Cambio in consonante...`);
+               chosenChar = getNextConsonantHuman(lettersCalledThisRound);
+               if(!chosenChar || "AEIOU".includes(chosenChar)) chosenChar = "Z"; // Fallback
+           } 
 
            // ✅ FIX: Aggiungi la lettera chiamata PRIMA di verificare se è presente
            // Altrimenti il bot richiamerà all'infinito lettere sbagliate!
@@ -3820,8 +3844,14 @@
                const newRev = [...s.lettere_rivelate, ...newFound];
                let gain = 0;
                if(isVowel) {
-                   await _supabase.from('giocatori').update({punteggio_round:(botPlayer.punteggio_round||0)-costVowel}).eq('id', botPlayer.id);
-                   vowelsBoughtThisTurn++; // ✅ FIX: Incrementa contatore vocali
+                   // ✅ NEL ROUND SPECIALE FASE VOCALI: Non si paga!
+                   if(isSpecialRound && specialVowelsPhase) {
+                       // Vocale gratuita nel round speciale
+                   } else {
+                       // Round normale: si paga
+                       await _supabase.from('giocatori').update({punteggio_round:(botPlayer.punteggio_round||0)-costVowel}).eq('id', botPlayer.id);
+                       vowelsBoughtThisTurn++; // ✅ FIX: Incrementa contatore vocali
+                   }
                } else {
                    // ✅ FIX: Calcola gain con moltiplicatore RADDOPPIA (fase_speciale=2)
                    const multiplier = (s.fase_speciale === 2) ? 2 : 1;
@@ -3836,7 +3866,15 @@
                
                // ✅ CORRETTO: Aggiorna messaggio con contatore nel round speciale
                let updateMessage;
-               if(isSpecialRound && !specialVowelsPhase && !isVowel) {
+               if(isVowel) {
+                   if(isSpecialRound && specialVowelsPhase) {
+                       // Round speciale fase vocali: vocale gratuita
+                       updateMessage = `${botPlayer.nome}: Sceglie vocale "${chosenChar}" - Trovate ${newFound.length}!`;
+                   } else {
+                       // Round normale: ha pagato
+                       updateMessage = `${botPlayer.nome}: Compra vocale "${chosenChar}" per €${costVowel} - Trovate ${newFound.length}!`;
+                   }
+               } else if(isSpecialRound && !specialVowelsPhase) {
                    updateMessage = `${botPlayer.nome}: Trovate ${newFound.length} "${chosenChar}" (${specialConsonantsUsed}/10 consonanti)`;
                } else {
                    updateMessage = `${botPlayer.nome}: Trovate ${newFound.length} "${chosenChar}"!`;
@@ -3844,15 +3882,29 @@
                
                await _supabase.from('stanze').update({lettere_rivelate:newRev,montepremi_round:0,fase_speciale:0,ultima_azione:'chiama_lettera',ultimo_messaggio:updateMessage,azione_timestamp:DateUtils.now()}).eq('id', roomId);
                
-               // ✅ CORRETTO: Nel round speciale, il loop gestisce l'alternanza - NON passare turno qui
+               // ✅ CORRETTO: Nel round speciale fase vocali, il bot termina dopo aver chiamato la vocale
+               if(isSpecialRound && specialVowelsPhase && isVowel) {
+                   botFinishAction();
+                   return;
+               }
+               
+               // ✅ CORRETTO: Nel round speciale fase consonanti, il loop gestisce l'alternanza - NON passare turno qui
                if(isSpecialRound && !specialVowelsPhase && !isVowel) {
                    botFinishAction();
                    // await passTurnBot(); <- RIMOSSO perché conflitto con il loop
                    return;
                }
            } else {
-               if(isVowel) await _supabase.from('giocatori').update({punteggio_round:(botPlayer.punteggio_round||0)-costVowel}).eq('id', botPlayer.id);
-               vowelsBoughtThisTurn++; // ✅ FIX: Incrementa contatore vocali anche se non trovata
+               if(isVowel) {
+                   // ✅ NEL ROUND SPECIALE FASE VOCALI: Non si paga!
+                   if(isSpecialRound && specialVowelsPhase) {
+                       // Vocale gratuita nel round speciale
+                   } else {
+                       // Round normale: si paga anche se non trovata
+                       await _supabase.from('giocatori').update({punteggio_round:(botPlayer.punteggio_round||0)-costVowel}).eq('id', botPlayer.id);
+                       vowelsBoughtThisTurn++; // ✅ FIX: Incrementa contatore vocali anche se non trovata
+                   }
+               }
                
                // ✅ CORRETTO: Incrementa contatore consonanti anche se non trovata
                if(isSpecialRound && !specialVowelsPhase && !isVowel) {
@@ -3861,7 +3913,15 @@
                
                // ✅ CORRETTO: Aggiorna messaggio con contatore nel round speciale
                let errorMessage;
-               if(isSpecialRound && !specialVowelsPhase && !isVowel) {
+               if(isVowel) {
+                   if(isSpecialRound && specialVowelsPhase) {
+                       // Round speciale fase vocali: vocale gratuita
+                       errorMessage = `${botPlayer.nome}: Sceglie vocale "${chosenChar}" - NON presente!`;
+                   } else {
+                       // Round normale: ha pagato
+                       errorMessage = `${botPlayer.nome}: Compra vocale "${chosenChar}" per €${costVowel} - NON presente!`;
+                   }
+               } else if(isSpecialRound && !specialVowelsPhase) {
                    errorMessage = `${botPlayer.nome}: La "${chosenChar}" è assente (${specialConsonantsUsed}/10 consonanti)`;
                } else {
                    errorMessage = `${botPlayer.nome}: La "${chosenChar}" è assente.`;
@@ -3869,7 +3929,13 @@
                
                await _supabase.from('stanze').update({ultima_azione:'errore',ultimo_messaggio:errorMessage,azione_timestamp:DateUtils.now()}).eq('id', roomId);
                
-               // ✅ CORRETTO: Nel round speciale, il loop gestisce l'alternanza - NON passare turno qui
+               // ✅ CORRETTO: Nel round speciale fase vocali, il bot termina dopo aver chiamato la vocale
+               if(isSpecialRound && specialVowelsPhase && isVowel) {
+                   botFinishAction();
+                   return;
+               }
+               
+               // ✅ CORRETTO: Nel round speciale fase consonanti, il loop gestisce l'alternanza - NON passare turno qui
                if(isSpecialRound && !specialVowelsPhase && !isVowel) {
                    botFinishAction();
                    // await passTurnBot(); <- RIMOSSO perché conflitto con il loop
@@ -3913,8 +3979,21 @@
       let nextIdx = (currIdx + 1) % s.giocatori.length;
       let nextPlayerUUID = s.giocatori[nextIdx].id; // ← UUID invece di indice!
       
-      // ✅ FIX ASYNC: await per evitare race conditions
-      await _supabase.from('stanze').update({id_giocatore_corrente:nextPlayerUUID,montepremi_round:0,fase_speciale:0,ultima_azione:'timeout',ultimo_messaggio:'Cambio turno',azione_timestamp:DateUtils.now()}).eq('id', roomId);
+      // ✅ NEL ROUND SPECIALE: Non resettare fase_speciale
+      let updateData = {
+        id_giocatore_corrente:nextPlayerUUID,
+        montepremi_round:0,
+        ultima_azione:'timeout',
+        ultimo_messaggio:'Cambio turno',
+        azione_timestamp:DateUtils.now()
+      };
+      
+      // Solo nei round normali resettiamo fase_speciale
+      if(!isSpecialRound) {
+        updateData.fase_speciale = 0;
+      }
+      
+      await _supabase.from('stanze').update(updateData).eq('id', roomId);
     }
 
     async function updateUI(s){
@@ -4121,19 +4200,20 @@
           currentPuzzleTextWithoutHint = fullSolutionText; // Solo la parte da indovinare
           currentPuzzleText = currentFrase.hint + ' – ' + fullSolutionText; // Testo completo mostrato
         }
-        // ✅ PRIORITÀ 3: Split sull'ULTIMO trattino (per frasi come CURIOSITÀ con formato "TEMA – SOLUZIONE")
-        else if(fullSolutionText.includes(" - ") || fullSolutionText.includes("–") || fullSolutionText.includes(" – ")){
-          // Trova l'ULTIMO trattino, non il primo!
+        // ✅ PRIORITÀ 3: Split sull'ULTIMO trattino CON SPAZI (per frasi come CURIOSITÀ con formato "TEMA – SOLUZIONE")
+        // IMPORTANTE: Cerca SOLO trattini con spazi per non splittare parole composte come "AUTO-CROSS"
+        else if(fullSolutionText.includes(" – ") || fullSolutionText.includes(" - ")){
+          // Trova l'ULTIMO trattino con spazi, non il primo!
           let lastDashIndex = -1;
           let dashPattern = null;
           
+          // Prima cerca " – " (trattino lungo con spazi - più comune)
           if(fullSolutionText.lastIndexOf(" – ") !== -1) {
             lastDashIndex = fullSolutionText.lastIndexOf(" – ");
             dashPattern = " – ";
-          } else if(fullSolutionText.lastIndexOf("–") !== -1) {
-            lastDashIndex = fullSolutionText.lastIndexOf("–");
-            dashPattern = "–";
-          } else if(fullSolutionText.lastIndexOf(" - ") !== -1) {
+          } 
+          // Poi cerca " - " (trattino normale con spazi)
+          else if(fullSolutionText.lastIndexOf(" - ") !== -1) {
             lastDashIndex = fullSolutionText.lastIndexOf(" - ");
             dashPattern = " - ";
           }
@@ -4149,6 +4229,7 @@
             currentPuzzleText = fullSolutionText;
           }
         } else {
+          // Nessun trattino con spazi trovato → nessun tema
           currentHintText = "";
           currentPuzzleTextWithoutHint = fullSolutionText;
           currentPuzzleText = fullSolutionText;
@@ -4192,7 +4273,9 @@
           }
         }
         
-        parseAndRenderBoard(currentPuzzleText, getRevealedLettersWithHint(s.lettere_rivelate), true); // ✅ Reset navigazione per nuova frase
+        // ✅ FIX CRITICO: Il tabellone deve mostrare SOLO currentPuzzleTextWithoutHint (senza tema)!
+        // Il tema viene già mostrato nell'header come "Categoria: TEMA"
+        parseAndRenderBoard(currentPuzzleTextWithoutHint, s.lettere_rivelate, true); // ✅ Reset navigazione per nuova frase
         
 //         const speakText = currentHintText 
 //           ? `Nuovo Round. Categoria: ${currentFrase.categoria}. ${currentHintText}` 
@@ -4319,7 +4402,7 @@
           // ========== FASE VOCALI ==========
           canSpin = false;
           canVowel = false; // Disabilita il pulsante normale VOCALE
-          canSolve = false; 
+          canSolve = isMe && !isSpinning && !inputMode; // ✅ Chi ha il turno può risolvere
           canPass = false;
           
           // ✅ Nascondi GIRA e VOCALE in modalità accessible
@@ -4410,7 +4493,8 @@
       const isTyping = inputArea_check && !inputArea_check.classList.contains('hidden') && inputMode !== null;
       
       if (!isTyping) {
-        parseAndRenderBoard(currentPuzzleText, getRevealedLettersWithHint(s.lettere_rivelate));
+        // ✅ FIX CRITICO: Usa currentPuzzleTextWithoutHint per mostrare solo la parte da indovinare
+        parseAndRenderBoard(currentPuzzleTextWithoutHint, s.lettere_rivelate);
       }
       if(isAccessibleMode) updateAccessibleBoard();
       
@@ -4817,17 +4901,11 @@
       }
     }
 
-    async function passTurn(){
-      // ✅ BLOCCO NEI ROUND SPECIALI: Non si può passare il turno volontariamente
-      if(isSpecialRound) {
-        speak("Non puoi passare il turno nel round speciale");
+    async function passTurn(fromError = false){
+      // ✅ NEL ROUND SPECIALE: Blocca passaggi manuali, permette solo da errori (soluzione sbagliata)
+      if(isSpecialRound && !fromError) {
+        speak("Non puoi passare il turno manualmente nel round speciale");
         playAudio('snd-miss');
-        return;
-      }
-      
-      // ✅ CORREZIONE CHATGPT: Protezione - solo host o giocatore di turno possono passare
-      if(!isHost && !isMe){
-        speak("Non puoi passare il turno");
         return;
       }
       
@@ -4856,15 +4934,21 @@
       let nextIdx = (currIdx + 1) % s.giocatori.length;
       let nextPlayerUUID = s.giocatori[nextIdx].id; // ← UUID invece di indice!
       
-      
-      const {error} = await _supabase.from('stanze').update({
-        id_giocatore_corrente:nextPlayerUUID, // ← UUID invece di indice!
+      // ✅ NEL ROUND SPECIALE: Non resettare fase_speciale, mantienila
+      let updateData = {
+        id_giocatore_corrente:nextPlayerUUID,
         montepremi_round:0,
-        fase_speciale:0,
         ultima_azione:'passa_turno',
         ultimo_messaggio:'Cambio turno',
         azione_timestamp:DateUtils.now()
-      }).eq('id', roomId);
+      };
+      
+      // Solo nei round normali resettiamo fase_speciale
+      if(!isSpecialRound) {
+        updateData.fase_speciale = 0;
+      }
+      
+      const {error} = await _supabase.from('stanze').update(updateData).eq('id', roomId);
       
       if(error){
       } else {
@@ -5685,7 +5769,7 @@
         } else {
           playAudio('snd-miss'); 
           addActionToHistory(`${myName}: Soluzione SBAGLIATA - ${userAnswer}`);
-          passTurn();
+          passTurn(true); // fromError=true per permetterlo nel round speciale
           
           // ✅ Reset frozen state dopo tentativo sbagliato
           frozenSolvePuzzleText = null;
@@ -5855,32 +5939,8 @@
             if(isSpecialRound && !specialVowelsPhase){
               specialConsonantsUsed++;
               
-              // ✅ LOGICA CONSONANTE AUTOMATICA: Se 3 giocatori e 9 consonanti, il sistema rivela la 10ª
-              // Estrai il numero reale dal messaggio appena creato
-              const countMsg = `${myName}: Trovate ${newFoundIndices.length} ${char} (${specialConsonantsUsed}/10 consonanti)`;
-              const countMatch = countMsg.match(/\((\d+)\/10\)/);
-              const actualCount = countMatch ? parseInt(countMatch[1]) : specialConsonantsUsed;
-              
-              if(actualCount === 9 && s.giocatori.length === 3){
-                // Aggiorna database con le lettere correnti
-                await _supabase.from('stanze').update({
-                  lettere_rivelate:newRev,
-                  montepremi_round:0,
-                  ultima_azione:'chiama_lettera',
-                  ultimo_messaggio:countMsg,
-                  azione_timestamp:DateUtils.now()
-                }).eq('id', roomId);
-                
-                // Aspetta un attimo, poi il sistema rivela la 10ª consonante
-                TimerManager.setTimeout(async () => {
-                  await revealAutomaticConsonant();
-                }, 1500);
-                
-                isProcessingInput=false;
-                return; // Non passare il turno, lo farà revealAutomaticConsonant
-              }
-              
-              if(actualCount >= 10){
+              // ✅ Controlla se abbiamo raggiunto le 10 consonanti
+              if(specialConsonantsUsed >= 10){
                 await _supabase.from('stanze').update({
                   lettere_rivelate:newRev,
                   montepremi_round:0,
@@ -6151,10 +6211,12 @@
       
       lettersCalledThisRound = [];
       
-      
+      // ✅ ROUND SPECIALI: Round 4, 7 e 10 (automatici)
       const isSpecial = (n === 4 || n === 7 || n === 10);
       
       if(isSpecial){
+        speak(`ROUND SPECIALE ${n}! Situazioni Quotidiane - 4 frasi!`);
+        await new Promise(r => TimerManager.setTimeout(r, 1000));
         
         // ✅ FIX: Il database usa 'tema' non 'hint'! Prendi tutti i temi disponibili
         const {data:themes}=await _supabase.from('frasi').select('tema').eq('categoria','SITUAZIONI QUOTIDIANE');
@@ -6244,7 +6306,7 @@
     }
     
     async function startVowelCollection() {
-      // ✅ BUG FIX 9 (Gemini): Previeni esecuzioni multiple parallele
+      // ✅ Previeni esecuzioni multiple parallele
       if(isVowelLoopRunning) {
         console.warn('startVowelCollection già in esecuzione, skip');
         return;
@@ -6252,108 +6314,94 @@
       isVowelLoopRunning = true;
       
       try {
-        // ✅ Gestisce la raccolta delle vocali in sequenza
         const s = currentStanza;
         if(!s) return;
         
         const numPlayers = s.giocatori.length;
         
-        // ✅ LOGICA VOCALI:
-        // 1 giocatore: giocatore sceglie 1, sistema dà 2
-        // 2 giocatori: ogni giocatore sceglie 1, sistema dà 1
+        // ✅ REGOLE VOCALI (3 totali):
+        // 1 giocatore: giocatore sceglie 1, sistema dà 2 (più frequenti)
+        // 2 giocatori: giocatore 1 sceglie 1, giocatore 2 sceglie 1, sistema dà 1 (più frequente)
         // 3 giocatori: ogni giocatore sceglie 1, sistema non dà nulla
         
-        // ✅ FIX CRITICO: Reset contatore vocali all'inizio
         specialVowelsGiven = 0;
+        lettersCalledThisRound = []; // Reset per tracciare vocali già chiamate
         
-        const vowelsPerPlayer = 1;
+        // FASE 1: Giocatori scelgono le loro vocali
+        for(let i = 0; i < numPlayers; i++) {
+          const player = s.giocatori[i];
+          
+          if(!player || !player.id) {
+            console.warn(`Giocatore ${i} non presente, skip`);
+            continue;
+          }
+          
+          // Verifica che il giocatore sia ancora connesso
+          const { data: playerCheck } = await _supabase
+            .from('giocatori')
+            .select('id')
+            .eq('id', player.id)
+            .maybeSingle();
+          
+          if(!playerCheck) {
+            console.warn(`Giocatore ${player.nome} disconnesso, skip`);
+            speak(`${player.nome} si è disconnesso`);
+            await new Promise(resolve => TimerManager.setTimeout(resolve, 1000));
+            continue;
+          }
+          
+          // Annuncia il turno
+          const turnMsg = `Turno di ${player.nome}: scegli 1 vocale`;
+          speak(turnMsg);
+          await new Promise(resolve => TimerManager.setTimeout(resolve, 800));
+          
+          // Imposta il turno su questo giocatore
+          await _supabase.from('stanze').update({
+            id_giocatore_corrente: player.id,
+            ultimo_messaggio: `${player.nome}: scegli 1 vocale (${i+1}/${numPlayers})`,
+            azione_timestamp: DateUtils.now()
+          }).eq('id', roomId);
+          
+          // Se è il giocatore locale, apri automaticamente l'input
+          if(player.id === myId) {
+            TimerManager.setTimeout(() => openInput('vowel'), 500);
+          }
+          
+          // Aspetta che il giocatore scelga la vocale
+          await waitForPlayerVowel(player.id);
+          
+          // Pausa per vedere la vocale rivelata
+          await new Promise(resolve => TimerManager.setTimeout(resolve, 1000));
+        }
+        
+        // FASE 2: Sistema dà vocali aggiuntive (più frequenti)
         let systemVowels = 0;
         if(numPlayers === 1) systemVowels = 2;
         else if(numPlayers === 2) systemVowels = 1;
-        else systemVowels = 0; // 3 o più giocatori
-      
-      // Chiedi le vocali ai giocatori in sequenza
-      for(let i = 0; i < numPlayers; i++) {
-        const player = s.giocatori[i];
+        else systemVowels = 0; // In 3 non ne dà
         
-        // ✅ CORREZIONE 3: Verifica che il giocatore esista ancora
-        if(!player || !player.id) {
-          console.warn(`Giocatore ${i} non più presente, skip`);
-          await new Promise(resolve => TimerManager.setTimeout(resolve, 1000));
-          continue;
+        if(systemVowels > 0) {
+          speak(`Il sistema sceglie ${systemVowels} vocale${systemVowels > 1 ? 'i' : ''} più frequent${systemVowels > 1 ? 'i' : 'e'}`);
+          await new Promise(resolve => TimerManager.setTimeout(resolve, 800));
+          await giveSystemVowels(systemVowels);
         }
         
-        // ✅ CORREZIONE 3: Verifica che il giocatore sia ancora attivo nel DB
-        const { data: playerCheck } = await _supabase
-          .from('giocatori')
-          .select('id')
-          .eq('id', player.id)
-          .maybeSingle();
+        // FASE 3: Passa alla fase consonanti
+        specialVowelsPhase = false;
+        specialConsonantsUsed = 0;
         
-        if(!playerCheck) {
-          console.warn(`Giocatore ${player.nome} disconnesso, skip`);
-          speak(`${player.nome} si è disconnesso, passo al prossimo`);
-          await new Promise(resolve => TimerManager.setTimeout(resolve, 1000));
-          continue;
-        }
-        
-        // ✅ Annuncia il cambio turno
-        const turnMsg = numPlayers > 1 
-          ? `Turno di ${player.nome}: scegli 1 vocale` 
-          : `Scegli 1 vocale`;
-        
-        speak(turnMsg);
-        await new Promise(resolve => TimerManager.setTimeout(resolve, 800));
-        
-        // Imposta il turno su questo giocatore
         await _supabase.from('stanze').update({
-          id_giocatore_corrente: player.id,
-          ultimo_messaggio: `${player.nome}: scegli 1 vocale (${i+1}/${numPlayers})`,
+          fase_speciale: 101,
+          ultimo_messaggio: `Vocali complete! Fase consonanti: 10 consonanti`,
           azione_timestamp: DateUtils.now()
         }).eq('id', roomId);
         
-        // ✅ Se è il giocatore locale, apri automaticamente l'input
-        if(player.id === myId) {
-          TimerManager.setTimeout(() => openInput('vowel'), 500);
-        }
+        speak("Fase vocali completata. Inizia la fase consonanti.");
         
-        // Aspetta che il giocatore scelga la vocale
-        await waitForPlayerVowel(player.id);
+        // Dopo 2 secondi, inizia la raccolta delle consonanti
+        TimerManager.setTimeout(() => startConsonantCollection(), 2000);
         
-        // ✅ Pausa di 1 secondo per vedere bene la vocale rivelata
-        await new Promise(resolve => TimerManager.setTimeout(resolve, 1000));
-      }
-      
-      // ✅ LOG DEBUG: Verifica che arriviamo qui
-      console.log(`[VOWELS] Loop giocatori completato. systemVowels = ${systemVowels}`);
-      
-      // Ora le vocali del sistema
-      if(systemVowels > 0) {
-        console.log(`[VOWELS] Chiamando giveSystemVowels con ${systemVowels} vocali`);
-        speak(`Il sistema sceglie ${systemVowels} vocale${systemVowels > 1 ? 'i' : ''}`);
-        await new Promise(resolve => TimerManager.setTimeout(resolve, 800));
-        await giveSystemVowels(systemVowels, s);
-      } else {
-        console.log('[VOWELS] Nessuna vocale del sistema da dare');
-      }
-      
-      // Completa la fase vocali e passa alle consonanti
-      specialVowelsPhase = false;
-      specialConsonantsUsed = 0;
-      
-      await _supabase.from('stanze').update({
-        fase_speciale: 101,
-        ultimo_messaggio: `Vocali complete! Fase consonanti: 10 consonanti totali`,
-        azione_timestamp: DateUtils.now()
-      }).eq('id', roomId);
-      
-      speak("Fase vocali completata. Inizia la fase consonanti.");
-      
-      // ✅ Dopo 2 secondi, inizia la raccolta delle consonanti
-      TimerManager.setTimeout(() => startConsonantCollection(), 2000);
-      
       } finally {
-        // ✅ BUG FIX 9: Resetta flag anche in caso di errore
         isVowelLoopRunning = false;
       }
     }
@@ -6367,11 +6415,29 @@
           // ✅ Ricarica stato fresco dal DB
           const { data: freshState } = await _supabase
             .from('stanze')
-            .select('lettere_rivelate, ultimo_messaggio')
+            .select('lettere_rivelate, ultimo_messaggio, id_giocatore_corrente, stato')
             .eq('id', roomId)
             .single();
           
           if(!freshState) return;
+          
+          // ✅ CRITICAL: Se il turno è cambiato, il giocatore ha sbagliato o timeout
+          if(freshState.id_giocatore_corrente !== playerId) {
+            clearInterval(checkInterval);
+            clearTimeout(timeoutId);
+            console.log(`[VOWEL] Turno cambiato, giocatore ${playerId} ha finito (sbagliato o altro)`);
+            resolve();
+            return;
+          }
+          
+          // ✅ CRITICAL: Se qualcuno ha risolto (stato finito), esci
+          if(freshState.stato === 'finito') {
+            clearInterval(checkInterval);
+            clearTimeout(timeoutId);
+            console.log(`[VOWEL] Partita finita, esco dal loop`);
+            resolve();
+            return;
+          }
           
           // Conta vocali rivelate nel DB
           const revealedVowels = [];
@@ -6403,7 +6469,8 @@
         // Timeout dopo 2 minuti - risolvi comunque per evitare blocco
         const timeoutId = TimerManager.setTimeout(() => {
           clearInterval(checkInterval);
-          resolve(); // Risolvi comunque per continuare
+          console.warn('[VOWEL] Timeout waiting for vowel');
+          resolve();
         }, 120000);
       });
     }
@@ -6426,10 +6493,17 @@
         
         console.log(`[CONSONANTS] Inizio raccolta 10 consonanti con ${numPlayers} giocatori`);
         
-        // Loop per 10 consonanti totali, alternando i giocatori
+        // ✅ REGOLE CONSONANTI:
+        // 1 giocatore: tutte e 10 le consonanti
+        // 2 giocatori: alternanza 1-2-1-2-1-2-1-2-1-2 (5 ciascuno)
+        // 3 giocatori: alternanza 1-2-3-1-2-3-1-2-3 (9 totali) + sistema dà la 10ª
+        
+        const maxConsonantsForPlayers = (numPlayers === 3) ? 9 : 10;
+        
+        // Loop per le consonanti dei giocatori
         let currentPlayerIndex = 0;
         
-        while(specialConsonantsUsed < 10) {
+        while(specialConsonantsUsed < maxConsonantsForPlayers) {
           // ✅ Ricarica stato fresco per avere lista giocatori aggiornata
           const { data: freshState } = await _supabase
             .from('stanze')
@@ -6468,7 +6542,7 @@
             continue;
           }
           
-          // ✅ Annuncia turno solo la prima volta per questo giocatore in questa iterazione
+          // Annuncia turno
           speak(`Turno di ${player.nome}: gira e scegli consonante`);
           await new Promise(resolve => TimerManager.setTimeout(resolve, 800));
           
@@ -6480,20 +6554,25 @@
             azione_timestamp: DateUtils.now()
           }).eq('id', roomId);
           
-          // ✅ Pausa per permettere ai client di ricevere l'update
+          // Pausa per permettere ai client di ricevere l'update
           await new Promise(resolve => TimerManager.setTimeout(resolve, 500));
           
-          // ✅ Aspetta che il giocatore completi il suo turno (gira + consonante)
+          // Aspetta che il giocatore completi il suo turno (gira + consonante)
           await waitForPlayerConsonant(player.id);
           
-          // ✅ Incrementa contatore (anche se consonante sbagliata)
-          // Il contatore viene già incrementato in waitForPlayerConsonant tramite il messaggio
-          
-          // ✅ Pausa per far vedere il risultato
+          // Pausa per far vedere il risultato
           await new Promise(resolve => TimerManager.setTimeout(resolve, 800));
           
           // Passa al giocatore successivo
           currentPlayerIndex++;
+        }
+        
+        // ✅ Se siamo in 3 giocatori, il sistema dà la 10ª consonante (la più frequente)
+        if(numPlayers === 3 && specialConsonantsUsed === 9) {
+          speak("Il sistema sceglie la decima consonante: la più frequente!");
+          await new Promise(resolve => TimerManager.setTimeout(resolve, 1000));
+          await giveSystemConsonant();
+          await new Promise(resolve => TimerManager.setTimeout(resolve, 1000));
         }
         
         // ✅ Dopo 10 consonanti → Fase risoluzione
@@ -6524,11 +6603,20 @@
           // ✅ Ricarica stato fresco dal DB
           const { data: freshState } = await _supabase
             .from('stanze')
-            .select('ultimo_messaggio, fase_speciale, id_giocatore_corrente')
+            .select('ultimo_messaggio, fase_speciale, id_giocatore_corrente, stato')
             .eq('id', roomId)
             .single();
           
           if(!freshState) return;
+          
+          // ✅ CRITICAL: Se qualcuno ha risolto (stato finito), esci
+          if(freshState.stato === 'finito') {
+            clearInterval(checkInterval);
+            clearTimeout(timeoutId);
+            console.log(`[CONSONANT] Partita finita, esco dal loop`);
+            resolve();
+            return;
+          }
           
           // ✅ Estrai il contatore dal messaggio
           const currentMsg = freshState.ultimo_messaggio || '';
@@ -6650,79 +6738,166 @@
 
     
     
-    async function giveSystemVowels(count, stanza){
-      // ✅ BUG FIX 13 (Gemini): Calcola tutte le vocali PRIMA, poi singolo update
-      const vowelsOrder = ['E','A','I','O','U']; 
-      const calledVowels = lettersCalledThisRound.filter(c => 'AEIOU'.includes(c));
+    async function giveSystemConsonant() {
+      // ✅ Sceglie la consonante PIÙ FREQUENTE nella soluzione (escluse quelle già chiamate)
       
-      let vowelsToReveal = [];
-      let vowelsMessages = [];
-      let totalFoundCount = 0;
-      let allNewIndices = [];
+      const sol = currentPuzzleTextWithoutHint.toUpperCase();
+      const calledConsonants = lettersCalledThisRound.filter(c => !'AEIOU'.includes(c) && c.match(/[A-Z]/));
       
-      // ✅ FASE 1: Calcola tutte le vocali da rivelare
-      for(let v of vowelsOrder){
-        if(count === 0) break;
-        
-        if(!calledVowels.includes(v)){
-          if(!lettersCalledThisRound.includes(v)) {
-            lettersCalledThisRound.push(v);
-          }
-          
-          // Trova indici per questa vocale
-          let foundIndices=[]; let gIdx=0;
-          const sol=currentPuzzleTextWithoutHint.toUpperCase();
-          for(let i=0;i<sol.length;i++){
-            if(sol[i].match(/[A-ZÀ-Ù]/)){
-              if(sol[i]===v) foundIndices.push(gIdx);
-              gIdx++;
-            }
-          }
-          
-          vowelsToReveal.push({
-            vowel: v,
-            indices: foundIndices,
-            count: foundIndices.length
-          });
-          
-          if(foundIndices.length > 0) {
-            allNewIndices.push(...foundIndices);
-            totalFoundCount += foundIndices.length;
-            vowelsMessages.push(`${v}(${foundIndices.length})`);
-          } else {
-            vowelsMessages.push(`${v}(assente)`);
-          }
-          
-          count--;
+      // Conta la frequenza di ogni consonante nella soluzione
+      const consonantFrequency = {};
+      for(let i = 0; i < sol.length; i++) {
+        const char = sol[i];
+        if(char.match(/[A-ZÀ-Ù]/) && !'AEIOU'.includes(char)) {
+          consonantFrequency[char] = (consonantFrequency[char] || 0) + 1;
         }
       }
       
-      // ✅ FASE 2: Singolo update al database con tutti gli indici
-      if(allNewIndices.length > 0) {
-        const newRev=[...new Set([...(stanza.lettere_rivelate||[]), ...allNewIndices])];
+      // Rimuovi consonanti già chiamate
+      for(let c of calledConsonants) {
+        delete consonantFrequency[c];
+      }
+      
+      // Ordina per frequenza decrescente e prendi la più frequente
+      const sortedConsonants = Object.entries(consonantFrequency)
+        .sort((a, b) => b[1] - a[1]);
+      
+      if(sortedConsonants.length === 0) {
+        speak("Errore: nessuna consonante disponibile");
+        return;
+      }
+      
+      const mostFrequentConsonant = sortedConsonants[0][0];
+      
+      // Aggiungi alla lista delle lettere chiamate
+      if(!lettersCalledThisRound.includes(mostFrequentConsonant)) {
+        lettersCalledThisRound.push(mostFrequentConsonant);
+      }
+      
+      // Trova indici per questa consonante
+      let foundIndices = [];
+      let gIdx = 0;
+      for(let i = 0; i < sol.length; i++) {
+        if(sol[i].match(/[A-ZÀ-Ù]/)) {
+          if(cleanStr(sol[i]) === cleanStr(mostFrequentConsonant)) {
+            foundIndices.push(gIdx);
+          }
+          gIdx++;
+        }
+      }
+      
+      // Incrementa contatore
+      specialConsonantsUsed = 10;
+      
+      // Update database
+      if(foundIndices.length > 0) {
+        const s = currentStanza;
+        const newRev = [...new Set([...(s.lettere_rivelate || []), ...foundIndices])];
         await _supabase.from('stanze').update({
-          lettere_rivelate:newRev,
-          ultimo_messaggio:`Sistema regala vocali: ${vowelsMessages.join(', ')}`,
-          azione_timestamp:DateUtils.now()
+          lettere_rivelate: newRev,
+          montepremi_round: 0,
+          ultimo_messaggio: `Sistema sceglie consonante ${mostFrequentConsonant}: trovate ${foundIndices.length} (10/10)`,
+          azione_timestamp: DateUtils.now()
         }).eq('id', roomId);
-        stanza.lettere_rivelate = newRev;
+        
+        // Feedback audio
+        playMultipleHits(foundIndices.length);
+        speak(`Sistema sceglie consonante ${mostFrequentConsonant}. Trovate ${foundIndices.length}.`);
       } else {
         await _supabase.from('stanze').update({
-          ultimo_messaggio:`Sistema regala vocali: ${vowelsMessages.join(', ')}`,
-          azione_timestamp:DateUtils.now()
+          montepremi_round: 0,
+          ultimo_messaggio: `Sistema sceglie consonante ${mostFrequentConsonant}: non presente (10/10)`,
+          azione_timestamp: DateUtils.now()
         }).eq('id', roomId);
+        
+        playAudio('snd-miss');
+        speak(`Sistema sceglie consonante ${mostFrequentConsonant}. Non presente.`);
+      }
+    }
+    
+    async function giveSystemVowels(count){
+      // ✅ Sceglie le vocali PIÙ FREQUENTI nella soluzione (escluse quelle già chiamate)
+      
+      const sol = currentPuzzleTextWithoutHint.toUpperCase();
+      const calledVowels = lettersCalledThisRound.filter(c => 'AEIOU'.includes(c));
+      
+      // Conta la frequenza di ogni vocale nella soluzione
+      const vowelFrequency = { 'A': 0, 'E': 0, 'I': 0, 'O': 0, 'U': 0 };
+      for(let i = 0; i < sol.length; i++) {
+        const char = sol[i];
+        if('AEIOU'.includes(char)) {
+          vowelFrequency[char]++;
+        }
       }
       
-      // ✅ FASE 3: Feedback audio/vocale progressivo
-      for(let vocalInfo of vowelsToReveal) {
-        if(vocalInfo.count > 0) {
-          playMultipleHits(vocalInfo.count);
-          speak(`Sistema regala vocale ${vocalInfo.vowel}. Trovate ${vocalInfo.count}.`);
-        } else {
-          playAudio('snd-miss');
-          speak(`Sistema regala vocale ${vocalInfo.vowel}. Non presente.`);
+      // Rimuovi vocali già chiamate
+      for(let v of calledVowels) {
+        delete vowelFrequency[v];
+      }
+      
+      // Ordina per frequenza decrescente
+      const sortedVowels = Object.entries(vowelFrequency)
+        .sort((a, b) => b[1] - a[1]) // Ordina per frequenza decrescente
+        .map(entry => entry[0]);
+      
+      // Prendi le prime 'count' vocali più frequenti
+      const vowelsToGive = sortedVowels.slice(0, count);
+      
+      if(vowelsToGive.length === 0) {
+        speak("Errore: nessuna vocale disponibile da dare");
+        return;
+      }
+      
+      // Calcola gli indici per ogni vocale
+      let vowelsMessages = [];
+      let allNewIndices = [];
+      
+      for(let v of vowelsToGive) {
+        // Aggiungi alla lista delle lettere chiamate
+        if(!lettersCalledThisRound.includes(v)) {
+          lettersCalledThisRound.push(v);
         }
+        
+        // Trova indici per questa vocale
+        let foundIndices = [];
+        let gIdx = 0;
+        for(let i = 0; i < sol.length; i++) {
+          if(sol[i].match(/[A-ZÀ-Ù]/)) {
+            if(sol[i] === v) foundIndices.push(gIdx);
+            gIdx++;
+          }
+        }
+        
+        if(foundIndices.length > 0) {
+          allNewIndices.push(...foundIndices);
+          vowelsMessages.push(`${v}(${foundIndices.length})`);
+          
+          // Feedback audio progressivo
+          playMultipleHits(foundIndices.length);
+          speak(`Sistema regala vocale ${v}. Trovate ${foundIndices.length}.`);
+        } else {
+          vowelsMessages.push(`${v}(assente)`);
+          playAudio('snd-miss');
+          speak(`Sistema regala vocale ${v}. Non presente.`);
+        }
+        
         await new Promise(resolve => TimerManager.setTimeout(resolve, 800));
+      }
+      
+      // Update database con tutti gli indici
+      if(allNewIndices.length > 0) {
+        const s = currentStanza;
+        const newRev = [...new Set([...(s.lettere_rivelate || []), ...allNewIndices])];
+        await _supabase.from('stanze').update({
+          lettere_rivelate: newRev,
+          ultimo_messaggio: `Sistema regala vocali: ${vowelsMessages.join(', ')}`,
+          azione_timestamp: DateUtils.now()
+        }).eq('id', roomId);
+      } else {
+        await _supabase.from('stanze').update({
+          ultimo_messaggio: `Sistema regala vocali: ${vowelsMessages.join(', ')} (nessuna presente)`,
+          azione_timestamp: DateUtils.now()
+        }).eq('id', roomId);
       }
     }
     
@@ -6744,9 +6919,13 @@
       
       // ✅ CORRETTO: Riavvia la raccolta vocali per la nuova frase
       speak(`Frase risolta! Frase ${specialPhraseIndex + 1} su 4. Raccolta vocali...`);
-      TimerManager.setTimeout(() => {
-        startVowelCollection();
-      }, 2000);
+      
+      // ✅ SOLO L'HOST avvia il loop delle vocali
+      if(isHost) {
+        TimerManager.setTimeout(() => {
+          startVowelCollection();
+        }, 2000);
+      }
     }
 
     async function leaveGame(){

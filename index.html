@@ -1694,15 +1694,33 @@
       let list = [];
       
       if(isSpecialRound) {
-        // ✅ ROUND SPECIALE: Usa lettersCalledThisRound per mostrare TUTTE le lettere chiamate
-        list = [...new Set(lettersCalledThisRound)].sort();
+        // ✅ ROUND SPECIALE: Mostra TUTTE le lettere rivelate sul tabellone
+        // Ricostruiamo dalla frase quali lettere uniche sono state trovate da TUTTI i giocatori
+        const revealedIndices = currentStanza.lettere_rivelate || [];
+        const allRevealedLetters = new Set();
+        
+        // Scansiona il puzzle e trova quali lettere corrispondono agli indici rivelati
+        const sol = currentPuzzleTextWithoutHint.toUpperCase();
+        let globalIdx = 0;
+        
+        for(let i = 0; i < sol.length; i++) {
+          if(sol[i].match(/[A-ZÀ-Ù]/)) {
+            if(revealedIndices.includes(globalIdx)) {
+              const cleanLetter = cleanStr(sol[i]);
+              allRevealedLetters.add(cleanLetter);
+            }
+            globalIdx++;
+          }
+        }
+        
+        list = [...allRevealedLetters].sort();
         
         // Separa consonanti e vocali
         const consonants = list.filter(c => !'AEIOU'.includes(c.toUpperCase()));
         const vowels = list.filter(c => 'AEIOU'.includes(c.toUpperCase()));
         
         if(list.length === 0) {
-          speak("Nessuna lettera chiamata ancora in questo round.");
+          speak("Nessuna lettera trovata ancora in questo round.");
           return;
         }
         
@@ -1710,7 +1728,7 @@
         
         // Annuncia consonanti
         if(consonants.length > 0) {
-          speak(`Consonanti chiamate: ${consonants.length}`);
+          speak(`Consonanti trovate: ${consonants.length}`);
           for(let i=0; i<consonants.length; i++){
             await new Promise(r => TimerManager.setTimeout(r, 500));
             const letterUpper = consonants[i].toUpperCase();
@@ -1723,7 +1741,7 @@
         // Annuncia vocali
         if(vowels.length > 0) {
           await new Promise(r => TimerManager.setTimeout(r, 800));
-          speak(`Vocali chiamate: ${vowels.length}`);
+          speak(`Vocali trovate: ${vowels.length}`);
           for(let i=0; i<vowels.length; i++){
             await new Promise(r => TimerManager.setTimeout(r, 500));
             const letterUpper = vowels[i].toUpperCase();
@@ -1733,20 +1751,21 @@
           }
         }
         
-        // ✅ CONTEGGIO CONSONANTI ROUND SPECIALE
+        // ✅ CONTEGGIO CONSONANTI ROUND SPECIALE basato su lettere effettivamente trovate
         if(!specialVowelsPhase) {
           await new Promise(r => TimerManager.setTimeout(r, 800));
           const consonantsRemaining = 10 - consonants.length;
           
           if(consonantsRemaining > 0) {
-            speak(`Round speciale: ${consonants.length} consonanti usate su 10. Mancano ${consonantsRemaining} consonanti.`);
+            speak(`Round speciale: ${consonants.length} consonanti trovate su 10. Puoi chiamarne ancora ${consonantsRemaining}.`);
           } else {
-            speak(`Round speciale: Tutte e 10 le consonanti sono state chiamate. Puoi risolvere.`);
+            speak(`Round speciale: Hai trovato ${consonants.length} consonanti. Puoi risolvere.`);
           }
         }
         
       } else {
-        // ✅ ROUND NORMALE: Ricostruisci dalle lettere trovate (comportamento originale)
+        // ✅ ROUND NORMALE: Mostra solo le lettere TROVATE (presenti nella frase)
+        // Non mostriamo quelle chiamate ma sbagliate, altrimenti sarebbe troppo facile!
         const revealedIndices = currentStanza.lettere_rivelate || [];
         const allRevealedLetters = new Set();
         
@@ -1767,20 +1786,40 @@
         // Converti Set in array ordinato
         list = [...allRevealedLetters].sort();
         
+        // Separa consonanti e vocali
+        const consonants = list.filter(c => !'AEIOU'.includes(c.toUpperCase()));
+        const vowels = list.filter(c => 'AEIOU'.includes(c.toUpperCase()));
+        
         if(list.length === 0) {
-          speak("Nessuna lettera chiamata ancora in questo round.");
+          speak("Nessuna lettera trovata ancora in questo round.");
           return;
         }
         
         clearSpeechQueue();
-        speak(`Lettere chiamate: ${list.length}`);
         
-        for(let i=0; i<list.length; i++){
-          await new Promise(r => TimerManager.setTimeout(r, 500));
-          const letterUpper = list[i].toUpperCase();
-          const letterLower = list[i].toLowerCase();
-          const word = NATO_ALPHABET[letterUpper] || letterLower;
-          speak(`${letterLower}, ${word}`);
+        // Annuncia consonanti trovate
+        if(consonants.length > 0) {
+          speak(`Consonanti trovate: ${consonants.length}`);
+          for(let i=0; i<consonants.length; i++){
+            await new Promise(r => TimerManager.setTimeout(r, 500));
+            const letterUpper = consonants[i].toUpperCase();
+            const letterLower = consonants[i].toLowerCase();
+            const word = NATO_ALPHABET[letterUpper] || letterLower;
+            speak(`${letterLower}, ${word}`);
+          }
+        }
+        
+        // Annuncia vocali trovate
+        if(vowels.length > 0) {
+          await new Promise(r => TimerManager.setTimeout(r, 800));
+          speak(`Vocali trovate: ${vowels.length}`);
+          for(let i=0; i<vowels.length; i++){
+            await new Promise(r => TimerManager.setTimeout(r, 500));
+            const letterUpper = vowels[i].toUpperCase();
+            const letterLower = vowels[i].toLowerCase();
+            const word = NATO_ALPHABET[letterUpper] || letterLower;
+            speak(`${letterLower}, ${word}`);
+          }
         }
       }
     }
@@ -3208,23 +3247,14 @@
         return;
       }
       
-      // ✅ BLOCCO: Nei round speciali durante fase consonanti, NON si possono chiamare vocali
-      if(isSpecialRound && !specialVowelsPhase) {
-        playAudio('snd-miss');
-        speak("Non puoi chiamare vocali durante la fase consonanti del round speciale!");
-        alert("Non puoi chiamare vocali durante la fase consonanti!");
-        return;
-      }
-      
-      // ✅ BLOCCO: Nei round speciali, max 3 vocali totali
+      // ✅ BLOCCO: Nei round speciali NON si possono comprare vocali!
+      // Le vocali sono date automaticamente dall'host durante la fase iniziale (100)
+      // E non si possono più chiamare durante la fase consonanti (101)
       if(isSpecialRound) {
-        const vowelsUsed = lettersCalledThisRound.filter(c => 'AEIOU'.includes(c)).length;
-        if(vowelsUsed >= 3) {
-          playAudio('snd-miss');
-          speak("Hai già usato tutte e 3 le vocali disponibili nel round speciale!");
-          alert("Hai già usato tutte e 3 le vocali disponibili!");
-          return;
-        }
+        playAudio('snd-miss');
+        speak("Non puoi comprare vocali nel round speciale! Le vocali sono date automaticamente all'inizio.");
+        alert("Non puoi comprare vocali nel round speciale!");
+        return;
       }
       
       // Controlla condizioni PRIMA di aprire l'input
@@ -3555,14 +3585,14 @@
           if(isSpecialRound){
             if(specialPhraseIndex < 3){
               // Non è l'ultima frase, passa alla successiva
-              await nextSpecialPhrase(botPlayer.nome);
+              await nextSpecialPhrase(botPlayer.nome, currentPuzzleTextWithoutHint);
             } else {
               // Ultima frase completata
               await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${botPlayer.nome} HA COMPLETATO IL ROUND SPECIALE!`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
             }
           } else {
             // Round normale
-            await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${botPlayer.nome} HA RISOLTO LA FRASE!`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
+            await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${botPlayer.nome} HA RISOLTO LA FRASE! Soluzione: ${currentPuzzleTextWithoutHint}`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
           }
           
           botFinishAction();
@@ -4056,12 +4086,13 @@
         btnAccPassSpecial.style.display = isSpecialRound ? 'flex' : 'none';
       }
       
-      // ✅ NASCONDI/DISABILITA PULSANTE VOCALE durante fase consonanti (101)
+      // ✅ NASCONDI PULSANTE VOCALE durante il round speciale (fasi 100 e 101)
+      // Nel round speciale le vocali sono date automaticamente dall'host, non si comprano!
       const btnVowel = document.getElementById('btn-vowel');
       const btnAccVowel = document.getElementById('btn-acc-vowel');
       
-      if(s.fase_speciale === 101) {
-        // Fase consonanti: nascondi pulsanti vocale
+      if(s.fase_speciale === 100 || s.fase_speciale === 101) {
+        // Fase vocali (100) o fase consonanti (101): nascondi pulsanti vocale
         if(btnVowel) btnVowel.style.display = 'none';
         if(btnAccVowel) btnAccVowel.style.display = 'none';
       } else {
@@ -5060,12 +5091,28 @@
     let lastFocusedElement = null;
     
     async function openInput(mode){
-      // ✅ BLOCCO VOCALI: Durante la fase consonanti (101) del round speciale, NON si possono comprare vocali
-      if(mode === 'vowel' && currentStanza && currentStanza.fase_speciale === 101) {
-        speak("Non puoi comprare vocali durante la fase consonanti del round speciale!");
-        playAudio('snd-miss');
-        alert("ATTENZIONE: Durante la fase delle 10 consonanti NON si possono comprare vocali!");
-        return;
+      // ✅ BLOCCO VOCALI NEL ROUND SPECIALE:
+      // Fase 100 (vocali): L'input viene aperto AUTOMATICAMENTE dal loop quando è il tuo turno
+      // Fase 101 (consonanti): Zero vocali permesse
+      // Questo blocco previene che il giocatore clicchi manualmente il pulsante VOCALE
+      if(mode === 'vowel' && currentStanza) {
+        const fase = currentStanza.fase_speciale;
+        const isMyTurn = currentStanza.id_giocatore_corrente === myId;
+        
+        // Durante fase 100: permetti SOLO se è il tuo turno (chiamata automatica dal loop)
+        // Durante fase 101: blocca sempre
+        if(fase === 101) {
+          speak("Non puoi comprare vocali durante la fase consonanti!");
+          playAudio('snd-miss');
+          alert("ATTENZIONE: Durante la fase delle 10 consonanti NON si possono comprare vocali!");
+          return;
+        } else if(fase === 100 && !isMyTurn) {
+          // Fase vocali ma non è il tuo turno: blocca
+          speak("Aspetta il tuo turno per scegliere la vocale!");
+          playAudio('snd-miss');
+          return;
+        }
+        // Se fase === 100 && isMyTurn: OK, procedi (chiamata automatica dal loop)
       }
       
       // ✅ NUOVO: In modalità screen reader senza tastiera, usa overlay speciale per le consonanti
@@ -5750,7 +5797,7 @@
             
             
             if(specialPhraseIndex < 3){
-              await nextSpecialPhrase(myName);
+              await nextSpecialPhrase(myName, correctAnswer);
             } else {
               
               await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${myName} HA COMPLETATO IL ROUND SPECIALE!`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
@@ -6903,7 +6950,7 @@
       }
     }
     
-    async function nextSpecialPhrase(solverName){
+    async function nextSpecialPhrase(solverName, solvedPhrase){
       specialPhraseIndex++;
       specialConsonantsUsed = 0;
       specialVowelsGiven = 0;
@@ -6915,7 +6962,7 @@
         lettere_rivelate:[],
         montepremi_round:0,
         fase_speciale:100, // ✅ CORRETTO: Torna alla fase vocali per la nuova frase!
-        ultimo_messaggio:`${solverName} risolve! Frase ${specialPhraseIndex + 1}/4 - ${getSpecialVowelInstructions()}`,
+        ultimo_messaggio:`${solverName} risolve! Soluzione: "${solvedPhrase}" | Frase ${specialPhraseIndex + 1}/4 - ${getSpecialVowelInstructions()}`,
         azione_timestamp:DateUtils.now()
       }).eq('id', roomId);
       
@@ -7007,7 +7054,7 @@
       
       if(isSpecialRound && specialPhraseIndex < 3){
         if(confirm("Arrenditi e passa alla frase successiva?")){
-          await nextSpecialPhrase("HOST");
+          await nextSpecialPhrase("HOST (arresa)", currentPuzzleTextWithoutHint);
         }
         return;
       }

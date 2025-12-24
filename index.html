@@ -896,7 +896,7 @@
         <ul>
           <li><strong>BANCAROTTA / PERDE TUTTO</strong> - Perdi tutto il punteggio del round corrente E il punteggio totale! Il settore più pericoloso.</li>
           <li><strong>PASSA TURNO</strong> - Il turno passa automaticamente al giocatore successivo</li>
-          <li><strong>JOLLY</strong> - Ti protegge da bancarotta e passa turno! Puoi accumulare max 2 Jolly. Viene consumato automaticamente quando peschi uno di questi settori (ne usi 1 alla volta).</li>
+          <li><strong>JOLLY</strong> - Ti protegge da bancarotta e passa turno! Puoi accumulare max 2 Jolly. Dura 5 round (compreso quello in cui lo prendi). Viene consumato automaticamente quando peschi uno di questi settori (ne usi 1 alla volta).</li>
           <li><strong>MISTERO (?)</strong> - Scegli se aprire (rischio/opportunità) o prendere 500€ sicuri. Aprendo il mistero puoi trovare: RADDOPPIA, BANCAROTTA, +1000€, JOLLY, PASSA TURNO o PASSA ALL'AVVERSARIO</li>
           <li><strong>RADDOPPIA</strong> - Il prossimo giro vale il doppio! Quando lo peschi, devi girare di nuovo e il valore sarà moltiplicato x2.</li>
           <li><strong>+1000€</strong> - Aggiungi 1000€ al tuo punteggio di round e gira di nuovo!</li>
@@ -1041,7 +1041,7 @@
     let myId, myIndex, roomId, isHost=false;
     let currentFrase=null, currentStanza=null, currentPuzzleText="", currentHintText="", fullSolutionText="";
     let lastTimestamp="", isSpinning=false, inputMode=null, parsedBoard=[], localAnnouncementMade=false;
-    let isFetching=false, isProcessingInput=false, isHandlingTimeout=false;
+    let isFetching=false, isProcessingInput=false, isHandlingTimeout=false, actionJustCompleted=false;
     let processingInputTimeout=null; // ✅ Timeout di sicurezza per isProcessingInput
     let vowelsBoughtThisTurn=0, wasMyTurn=false, wasBotTurn=false;
     let actionHistory=[];
@@ -1828,12 +1828,69 @@
       document.getElementById('btn-inspect-word').focus();
     }
 
-    function reopenLastInput() {
-      if(lastInputMode && !inputMode) {
-        const typeMsg = lastInputMode === 'vowel' ? "vocale" : lastInputMode === 'letter' ? "consonante" : "soluzione";
-        openInput(lastInputMode);
-        speak(`Campo ${typeMsg} riaperto.`);
+    async function reopenLastInput() {
+      // ✅ FIX: Non riaprire se l'input è già aperto
+      if(inputMode) return;
+      
+      // ✅ FIX: Non riaprire se stiamo ancora processando l'input precedente
+      if(isProcessingInput) {
+        speak("Attendere elaborazione...");
+        return;
       }
+      
+      // ✅ FIX: Non riaprire se non c'è un lastInputMode salvato
+      if(!lastInputMode) return;
+      
+      // ✅ FIX: Non riaprire se l'azione è appena stata completata (entro 2 secondi)
+      if(actionJustCompleted) {
+        speak("Azione già completata");
+        return;
+      }
+      
+      // ✅ FIX: Non riaprire se l'azione è già stata completata
+      // Ricarica stato fresco dal database per verificare
+      const { data: freshStanza, error } = await _supabase
+        .from('stanze')
+        .select('*, giocatori(*)')
+        .eq('id', roomId)
+        .single();
+      
+      if(error || !freshStanza) return;
+      
+      const isMe = (freshStanza.id_giocatore_corrente === myId);
+      
+      // Se non è più il tuo turno, non riaprire
+      if(!isMe) {
+        speak("Non è più il tuo turno");
+        return;
+      }
+      
+      // ✅ Se era consonante: Controlla se montepremi_round è 0 (hai già girato o chiamato)
+      // In questo caso non riaprire perché l'azione è completata
+      if(lastInputMode === 'letter' && freshStanza.montepremi_round === 0) {
+        speak("Hai già chiamato la consonante");
+        return;
+      }
+      
+      // ✅ Se era vocale o soluzione: Controlla ultima_azione
+      // Se l'ultima azione è stata completata, non riaprire
+      const lastAction = freshStanza.ultima_azione || '';
+      if(lastInputMode === 'vowel' && lastAction === 'chiama_lettera') {
+        // La vocale è già stata chiamata
+        speak("Hai già chiamato la vocale");
+        return;
+      }
+      
+      if(lastInputMode === 'solve' && (lastAction === 'risolto' || lastAction === 'errore_risolvi')) {
+        // Hai già risolto (o tentato di risolvere)
+        speak("Hai già tentato di risolvere");
+        return;
+      }
+      
+      // ✅ OK: Riapri il campo
+      const typeMsg = lastInputMode === 'vowel' ? "vocale" : lastInputMode === 'letter' ? "consonante" : "soluzione";
+      openInput(lastInputMode);
+      speak(`Campo ${typeMsg} riaperto.`);
     }
 
     async function reorganizePlayers(){
@@ -2885,6 +2942,7 @@
             nome:nm,
             indice:myIndex,
             is_host:isHost,
+            scadenza_jolly: [], // ✅ Inizializza come array vuoto
             ultimo_ping: DateUtils.now()
           }).select().maybeSingle();
           
@@ -3054,13 +3112,31 @@
     }
 
     function hasActiveJolly(me, stanza){
-      return !!(me && typeof me.scadenza_jolly === 'number' && me.scadenza_jolly > 0);
+      if(!me || !stanza) return false;
+      const currentRound = stanza.round_giocati || 1;
+      const jollyArray = Array.isArray(me.scadenza_jolly) ? me.scadenza_jolly : [];
+      // Filtra solo i jolly non ancora scaduti
+      const activeJollies = jollyArray.filter(expiryRound => expiryRound >= currentRound);
+      return activeJollies.length > 0;
     }
     async function consumeJolly(){ 
-      // ✅ NUOVO: Decrementa il contatore jolly invece di azzerarlo
+      // ✅ NUOVO: Rimuove il jolly con scadenza più vicina
       const me = currentStanza?.giocatori?.find(p => p.id === myId);
-      const currentCount = (me && me.scadenza_jolly) ? me.scadenza_jolly : 0;
-      await _supabase.from('giocatori').update({scadenza_jolly: Math.max(0, currentCount - 1)}).eq('id', myId);
+      if(!me) return;
+      
+      const currentRound = currentStanza?.round_giocati || 1;
+      let jollyArray = Array.isArray(me.scadenza_jolly) ? [...me.scadenza_jolly] : [];
+      
+      // Filtra jolly ancora validi
+      jollyArray = jollyArray.filter(expiryRound => expiryRound >= currentRound);
+      
+      // Rimuovi il jolly con scadenza più vicina (il primo che scadrebbe)
+      if(jollyArray.length > 0) {
+        jollyArray.sort((a, b) => a - b); // Ordina per scadenza crescente
+        jollyArray.shift(); // Rimuovi il primo (quello che scade prima)
+      }
+      
+      await _supabase.from('giocatori').update({scadenza_jolly: jollyArray}).eq('id', myId);
     }
 
     async function tryUseJollyToAvoid(kindLabel){
@@ -3114,6 +3190,7 @@
         nome:name, 
         indice:lastInd+1, 
         is_host:false,
+        scadenza_jolly: [], // ✅ Inizializza come array vuoto
         ultimo_ping: DateUtils.now()
       });
       speak("Bot aggiunto: " + name);
@@ -3239,18 +3316,29 @@
            
            // JOLLY: salvalo e gira ancora
            if(val === 'JOLLY') {
-              // ✅ NUOVO: Accumulo max 2 Jolly per i bot
-              const currentCount = (botPlayer.scadenza_jolly || 0);
+              // ✅ NUOVO: Accumulo max 2 Jolly con scadenza a 5 round
+              const currentRound = stanza.round_giocati || 1;
+              const maxRounds = 10;
+              const jollyDuration = 5;
+              
+              let jollyArray = Array.isArray(botPlayer.scadenza_jolly) ? [...botPlayer.scadenza_jolly] : [];
+              jollyArray = jollyArray.filter(expiryRound => expiryRound >= currentRound);
+              
+              const expiryRound = Math.min(currentRound + jollyDuration - 1, maxRounds);
               let msg;
               
-              if(currentCount >= 2) {
+              if(jollyArray.length >= 2) {
                 msg = `${botPlayer.nome} pesca JOLLY ma ha già il massimo (2 Jolly)`;
-              } else if(currentCount === 1) {
-                await _supabase.from('giocatori').update({scadenza_jolly: 2}).eq('id', botPlayer.id);
-                msg = `${botPlayer.nome} pesca JOLLY! Ora ha 2 Jolly (massimo)`;
               } else {
-                await _supabase.from('giocatori').update({scadenza_jolly: 1}).eq('id', botPlayer.id);
-                msg = `${botPlayer.nome} pesca JOLLY! Ha 1 Jolly attivo`;
+                jollyArray.push(expiryRound);
+                jollyArray.sort((a, b) => a - b);
+                await _supabase.from('giocatori').update({scadenza_jolly: jollyArray}).eq('id', botPlayer.id);
+                
+                if(jollyArray.length === 1) {
+                  msg = `${botPlayer.nome} pesca JOLLY! Ha 1 Jolly (scade al round ${expiryRound})`;
+                } else {
+                  msg = `${botPlayer.nome} pesca JOLLY! Ha 2 Jolly (scadono ai round ${jollyArray[0]} e ${jollyArray[1]})`;
+                }
               }
               
               await _supabase.from('stanze').update({montepremi_round:0,ultima_azione:'gira_ruota',ultimo_messaggio:msg,azione_timestamp:DateUtils.now()}).eq('id', roomId);
@@ -3275,13 +3363,17 @@
            
            // BANCAROTTA: usa JOLLY se disponibile, altrimenti perde solo il round (NON il totale!)
            if(val === 'BANCAROTTA') {
-               // ✅ NUOVO: Controlla se ha almeno 1 JOLLY
-               const hasJolly = botPlayer.scadenza_jolly && botPlayer.scadenza_jolly > 0;
+               // ✅ NUOVO: Controlla se ha almeno 1 JOLLY valido
+               const currentRound = stanza.round_giocati || 1;
+               let jollyArray = Array.isArray(botPlayer.scadenza_jolly) ? [...botPlayer.scadenza_jolly] : [];
+               jollyArray = jollyArray.filter(expiryRound => expiryRound >= currentRound);
+               const hasJolly = jollyArray.length > 0;
                
                if(hasJolly) {
-                  // Usa il JOLLY per evitare la bancarotta (decrementa contatore)
-                  const newCount = Math.max(0, botPlayer.scadenza_jolly - 1);
-                  await _supabase.from('giocatori').update({scadenza_jolly: newCount}).eq('id', botPlayer.id);
+                  // Usa il JOLLY per evitare la bancarotta (rimuovi il più vicino alla scadenza)
+                  jollyArray.sort((a, b) => a - b);
+                  jollyArray.shift();
+                  await _supabase.from('giocatori').update({scadenza_jolly: jollyArray}).eq('id', botPlayer.id);
                   await _supabase.from('stanze').update({montepremi_round:0,fase_speciale:0,ultima_azione:'jolly',ultimo_messaggio:`${botPlayer.nome} usa JOLLY per evitare BANCAROTTA!`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
                   botFinishAction();
                   return;
@@ -3330,11 +3422,15 @@
                }
                
                // ROUND NORMALI: usa JOLLY se disponibile
-               const hasJolly = botPlayer.scadenza_jolly && botPlayer.scadenza_jolly > 0;
+               const currentRound = stanza.round_giocati || 1;
+               let jollyArray = Array.isArray(botPlayer.scadenza_jolly) ? [...botPlayer.scadenza_jolly] : [];
+               jollyArray = jollyArray.filter(expiryRound => expiryRound >= currentRound);
+               const hasJolly = jollyArray.length > 0;
                
                if(hasJolly) {
-                  const newCount = Math.max(0, botPlayer.scadenza_jolly - 1);
-                  await _supabase.from('giocatori').update({scadenza_jolly: newCount}).eq('id', botPlayer.id);
+                  jollyArray.sort((a, b) => a - b);
+                  jollyArray.shift();
+                  await _supabase.from('giocatori').update({scadenza_jolly: jollyArray}).eq('id', botPlayer.id);
                   await _supabase.from('stanze').update({montepremi_round:0,fase_speciale:0,ultima_azione:'jolly',ultimo_messaggio:`${botPlayer.nome} usa JOLLY per evitare PASSA TURNO!`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
                   botFinishAction();
                   return;
@@ -3759,10 +3855,16 @@
       const vCost=getVowelCost();
       const jInd=document.getElementById('jolly-indicator');
       if(hasActiveJolly(me, s)){
-        let jollyCount = me.scadenza_jolly || 0;
-        // ✅ VALIDAZIONE: Max 2 Jolly nel nuovo sistema
-        if (jollyCount > 2) jollyCount = 2;
-        jInd.textContent = jollyCount === 1 ? `1 JOLLY ATTIVO` : `${jollyCount} JOLLY ATTIVI`;
+        const currentRound = s.round_giocati || 1;
+        let jollyArray = Array.isArray(me.scadenza_jolly) ? [...me.scadenza_jolly] : [];
+        jollyArray = jollyArray.filter(expiryRound => expiryRound >= currentRound);
+        jollyArray.sort((a, b) => a - b);
+        
+        if(jollyArray.length === 1) {
+          jInd.textContent = `1 JOLLY ATTIVO (scade al round ${jollyArray[0]})`;
+        } else if(jollyArray.length === 2) {
+          jInd.textContent = `2 JOLLY ATTIVI (scadono ai round ${jollyArray[0]}, ${jollyArray[1]})`;
+        }
         jInd.classList.remove('hidden');
       } else jInd.classList.add('hidden');
       
@@ -4132,21 +4234,35 @@
         msg=`${myName} trova RADDOPPIA! Gira ancora!`;
         nextFaseSpeciale=2;
       } else if(val==='JOLLY'){
-        // ✅ NUOVO SISTEMA: Accumulo max 2 Jolly
-        const currentJollyCount = (me && me.scadenza_jolly) ? me.scadenza_jolly : 0;
+        // ✅ NUOVO SISTEMA: Accumulo max 2 Jolly con scadenza a 5 round
+        const currentRound = currentStanza.round_giocati || 1;
+        const maxRounds = 10; // Massimo round della partita
+        const jollyDuration = 5; // Durata in round
         
-        if(currentJollyCount >= 2) {
+        let jollyArray = Array.isArray(me.scadenza_jolly) ? [...me.scadenza_jolly] : [];
+        
+        // Rimuovi jolly già scaduti
+        jollyArray = jollyArray.filter(expiryRound => expiryRound >= currentRound);
+        
+        // Calcola quando scade questo nuovo jolly
+        const expiryRound = Math.min(currentRound + jollyDuration - 1, maxRounds);
+        
+        if(jollyArray.length >= 2) {
           // Hai già 2 Jolly (massimo)
-          msg=`${myName} pesca un altro JOLLY! Hai già il massimo (2 Jolly attivi). Non puoi accumularne altri.`;
-          // Non aggiornare il contatore
-        } else if(currentJollyCount === 1) {
-          // Passi da 1 a 2 Jolly
-          await _supabase.from('giocatori').update({scadenza_jolly: 2}).eq('id', myId);
-          msg=`${myName} pesca un JOLLY! Ora hai 2 Jolly attivi (massimo raggiunto)`;
+          msg=`${myName} pesca un JOLLY ma hai già il massimo (2 Jolly). Non puoi accumularne altri.`;
         } else {
-          // Passi da 0 a 1 Jolly
-          await _supabase.from('giocatori').update({scadenza_jolly: 1}).eq('id', myId);
-          msg=`${myName} pesca un JOLLY! Hai 1 Jolly attivo`;
+          // Aggiungi il nuovo jolly
+          jollyArray.push(expiryRound);
+          jollyArray.sort((a, b) => a - b); // Ordina per scadenza
+          
+          await _supabase.from('giocatori').update({scadenza_jolly: jollyArray}).eq('id', myId);
+          
+          const jollyCount = jollyArray.length;
+          if(jollyCount === 1) {
+            msg=`${myName} pesca il JOLLY! Ora hai 1 Jolly. Protegge da bancarotta e passa turno fino al round ${expiryRound}. Gira di nuovo!`;
+          } else {
+            msg=`${myName} pesca il JOLLY! Ora hai 2 Jolly. Protegge da bancarotta e passa turno fino ai round ${jollyArray[0]} e ${jollyArray[1]}. Gira di nuovo!`;
+          }
         }
         
         finalPrize=0;
@@ -4209,18 +4325,17 @@
             .single();
           
           const freshMe = freshData?.giocatori?.find(p => p.id === myId);
-          let jollyCount = freshMe?.scadenza_jolly || 0;
+          const currentRound = freshData?.round_giocati || 1;
           
-          // ✅ VALIDAZIONE: scadenza_jolly deve essere 0, 1 o 2 (sistema nuovo)
-          // Se è > 2 (vecchio sistema), convertilo a 2
-          if (jollyCount > 2) {
-            jollyCount = 2;
-            // Aggiorna anche il DB per correggere
-            await _supabase.from('giocatori').update({scadenza_jolly: 2}).eq('id', myId);
+          let jollyArray = Array.isArray(freshMe?.scadenza_jolly) ? [...freshMe.scadenza_jolly] : [];
+          jollyArray = jollyArray.filter(expiryRound => expiryRound >= currentRound);
+          jollyArray.sort((a, b) => a - b);
+          
+          if(jollyArray.length === 1) {
+            speak(`Hai pescato il JOLLY! Ora hai 1 Jolly (scade al round ${jollyArray[0]}). Protegge da bancarotta e passa turno. Gira di nuovo!`);
+          } else if(jollyArray.length === 2) {
+            speak(`Hai pescato il JOLLY! Ora hai 2 Jolly (scadono ai round ${jollyArray[0]} e ${jollyArray[1]}). Protegge da bancarotta e passa turno. Gira di nuovo!`);
           }
-          
-          const jollyText = jollyCount === 1 ? '1 Jolly' : `${jollyCount} Jolly`;
-          speak(`Hai pescato il JOLLY! Ora hai ${jollyText}. Protegge da bancarotta e passa turno. Gira di nuovo!`);
           localAnnouncementMade = true;
           showFlashMessage(`JOLLY! Ora hai ${jollyText}`, 'good');
         } else if(val === '+1000') {
@@ -4391,7 +4506,7 @@
     // ✅ ACCESSIBILITÀ: Variabile per salvare l'elemento che ha aperto l'input
     let lastFocusedElement = null;
     
-    function openInput(mode){
+    async function openInput(mode){
       // ✅ NUOVO: In modalità screen reader senza tastiera, usa overlay speciale per le consonanti
       if(isAccessibleMode && mode === 'letter'){
         const montepremi = currentStanza?.montepremi_round || 0;
@@ -4449,10 +4564,28 @@
       
       if(mode==='solve') {
         
-        // ✅ FIX RACE CONDITION: Congela lo stato al momento dell'apertura
-        // Questo previene che update asincroni modifichino il template mentre l'utente scrive
-        const frozenPuzzleText = currentPuzzleText;
-        const frozenRevealedLetters = currentStanza?.lettere_rivelate ? [...currentStanza.lettere_rivelate] : [];
+        // ✅ FIX BUG ASTERISCHI: Ricarica stato fresco dal database prima di generare il template
+        // Questo previene che dati "stale" in memoria causino template inconsistenti
+        inp.value = "Caricamento...";
+        inp.disabled = true;
+        
+        const { data: freshStanza, error: freshError } = await _supabase
+          .from('stanze')
+          .select('*, giocatori(*), frasi(*)')
+          .eq('id', roomId)
+          .single();
+        
+        inp.disabled = false;
+        
+        if(freshError || !freshStanza || !freshStanza.frasi) {
+          speak("Errore caricamento frase");
+          inputArea.classList.add('hidden'); // Chiudi l'input se c'è errore
+          return;
+        }
+        
+        // Usa i dati FRESCHI dal database, non quelli in memoria
+        const frozenPuzzleText = freshStanza.frasi.soluzione;
+        const frozenRevealedLetters = freshStanza.lettere_rivelate ? [...freshStanza.lettere_rivelate] : [];
         
         let template = "";
         let gIdx = 0; // ✅ Contatore globale delle lettere (solo lettere, non numeri/simboli)
@@ -4638,8 +4771,17 @@
       }
     }
     
-    function closeInput(){ 
+    function closeInput(actionWasCompleted = false){ 
       const inp = document.getElementById('game-input');
+      
+      // ✅ FIX: Segnala se l'azione è stata completata
+      if(actionWasCompleted) {
+        actionJustCompleted = true;
+        // Resetta il flag dopo 2 secondi (tempo sufficiente per evitare riaperture accidentali)
+        TimerManager.setTimeout(() => {
+          actionJustCompleted = false;
+        }, 2000);
+      }
       
       // ✅ NVDA FIX: NON clonare e sostituire l'elemento (rompe NVDA)
       // Invece, pulisci solo il valore e i listener
@@ -5362,6 +5504,17 @@
       let n=currentStanza.round_giocati + 1;
       if(n>10){ await _supabase.from('stanze').update({stato:'terminata'}).eq('id', roomId); return; }
       
+      // ✅ PULIZIA JOLLY SCADUTI: Rimuovi i jolly scaduti da tutti i giocatori
+      const allPlayers = currentStanza.giocatori || [];
+      for(const player of allPlayers) {
+        if(Array.isArray(player.scadenza_jolly) && player.scadenza_jolly.length > 0) {
+          const validJollies = player.scadenza_jolly.filter(expiryRound => expiryRound >= n);
+          if(validJollies.length !== player.scadenza_jolly.length) {
+            // Ci sono jolly scaduti, aggiorna il database
+            await _supabase.from('giocatori').update({scadenza_jolly: validJollies}).eq('id', player.id);
+          }
+        }
+      }
       
       lettersCalledThisRound = [];
       

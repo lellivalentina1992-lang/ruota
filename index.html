@@ -3843,7 +3843,9 @@
            if(newFound.length > 0) {
                const newRev = [...s.lettere_rivelate, ...newFound];
                let gain = 0;
-               if(isVowel) {
+               // ✅ FIX CRITICO: Verifica se chosenChar è EFFETTIVAMENTE una vocale
+               const isActuallyVowel = "AEIOU".includes(chosenChar);
+               if(isActuallyVowel) {
                    // ✅ NEL ROUND SPECIALE FASE VOCALI: Non si paga!
                    if(isSpecialRound && specialVowelsPhase) {
                        // Vocale gratuita nel round speciale
@@ -3866,7 +3868,7 @@
                
                // ✅ CORRETTO: Aggiorna messaggio con contatore nel round speciale
                let updateMessage;
-               if(isVowel) {
+               if(isActuallyVowel) {
                    if(isSpecialRound && specialVowelsPhase) {
                        // Round speciale fase vocali: vocale gratuita
                        updateMessage = `${botPlayer.nome}: Sceglie vocale "${chosenChar}" - Trovate ${newFound.length}!`;
@@ -3883,19 +3885,19 @@
                await _supabase.from('stanze').update({lettere_rivelate:newRev,montepremi_round:0,fase_speciale:0,ultima_azione:'chiama_lettera',ultimo_messaggio:updateMessage,azione_timestamp:DateUtils.now()}).eq('id', roomId);
                
                // ✅ CORRETTO: Nel round speciale fase vocali, il bot termina dopo aver chiamato la vocale
-               if(isSpecialRound && specialVowelsPhase && isVowel) {
+               if(isSpecialRound && specialVowelsPhase && isActuallyVowel) {
                    botFinishAction();
                    return;
                }
                
                // ✅ CORRETTO: Nel round speciale fase consonanti, il loop gestisce l'alternanza - NON passare turno qui
-               if(isSpecialRound && !specialVowelsPhase && !isVowel) {
+               if(isSpecialRound && !specialVowelsPhase && !isActuallyVowel) {
                    botFinishAction();
                    // await passTurnBot(); <- RIMOSSO perché conflitto con il loop
                    return;
                }
            } else {
-               if(isVowel) {
+               if(isActuallyVowel) {
                    // ✅ NEL ROUND SPECIALE FASE VOCALI: Non si paga!
                    if(isSpecialRound && specialVowelsPhase) {
                        // Vocale gratuita nel round speciale
@@ -3907,13 +3909,13 @@
                }
                
                // ✅ CORRETTO: Incrementa contatore consonanti anche se non trovata
-               if(isSpecialRound && !specialVowelsPhase && !isVowel) {
+               if(isSpecialRound && !specialVowelsPhase && !isActuallyVowel) {
                    specialConsonantsUsed++;
                }
                
                // ✅ CORRETTO: Aggiorna messaggio con contatore nel round speciale
                let errorMessage;
-               if(isVowel) {
+               if(isActuallyVowel) {
                    if(isSpecialRound && specialVowelsPhase) {
                        // Round speciale fase vocali: vocale gratuita
                        errorMessage = `${botPlayer.nome}: Sceglie vocale "${chosenChar}" - NON presente!`;
@@ -3930,13 +3932,13 @@
                await _supabase.from('stanze').update({ultima_azione:'errore',ultimo_messaggio:errorMessage,azione_timestamp:DateUtils.now()}).eq('id', roomId);
                
                // ✅ CORRETTO: Nel round speciale fase vocali, il bot termina dopo aver chiamato la vocale
-               if(isSpecialRound && specialVowelsPhase && isVowel) {
+               if(isSpecialRound && specialVowelsPhase && isActuallyVowel) {
                    botFinishAction();
                    return;
                }
                
                // ✅ CORRETTO: Nel round speciale fase consonanti, il loop gestisce l'alternanza - NON passare turno qui
-               if(isSpecialRound && !specialVowelsPhase && !isVowel) {
+               if(isSpecialRound && !specialVowelsPhase && !isActuallyVowel) {
                    botFinishAction();
                    // await passTurnBot(); <- RIMOSSO perché conflitto con il loop
                    return;

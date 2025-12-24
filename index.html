@@ -34,6 +34,17 @@
   
   const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   
+  // ==========================================
+  // TRACCIAMENTO VINCITORI E TURNI ROUND
+  // ==========================================
+  
+  // Traccia chi ha vinto gli ultimi round per determinare chi inizia il prossimo
+  let lastRoundWinnerUUID = null;      // Vincitore dell'ultimo round
+  let previousRoundWinnerUUID = null;  // Vincitore del penultimo round
+  
+  // Mappa: UUID giocatore -> numero di volte che ha iniziato un round
+  let playerRoundStarts = {};
+  
   // Costanti di configurazione
   const CONFIG = {
     PING_INTERVAL_MS: 10000,
@@ -3556,6 +3567,10 @@
              return;
           }
           
+          // ✅ TRACCIAMENTO VINCITORE: Salva chi ha vinto questo round
+          previousRoundWinnerUUID = lastRoundWinnerUUID;
+          lastRoundWinnerUUID = botPlayer.id;
+          
           await _supabase.from('giocatori').update({punteggio_totale:(botPlayer.punteggio_totale||0)+(botPlayer.punteggio_round||0)+1000, punteggio_round:0}).eq('id', botPlayer.id);
           await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${botPlayer.nome} HA RISOLTO LA FRASE!`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
           botFinishAction();
@@ -3829,10 +3844,10 @@
                
                await _supabase.from('stanze').update({lettere_rivelate:newRev,montepremi_round:0,fase_speciale:0,ultima_azione:'chiama_lettera',ultimo_messaggio:updateMessage,azione_timestamp:DateUtils.now()}).eq('id', roomId);
                
-               // ✅ CORRETTO: Nel round speciale, passa turno automaticamente dopo ogni consonante
+               // ✅ CORRETTO: Nel round speciale, il loop gestisce l'alternanza - NON passare turno qui
                if(isSpecialRound && !specialVowelsPhase && !isVowel) {
                    botFinishAction();
-                   await passTurnBot();
+                   // await passTurnBot(); <- RIMOSSO perché conflitto con il loop
                    return;
                }
            } else {
@@ -3853,6 +3868,14 @@
                }
                
                await _supabase.from('stanze').update({ultima_azione:'errore',ultimo_messaggio:errorMessage,azione_timestamp:DateUtils.now()}).eq('id', roomId);
+               
+               // ✅ CORRETTO: Nel round speciale, il loop gestisce l'alternanza - NON passare turno qui
+               if(isSpecialRound && !specialVowelsPhase && !isVowel) {
+                   botFinishAction();
+                   // await passTurnBot(); <- RIMOSSO perché conflitto con il loop
+                   return;
+               }
+               
                botFinishAction(); // Pausa prima di passare il turno
                await passTurnBot();
                return; 
@@ -3950,6 +3973,20 @@
       const btnAccPassSpecial = document.getElementById('btn-acc-pass-special');
       if(btnAccPassSpecial) {
         btnAccPassSpecial.style.display = isSpecialRound ? 'flex' : 'none';
+      }
+      
+      // ✅ NASCONDI/DISABILITA PULSANTE VOCALE durante fase consonanti (101)
+      const btnVowel = document.getElementById('btn-vowel');
+      const btnAccVowel = document.getElementById('btn-acc-vowel');
+      
+      if(s.fase_speciale === 101) {
+        // Fase consonanti: nascondi pulsanti vocale
+        if(btnVowel) btnVowel.style.display = 'none';
+        if(btnAccVowel) btnAccVowel.style.display = 'none';
+      } else {
+        // Fasi normali: mostra pulsanti vocale
+        if(btnVowel) btnVowel.style.display = '';
+        if(btnAccVowel) btnAccVowel.style.display = '';
       }
       
       // ✅ Estrai specialPhraseIndex dal messaggio (formato: "Frase X/4")
@@ -4937,6 +4974,14 @@
     let lastFocusedElement = null;
     
     async function openInput(mode){
+      // ✅ BLOCCO VOCALI: Durante la fase consonanti (101) del round speciale, NON si possono comprare vocali
+      if(mode === 'vowel' && currentStanza && currentStanza.fase_speciale === 101) {
+        speak("Non puoi comprare vocali durante la fase consonanti del round speciale!");
+        playAudio('snd-miss');
+        alert("ATTENZIONE: Durante la fase delle 10 consonanti NON si possono comprare vocali!");
+        return;
+      }
+      
       // ✅ NUOVO: In modalità screen reader senza tastiera, usa overlay speciale per le consonanti
       if(isAccessibleMode && mode === 'letter'){
         const montepremi = currentStanza?.montepremi_round || 0;
@@ -5611,6 +5656,10 @@
           
           
           if(isSpecialRound){
+            // ✅ TRACCIAMENTO VINCITORE: Salva chi ha vinto questo round
+            previousRoundWinnerUUID = lastRoundWinnerUUID;
+            lastRoundWinnerUUID = myId;
+            
             await _supabase.from('giocatori').update({punteggio_totale:(me.punteggio_totale||0)+(me.punteggio_round||0)+1000,punteggio_round:0}).eq('id', myId);
             
             
@@ -5621,6 +5670,9 @@
               await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${myName} HA COMPLETATO IL ROUND SPECIALE!`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
             }
           } else {
+            // ✅ TRACCIAMENTO VINCITORE: Salva chi ha vinto questo round
+            previousRoundWinnerUUID = lastRoundWinnerUUID;
+            lastRoundWinnerUUID = myId;
             
             await _supabase.from('giocatori').update({punteggio_totale:(me.punteggio_totale||0)+(me.punteggio_round||0)+1000,punteggio_round:0}).eq('id', myId);
             await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${myName} HA RISOLTO!`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
@@ -5846,8 +5898,8 @@
                   ultimo_messaggio:`${myName}: Trovate ${newFoundIndices.length} ${char} (${specialConsonantsUsed}/10 consonanti)`,
                   azione_timestamp:DateUtils.now()
                 }).eq('id', roomId);
-                // ✅ CORRETTO: Passa turno automaticamente dopo ogni consonante
-                await passTurn();
+                // ✅ NON passare turno qui - il loop in startConsonantCollection gestisce l'alternanza
+                // await passTurn(); <- RIMOSSO perché conflitto con il loop
               }
             } else {
               
@@ -5877,8 +5929,8 @@
               ultimo_messaggio:`${myName}: ${char} assente (${specialConsonantsUsed}/10 consonanti)`,
               azione_timestamp:DateUtils.now()
             }).eq('id', roomId);
-            // ✅ CORRETTO: Passa turno automaticamente dopo ogni consonante
-            await passTurn();
+            // ✅ NON passare turno qui - il loop in startConsonantCollection gestisce l'alternanza
+            // await passTurn(); <- RIMOSSO perché conflitto con il loop
           } else {
             // Round normale: passa il turno
             speak(`${char} non trovata! Passi il turno`);
@@ -6042,6 +6094,49 @@
       let n=currentStanza.round_giocati + 1;
       if(n>10){ await _supabase.from('stanze').update({stato:'terminata'}).eq('id', roomId); return; }
       
+      // ✅ LOGICA INIZIO ROUND: Determina chi inizia questo round
+      let startingPlayerUUID = null;
+      
+      if(n === 1){
+        // Primo round: inizia l'host
+        const hostPlayer = currentStanza.giocatori.find(p => p.is_host);
+        startingPlayerUUID = hostPlayer?.id || currentStanza.giocatori[0]?.id;
+      } else {
+        // Round successivi: logica basata sul vincitore precedente
+        if(lastRoundWinnerUUID === previousRoundWinnerUUID && lastRoundWinnerUUID !== null){
+          // Lo stesso giocatore ha vinto 2 volte consecutive
+          // Inizia chi ha iniziato meno round
+          const players = currentStanza.giocatori;
+          let minStarts = Infinity;
+          let playerWithMinStarts = null;
+          
+          for(const player of players){
+            const starts = playerRoundStarts[player.id] || 0;
+            if(starts < minStarts){
+              minStarts = starts;
+              playerWithMinStarts = player.id;
+            }
+          }
+          
+          startingPlayerUUID = playerWithMinStarts || players[0]?.id;
+        } else {
+          // Caso normale: inizia il vincitore del round precedente
+          // Verifica che il vincitore esista ancora
+          const winnerExists = currentStanza.giocatori.some(p => p.id === lastRoundWinnerUUID);
+          if(winnerExists){
+            startingPlayerUUID = lastRoundWinnerUUID;
+          } else {
+            // Il vincitore è uscito, inizia il primo giocatore disponibile
+            startingPlayerUUID = currentStanza.giocatori[0]?.id;
+          }
+        }
+      }
+      
+      // Incrementa il contatore di round iniziati per questo giocatore
+      if(startingPlayerUUID){
+        playerRoundStarts[startingPlayerUUID] = (playerRoundStarts[startingPlayerUUID] || 0) + 1;
+      }
+      
       // ✅ PULIZIA JOLLY SCADUTI: Rimuovi i jolly scaduti da tutti i giocatori
       const allPlayers = currentStanza.giocatori || [];
       for(const player of allPlayers) {
@@ -6108,7 +6203,8 @@
           round_giocati:n,
           lettere_rivelate:[],
           montepremi_round:0,
-          fase_speciale:100, 
+          fase_speciale:100,
+          id_giocatore_corrente: startingPlayerUUID, 
           ultima_azione:'round_speciale_start',
           ultimo_messaggio:`ROUND SPECIALE ${n} - Tema: ${selectedTheme}! Fase vocali inizia...`,
           azione_timestamp:DateUtils.now()
@@ -6135,7 +6231,7 @@
         }
         const rid=validPhrases[Math.floor(Math.random()*validPhrases.length)].id;
         await _supabase.from('giocatori').update({punteggio_round:0}).eq('stanza_id', roomId);
-        await _supabase.from('stanze').update({frase_corrente_id:rid,stato:'gioco',round_giocati:n,lettere_rivelate:[],montepremi_round:0,fase_speciale:0,ultima_azione:'nuovo',ultimo_messaggio:`Inizio Round ${n}`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
+        await _supabase.from('stanze').update({frase_corrente_id:rid,stato:'gioco',round_giocati:n,lettere_rivelate:[],montepremi_round:0,fase_speciale:0,id_giocatore_corrente:startingPlayerUUID,ultima_azione:'nuovo',ultimo_messaggio:`Inizio Round ${n}`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
       }
     }
     
@@ -6166,6 +6262,9 @@
         // 1 giocatore: giocatore sceglie 1, sistema dà 2
         // 2 giocatori: ogni giocatore sceglie 1, sistema dà 1
         // 3 giocatori: ogni giocatore sceglie 1, sistema non dà nulla
+        
+        // ✅ FIX CRITICO: Reset contatore vocali all'inizio
+        specialVowelsGiven = 0;
         
         const vowelsPerPlayer = 1;
         let systemVowels = 0;
@@ -6225,9 +6324,17 @@
         await new Promise(resolve => TimerManager.setTimeout(resolve, 1000));
       }
       
+      // ✅ LOG DEBUG: Verifica che arriviamo qui
+      console.log(`[VOWELS] Loop giocatori completato. systemVowels = ${systemVowels}`);
+      
       // Ora le vocali del sistema
       if(systemVowels > 0) {
+        console.log(`[VOWELS] Chiamando giveSystemVowels con ${systemVowels} vocali`);
+        speak(`Il sistema sceglie ${systemVowels} vocale${systemVowels > 1 ? 'i' : ''}`);
+        await new Promise(resolve => TimerManager.setTimeout(resolve, 800));
         await giveSystemVowels(systemVowels, s);
+      } else {
+        console.log('[VOWELS] Nessuna vocale del sistema da dare');
       }
       
       // Completa la fase vocali e passa alle consonanti
@@ -6310,56 +6417,43 @@
       isConsonantLoopRunning = true;
       
       try {
-        // ✅ Gestisce la raccolta delle 10 consonanti
+        // ✅ NUOVO: Gestisce 10 consonanti ALTERNATE tra i giocatori
         const s = currentStanza;
         if(!s) return;
         
         const numPlayers = s.giocatori.length;
-        let consonantsPerPlayer;
-        let systemConsonants;
+        specialConsonantsUsed = 0; // Reset contatore
         
-        if(numPlayers === 1) {
-          consonantsPerPlayer = 10;
-          systemConsonants = 0;
-        } else if(numPlayers === 2) {
-          consonantsPerPlayer = 5;
-          systemConsonants = 0;
-        } else { // 3 giocatori
-          consonantsPerPlayer = 3;
-          systemConsonants = 1;
-        }
+        console.log(`[CONSONANTS] Inizio raccolta 10 consonanti con ${numPlayers} giocatori`);
         
-        // Raccogli consonanti dai giocatori
-        let totalConsonants = 0;
+        // Loop per 10 consonanti totali, alternando i giocatori
+        let currentPlayerIndex = 0;
         
-      while(totalConsonants < consonantsPerPlayer * numPlayers) {
-        // ✅ BUG FIX 14 (Gemini): Ricarica lista giocatori ad ogni iterazione del while
-        // Questo previene blocchi se qualcuno entra/esce durante il loop
-        const { data: freshState } = await _supabase
-          .from('stanze')
-          .select('*, giocatori(*)')
-          .eq('id', roomId)
-          .single();
-        
-        if(!freshState || !freshState.giocatori || freshState.giocatori.length === 0) {
-          console.error('[Loop Consonanti] Nessun giocatore trovato, interrompo');
-          break;
-        }
-        
-        // Usa la lista fresca
-        const currentPlayers = freshState.giocatori.sort((a,b) => a.indice - b.indice);
-        
-        for(let i = 0; i < currentPlayers.length && totalConsonants < consonantsPerPlayer * currentPlayers.length; i++) {
-          const player = currentPlayers[i];
+        while(specialConsonantsUsed < 10) {
+          // ✅ Ricarica stato fresco per avere lista giocatori aggiornata
+          const { data: freshState } = await _supabase
+            .from('stanze')
+            .select('*, giocatori(*)')
+            .eq('id', roomId)
+            .single();
           
-          // ✅ CORREZIONE 3: Verifica che il giocatore esista ancora
+          if(!freshState || !freshState.giocatori || freshState.giocatori.length === 0) {
+            console.error('[CONSONANTS] Nessun giocatore trovato, interrompo');
+            break;
+          }
+          
+          const currentPlayers = freshState.giocatori.sort((a,b) => a.indice - b.indice);
+          
+          // Calcola quale giocatore ha il turno (alternanza ciclica)
+          const player = currentPlayers[currentPlayerIndex % currentPlayers.length];
+          
           if(!player || !player.id) {
-            console.warn(`Giocatore ${i} non più presente nel loop consonanti, skip`);
-            totalConsonants++; // Incrementa per evitare loop infinito
+            console.warn(`[CONSONANTS] Giocatore non valido, skip`);
+            currentPlayerIndex++;
             continue;
           }
           
-          // ✅ CORREZIONE 3: Verifica che il giocatore sia ancora attivo nel DB
+          // ✅ Verifica che il giocatore sia ancora connesso
           const { data: playerCheck } = await _supabase
             .from('giocatori')
             .select('id')
@@ -6367,26 +6461,16 @@
             .maybeSingle();
           
           if(!playerCheck) {
-            console.warn(`Giocatore ${player.nome} disconnesso durante consonanti, skip`);
+            console.warn(`[CONSONANTS] Giocatore ${player.nome} disconnesso, skip`);
             speak(`${player.nome} si è disconnesso`);
             await new Promise(resolve => TimerManager.setTimeout(resolve, 1000));
-            // Incrementa comunque per evitare loop infinito
-            totalConsonants++;
+            currentPlayerIndex++;
             continue;
           }
           
-          // ✅ Annuncia il turno PRIMA della prima consonante (totalConsonants === 0)
-          if(totalConsonants === 0) {
-            speak(`Turno di ${player.nome}`);
-            await new Promise(resolve => TimerManager.setTimeout(resolve, 800));
-          }
-          
-          // ✅ Calcola quale sarà il prossimo giocatore per l'annuncio
-          const nextIndex = (i + 1) % numPlayers;
-          const nextPlayer = s.giocatori[nextIndex];
-          // ✅ FIX: Considera che con 3 giocatori la 10ª consonante è automatica
-          const totalConsonantsNeeded = (numPlayers === 3) ? 9 : (consonantsPerPlayer * numPlayers);
-          const willBeLastConsonant = (totalConsonants + 1 >= totalConsonantsNeeded);
+          // ✅ Annuncia turno solo la prima volta per questo giocatore in questa iterazione
+          speak(`Turno di ${player.nome}: gira e scegli consonante`);
+          await new Promise(resolve => TimerManager.setTimeout(resolve, 800));
           
           // Imposta il turno
           await _supabase.from('stanze').update({
@@ -6399,86 +6483,67 @@
           // ✅ Pausa per permettere ai client di ricevere l'update
           await new Promise(resolve => TimerManager.setTimeout(resolve, 500));
           
-          // Aspetta consonante e passa info sul prossimo giocatore
-          await waitForPlayerConsonant(player.id, nextPlayer, willBeLastConsonant);
-          totalConsonants++;
+          // ✅ Aspetta che il giocatore completi il suo turno (gira + consonante)
+          await waitForPlayerConsonant(player.id);
           
-          // ✅ Pausa per far finire i beep di lettera presente/assente
-          await new Promise(resolve => TimerManager.setTimeout(resolve, 500));
+          // ✅ Incrementa contatore (anche se consonante sbagliata)
+          // Il contatore viene già incrementato in waitForPlayerConsonant tramite il messaggio
           
-          // ✅ Beep sintetico breve DOPO aver scelto la consonante (per conferma/transizione)
-          if(totalConsonants < consonantsPerPlayer * numPlayers) {
-            playSound(600, 80, 'sine'); // Beep breve di conferma
-          }
+          // ✅ Pausa per far vedere il risultato
+          await new Promise(resolve => TimerManager.setTimeout(resolve, 800));
           
-          // ✅ Pausa di 0.5 secondi aggiuntivi per vedere bene la consonante
-          await new Promise(resolve => TimerManager.setTimeout(resolve, 500));
+          // Passa al giocatore successivo
+          currentPlayerIndex++;
         }
-      }
-      
-      // Consonante del sistema se necessario
-      if(systemConsonants > 0) {
-        await revealAutomaticConsonant();
-      }
-      
-      // Ora tutti possono risolvere
-      await _supabase.from('stanze').update({
-        fase_speciale: 102,
-        ultimo_messaggio: `10 consonanti completate! Tutti possono RISOLVERE. Host può arrendersi.`,
-        azione_timestamp: DateUtils.now()
-      }).eq('id', roomId);
-      
-      speak("Dieci consonanti completate! Tutti possono provare a risolvere.");
-      
+        
+        // ✅ Dopo 10 consonanti → Fase risoluzione
+        console.log('[CONSONANTS] 10 consonanti completate, fase risoluzione');
+        
+        // Tutti possono risolvere
+        await _supabase.from('stanze').update({
+          fase_speciale: 102,
+          ultimo_messaggio: `10 consonanti completate! Tutti possono RISOLVERE. Host può arrendersi.`,
+          azione_timestamp: DateUtils.now()
+        }).eq('id', roomId);
+        
+        speak("Dieci consonanti completate! Tutti possono provare a risolvere.");
+        
       } finally {
-        // ✅ BUG FIX 9: Resetta flag anche in caso di errore
         isConsonantLoopRunning = false;
       }
     }
     
-    async function waitForPlayerConsonant(playerId, nextPlayer, isLastConsonant) {
-      // ✅ Aspetta che il giocatore scelga una consonante (controllando il database)
+    async function waitForPlayerConsonant(playerId) {
+      // ✅ NUOVO: Aspetta che il giocatore completi il turno (gira + consonante)
+      // Monitora il contatore nel messaggio per sapere quando è stata scelta la consonante
       return new Promise((resolve) => {
         // ✅ Leggi il numero iniziale dal DB
-        const initialMsg = currentStanza?.ultimo_messaggio || '';
-        const initialMatch = initialMsg.match(/\((\d+)\/10\)/);
-        const initialCount = initialMatch ? parseInt(initialMatch[1]) : 0;
+        const initialCount = specialConsonantsUsed;
         
         const checkInterval = TimerManager.setInterval(async () => {
           // ✅ Ricarica stato fresco dal DB
           const { data: freshState } = await _supabase
             .from('stanze')
-            .select('ultimo_messaggio, fase_speciale')
+            .select('ultimo_messaggio, fase_speciale, id_giocatore_corrente')
             .eq('id', roomId)
             .single();
           
           if(!freshState) return;
           
-          // ✅ Controlla se il numero di consonanti è aumentato
+          // ✅ Estrai il contatore dal messaggio
           const currentMsg = freshState.ultimo_messaggio || '';
           const currentMatch = currentMsg.match(/\((\d+)\/10\)/);
           const currentCount = currentMatch ? parseInt(currentMatch[1]) : 0;
           
-          // ✅ Oppure controlla se siamo passati alla fase 102 (tutte le consonanti usate)
-          if(currentCount > initialCount || freshState.fase_speciale === 102) {
+          // ✅ Se il contatore è aumentato O il turno è cambiato O siamo in fase 102
+          if(currentCount > initialCount || freshState.fase_speciale === 102 || freshState.id_giocatore_corrente !== playerId) {
             clearInterval(checkInterval);
             clearTimeout(timeoutId);
             
-            // ✅ ANNUNCIO: "X di 10, turno di Y" dopo 500ms dai beep
-            TimerManager.setTimeout(() => {
-              if(freshState.fase_speciale === 102 || currentCount >= 10) {
-                // Decima consonante - annuncio finale
-                speak(`10 di 10. Non si possono chiamare più consonanti. Tutti possono risolvere!`);
-              } else if(nextPlayer) {
-                // Prima consonante: "Consonante 1 di 10"
-                // Successive: "2 di 10", "3 di 10", ecc.
-                const prefix = (currentCount === 1) ? 'Consonante ' : '';
-                speak(`${prefix}${currentCount} di 10, turno di ${nextPlayer.nome}`);
-              } else {
-                const prefix = (currentCount === 1) ? 'Consonante ' : '';
-                speak(`${prefix}${currentCount} di 10`);
-              }
-            }, 500);
+            // ✅ Aggiorna il contatore locale
+            specialConsonantsUsed = currentCount;
+            
+            console.log(`[CONSONANT] Consonante completata. Counter: ${specialConsonantsUsed}/10`);
             
             resolve();
           }
@@ -6487,7 +6552,8 @@
         // Timeout dopo 2 minuti - risolvi comunque per evitare blocco
         const timeoutId = TimerManager.setTimeout(() => {
           clearInterval(checkInterval);
-          resolve(); // Risolvi comunque per continuare
+          console.warn('[CONSONANT] Timeout waiting for consonant');
+          resolve();
         }, 120000);
       });
     }
@@ -6801,6 +6867,11 @@
     
     async function resetGame(){
       if(!confirm("Reset partita? Tutti i punteggi saranno azzerati.")) return;
+      
+      // ✅ RESET TRACCIAMENTO VINCITORI
+      lastRoundWinnerUUID = null;
+      previousRoundWinnerUUID = null;
+      playerRoundStarts = {};
       
       // Reset punteggi
       const playersResult = await safeQuery(

@@ -468,6 +468,7 @@
     .tile.cursor-char{border:4px solid var(--col-accent);transform:scale(1.1);z-index:20;}
 
     @keyframes popIn{from{transform:scale(0);}to{transform:scale(1);}}
+    @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
 
     #accessible-board-container{display:none;width:98%;margin:0 auto;text-align:left;}
     #acc-board-summary{background:#111;color:#fff;padding:15px;margin-bottom:15px;border:2px solid #555;border-radius:8px;font-size:1.3em;font-weight:bold;text-align:center;}
@@ -1096,7 +1097,7 @@
     let specialPhase = 0; 
     let lastAutoPassTime = 0;
     let isBotThinking = false;
-    const BOT_BREATH_TIME = 500; // ✅ VELOCIZZATO: 500ms (era 800ms) - Pausa tra azioni bot
+    const BOT_BREATH_TIME = 300; // ✅ VELOCIZZATO: 300ms - Pausa tra azioni bot
     
     // ✅ FIX MEMORY LEAK: Funzione globale per convertire input in maiuscolo
     // Definita una sola volta, può essere rimossa e ri-aggiunta senza accumulo
@@ -1699,59 +1700,99 @@
     async function readRevealedLetters(){
       if(!currentStanza || !currentPuzzleText) return;
       
-      // ✅ RICOSTRUISCE le lettere chiamate dal puzzle e dagli indici rivelati
-      // Questo garantisce che TUTTE le lettere chiamate (anche da altri giocatori o da bot) 
-      // vengano incluse nell'elenco, non solo quelle che hai chiamato tu
+      // ✅ NEI ROUND SPECIALI: Mostra TUTTE le lettere chiamate (anche quelle non presenti)
+      // ✅ NEI ROUND NORMALI: Mostra solo le lettere trovate (ricostruite dal puzzle)
       
-      const revealedIndices = currentStanza.lettere_rivelate || [];
-      const allRevealedLetters = new Set();
+      let list = [];
       
-      // Scansiona il puzzle e trova quali lettere corrispondono agli indici rivelati
-      const sol = currentPuzzleTextWithoutHint.toUpperCase();
-      let globalIdx = 0;
-      
-      for(let i = 0; i < sol.length; i++) {
-        if(sol[i].match(/[A-ZÀ-Ù]/)) {
-          if(revealedIndices.includes(globalIdx)) {
-            const cleanLetter = cleanStr(sol[i]);
-            allRevealedLetters.add(cleanLetter);
-          }
-          globalIdx++;
+      if(isSpecialRound) {
+        // ✅ ROUND SPECIALE: Usa lettersCalledThisRound per mostrare TUTTE le lettere chiamate
+        list = [...new Set(lettersCalledThisRound)].sort();
+        
+        // Separa consonanti e vocali
+        const consonants = list.filter(c => !'AEIOU'.includes(c.toUpperCase()));
+        const vowels = list.filter(c => 'AEIOU'.includes(c.toUpperCase()));
+        
+        if(list.length === 0) {
+          speak("Nessuna lettera chiamata ancora in questo round.");
+          return;
         }
-      }
-      
-      // Converti Set in array ordinato
-      const list = [...allRevealedLetters].sort();
-      
-      if(list.length === 0) {
-        speak("Nessuna lettera chiamata ancora in questo round.");
-        return;
-      }
-      
-      clearSpeechQueue();
-      speak(`Lettere chiamate: ${list.length}`);
-      
-      for(let i=0; i<list.length; i++){
-        await new Promise(r => TimerManager.setTimeout(r, 500));
-        const letterUpper = list[i].toUpperCase(); // Per trovare in NATO_ALPHABET
-        const letterLower = list[i].toLowerCase(); // ✅ Per pronuncia in minuscolo
-        const word = NATO_ALPHABET[letterUpper] || letterLower;
-        speak(`${letterLower}, ${word}`); // ✅ Pronuncia lettera in minuscolo
-      }
-      
-      // ✅ NEI ROUND SPECIALI: Annuncia quante consonanti mancano per arrivare a 10
-      if(isSpecialRound && !specialVowelsPhase) {
-        await new Promise(r => TimerManager.setTimeout(r, 800));
         
-        // Estrai il numero di consonanti già chiamate dal messaggio DB
-        const match = (currentStanza.ultimo_messaggio || '').match(/\((\d+)\/10\)/);
-        const consonantsUsed = match ? parseInt(match[1]) : 0;
-        const consonantsRemaining = 10 - consonantsUsed;
+        clearSpeechQueue();
         
-        if(consonantsRemaining > 0) {
-          speak(`Round speciale: ${consonantsUsed} consonanti usate. Mancano ${consonantsRemaining} consonanti per arrivare a 10.`);
-        } else {
-          speak(`Round speciale: Tutte e 10 le consonanti sono state chiamate. Puoi risolvere.`);
+        // Annuncia consonanti
+        if(consonants.length > 0) {
+          speak(`Consonanti chiamate: ${consonants.length}`);
+          for(let i=0; i<consonants.length; i++){
+            await new Promise(r => TimerManager.setTimeout(r, 500));
+            const letterUpper = consonants[i].toUpperCase();
+            const letterLower = consonants[i].toLowerCase();
+            const word = NATO_ALPHABET[letterUpper] || letterLower;
+            speak(`${letterLower}, ${word}`);
+          }
+        }
+        
+        // Annuncia vocali
+        if(vowels.length > 0) {
+          await new Promise(r => TimerManager.setTimeout(r, 800));
+          speak(`Vocali chiamate: ${vowels.length}`);
+          for(let i=0; i<vowels.length; i++){
+            await new Promise(r => TimerManager.setTimeout(r, 500));
+            const letterUpper = vowels[i].toUpperCase();
+            const letterLower = vowels[i].toLowerCase();
+            const word = NATO_ALPHABET[letterUpper] || letterLower;
+            speak(`${letterLower}, ${word}`);
+          }
+        }
+        
+        // ✅ CONTEGGIO CONSONANTI ROUND SPECIALE
+        if(!specialVowelsPhase) {
+          await new Promise(r => TimerManager.setTimeout(r, 800));
+          const consonantsRemaining = 10 - consonants.length;
+          
+          if(consonantsRemaining > 0) {
+            speak(`Round speciale: ${consonants.length} consonanti usate su 10. Mancano ${consonantsRemaining} consonanti.`);
+          } else {
+            speak(`Round speciale: Tutte e 10 le consonanti sono state chiamate. Puoi risolvere.`);
+          }
+        }
+        
+      } else {
+        // ✅ ROUND NORMALE: Ricostruisci dalle lettere trovate (comportamento originale)
+        const revealedIndices = currentStanza.lettere_rivelate || [];
+        const allRevealedLetters = new Set();
+        
+        // Scansiona il puzzle e trova quali lettere corrispondono agli indici rivelati
+        const sol = currentPuzzleTextWithoutHint.toUpperCase();
+        let globalIdx = 0;
+        
+        for(let i = 0; i < sol.length; i++) {
+          if(sol[i].match(/[A-ZÀ-Ù]/)) {
+            if(revealedIndices.includes(globalIdx)) {
+              const cleanLetter = cleanStr(sol[i]);
+              allRevealedLetters.add(cleanLetter);
+            }
+            globalIdx++;
+          }
+        }
+        
+        // Converti Set in array ordinato
+        list = [...allRevealedLetters].sort();
+        
+        if(list.length === 0) {
+          speak("Nessuna lettera chiamata ancora in questo round.");
+          return;
+        }
+        
+        clearSpeechQueue();
+        speak(`Lettere chiamate: ${list.length}`);
+        
+        for(let i=0; i<list.length; i++){
+          await new Promise(r => TimerManager.setTimeout(r, 500));
+          const letterUpper = list[i].toUpperCase();
+          const letterLower = list[i].toLowerCase();
+          const word = NATO_ALPHABET[letterUpper] || letterLower;
+          speak(`${letterLower}, ${word}`);
         }
       }
     }
@@ -3251,18 +3292,174 @@
     }
 
     async function tryUseJollyToAvoid(kindLabel){
-      const {data:freshStanza} = await _supabase.from('stanze').select('*, giocatori(*)').eq('id', roomId).maybeSingle();
-      if(!freshStanza) return false;
+      // ✅ USA I DATI GIÀ PRESENTI invece di fare una nuova query
+      // Questo previene race conditions dove il DB non è ancora aggiornato
+      if(!currentStanza || !currentStanza.giocatori) {
+        console.warn('tryUseJollyToAvoid: currentStanza non disponibile');
+        return false;
+      }
       
-      const me = freshStanza.giocatori.find(p=>p.id===myId);
-      if(!hasActiveJolly(me, freshStanza)) return false;
+      const me = currentStanza.giocatori.find(p=>p.id===myId);
+      if(!me) {
+        console.warn('tryUseJollyToAvoid: giocatore non trovato');
+        return false;
+      }
       
-      const ok = confirm(`Hai un JOLLY attivo. Vuoi usarlo per evitare: ${kindLabel}?`);
-      if(!ok) return false;
+      const hasJolly = hasActiveJolly(me, currentStanza);
+      console.log('🃏 tryUseJollyToAvoid:', {
+        kindLabel,
+        hasJolly,
+        scadenza_jolly: me.scadenza_jolly,
+        currentRound: currentStanza.round_giocati
+      });
+      
+      if(!hasJolly) {
+        console.warn('tryUseJollyToAvoid: nessun Jolly attivo');
+        return false;
+      }
+      
+      // Show custom dialog asking if player wants to use Jolly
+      const useJolly = await showJollyProtectionDialog(kindLabel, me, currentStanza);
+      if(!useJolly) {
+        console.log('tryUseJollyToAvoid: giocatore ha scelto di NON usare il Jolly');
+        return false;
+      }
       
       await consumeJolly();
       await _supabase.from('stanze').update({montepremi_round:0,fase_speciale:0,ultima_azione:'jolly',ultimo_messaggio:`JOLLY usato: evitato ${kindLabel}`,azione_timestamp: DateUtils.now()}).eq('id', roomId);
+      
+      speak(`JOLLY usato! Hai evitato ${kindLabel}!`);
+      showFlashMessage('JOLLY USATO!', 'good');
+      
       return true;
+    }
+    
+    function showJollyProtectionDialog(kindLabel, me, stanza) {
+      return new Promise((resolve) => {
+        // Get Jolly info
+        const currentRound = stanza.round_giocati || 1;
+        let jollyArray = Array.isArray(me.scadenza_jolly) ? [...me.scadenza_jolly] : [];
+        jollyArray = jollyArray.filter(expiryRound => expiryRound >= currentRound);
+        jollyArray.sort((a, b) => a - b);
+        
+        let jollyInfo = '';
+        if(jollyArray.length === 1) {
+          jollyInfo = `Hai 1 Jolly (scade al round ${jollyArray[0]})`;
+        } else if(jollyArray.length === 2) {
+          jollyInfo = `Hai 2 Jolly (scadono ai round ${jollyArray[0]} e ${jollyArray[1]})`;
+        }
+        
+        // Create overlay
+        const overlay = document.createElement('div');
+        overlay.id = 'jolly-protection-overlay';
+        overlay.setAttribute('role', 'alertdialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-labelledby', 'jolly-dialog-title');
+        overlay.setAttribute('aria-describedby', 'jolly-dialog-desc');
+        overlay.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.95);
+          z-index: 99999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          animation: fadeIn 0.2s ease-out;
+        `;
+        
+        overlay.innerHTML = `
+          <div style="
+            background: linear-gradient(135deg, #1a0a00 0%, #2d1810 100%);
+            border: 5px solid #FFD700;
+            padding: 40px;
+            border-radius: 20px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 0 50px rgba(255, 215, 0, 0.5), inset 0 0 30px rgba(255, 215, 0, 0.1);
+            text-align: center;
+          ">
+            <div style="font-size: 4em; margin-bottom: 20px;">🃏</div>
+            <h2 id="jolly-dialog-title" style="
+              color: #FFD700;
+              margin: 0 0 15px 0;
+              font-size: 2em;
+              text-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+            ">⚠️ JOLLY DISPONIBILE! ⚠️</h2>
+            
+            <p id="jolly-dialog-desc" style="
+              color: #ff6b6b;
+              font-size: 1.5em;
+              margin: 20px 0;
+              font-weight: bold;
+              text-shadow: 0 0 5px rgba(255, 107, 107, 0.5);
+            ">Hai pescato: ${escapeHTML(kindLabel)}</p>
+            
+            <p style="color: #fff; font-size: 1.2em; margin: 15px 0;">
+              ${escapeHTML(jollyInfo)}
+            </p>
+            
+            <p style="color: #aaa; font-size: 1em; margin: 20px 0 30px 0;">
+              Vuoi usare un JOLLY per proteggerti?
+            </p>
+            
+            <div style="display: flex; gap: 15px; justify-content: center;">
+              <button id="jolly-use-btn" style="
+                padding: 20px 40px;
+                background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+                color: #000;
+                border: 3px solid #FFE55C;
+                border-radius: 12px;
+                font-size: 1.4em;
+                font-weight: bold;
+                cursor: pointer;
+                box-shadow: 0 5px 15px rgba(255, 215, 0, 0.4);
+                transition: all 0.2s;
+              " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                ✅ USA JOLLY
+              </button>
+              
+              <button id="jolly-decline-btn" style="
+                padding: 20px 40px;
+                background: linear-gradient(135deg, #666 0%, #333 100%);
+                color: #fff;
+                border: 3px solid #888;
+                border-radius: 12px;
+                font-size: 1.4em;
+                font-weight: bold;
+                cursor: pointer;
+                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
+                transition: all 0.2s;
+              " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                ❌ NON USARE
+              </button>
+            </div>
+          </div>
+        `;
+        
+        document.body.appendChild(overlay);
+        
+        // Focus first button for accessibility
+        TimerManager.setTimeout(() => {
+          document.getElementById('jolly-use-btn')?.focus();
+        }, 100);
+        
+        // Handle button clicks
+        document.getElementById('jolly-use-btn').addEventListener('click', () => {
+          overlay.remove();
+          resolve(true);
+        });
+        
+        document.getElementById('jolly-decline-btn').addEventListener('click', () => {
+          overlay.remove();
+          resolve(false);
+        });
+        
+        // Announce to screen reader
+        speak(`Attenzione! Hai pescato ${kindLabel}. Hai un JOLLY disponibile. Vuoi usarlo per proteggerti?`);
+      });
     }
 
     
@@ -3320,7 +3517,7 @@
        }).eq('id', botPlayer.id);
 
        
-       const thinkTime = 800 + Math.random() * 700; // ✅ VELOCIZZATO: 0.8-1.5 secondi (era 1.5-3)
+       const thinkTime = 300 + Math.random() * 500; // ✅ VELOCIZZATO: 0.3-0.8 secondi
        await new Promise(r => TimerManager.setTimeout(r, thinkTime));
 
        const s = currentStanza;
@@ -3349,7 +3546,7 @@
        
        if(ratio >= 0.80 && revealedInCurrentPhrase >= minLettersNeeded && Math.random() > 0.3) {
           //⏱️ PAUSA DRAMMATICA: Il bot "pensa" prima di tentare la soluzione
-          const thinkTimeBeforeSolve = 500 + Math.random() * 500; // ✅ VELOCIZZATO: 0.5-1 secondo (era 1-2)
+          const thinkTimeBeforeSolve = 200 + Math.random() * 300; // ✅ VELOCIZZATO: 0.2-0.5 secondi
           await new Promise(r => TimerManager.setTimeout(r, thinkTimeBeforeSolve));
           
           if(Math.random() < 0.10) {
@@ -3384,7 +3581,7 @@
        
        if(botMoney >= costVowel && ratio < 0.65 && Math.random() < 0.35 && vowelsBoughtThisTurn < 1) {
            // ⏱️ PAUSA REALISTICA: Il bot "pensa" prima di comprare la vocale
-           const thinkTimeBeforeVowel = 1000 + Math.random() * 1000; // 1-2 secondi
+           const thinkTimeBeforeVowel = 400 + Math.random() * 400; // ✅ VELOCIZZATO: 0.4-0.8 secondi
            await new Promise(r => TimerManager.setTimeout(r, thinkTimeBeforeVowel));
            
            chosenChar = getNextVowelHuman(lettersCalledThisRound);
@@ -3507,11 +3704,11 @@
                        azione_timestamp:DateUtils.now()
                    }).eq('id', roomId);
                    
-                   // Rigira automaticamente dopo 1.5 secondi
-                   botFinishAction(1000);
+                   // Rigira automaticamente dopo 0.8 secondi
+                   botFinishAction(500);
                    TimerManager.setTimeout(() => {
                        playBotTurn(botPlayer);
-                   }, 1500);
+                   }, 800);
                    return;
                }
                
@@ -3523,8 +3720,8 @@
                return;
            }
 
-           // PASSA/PASSA_TURNO: usa JOLLY se disponibile
-           if(val === 'PASSA' || val === 'PASSA_TURNO') {
+           // PASSA/PASSA_TURNO/PASSA_AVVERSARIO: usa JOLLY se disponibile
+           if(val === 'PASSA' || val === 'PASSA_TURNO' || val === 'PASSA_AVVERSARIO') {
                // ✅ CORRETTO: Nel round speciale, PASSA è DISABILITATO (rigira)
                if(isSpecialRound && !specialVowelsPhase) {
                    await _supabase.from('stanze').update({
@@ -3533,11 +3730,11 @@
                        azione_timestamp:DateUtils.now()
                    }).eq('id', roomId);
                    
-                   // Rigira automaticamente dopo 1.5 secondi
-                   botFinishAction(1000);
+                   // Rigira automaticamente dopo 0.8 secondi
+                   botFinishAction(500);
                    TimerManager.setTimeout(() => {
                        playBotTurn(botPlayer);
-                   }, 1500);
+                   }, 800);
                    return;
                }
                
@@ -3551,12 +3748,14 @@
                   jollyArray.sort((a, b) => a - b);
                   jollyArray.shift();
                   await _supabase.from('giocatori').update({scadenza_jolly: jollyArray}).eq('id', botPlayer.id);
-                  await _supabase.from('stanze').update({montepremi_round:0,fase_speciale:0,ultima_azione:'jolly',ultimo_messaggio:`${botPlayer.nome} usa JOLLY per evitare PASSA TURNO!`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
+                  const label = (val === 'PASSA_AVVERSARIO') ? 'PASSA ALL\'AVVERSARIO' : 'PASSA TURNO';
+                  await _supabase.from('stanze').update({montepremi_round:0,fase_speciale:0,ultima_azione:'jolly',ultimo_messaggio:`${botPlayer.nome} usa JOLLY per evitare ${label}!`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
                   botFinishAction();
                   return;
                }
                
-               await _supabase.from('stanze').update({montepremi_round:0,fase_speciale:0,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} gira: PASSA TURNO!`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
+               const label = (val === 'PASSA_AVVERSARIO') ? 'PASSA ALL\'AVVERSARIO' : 'PASSA TURNO';
+               await _supabase.from('stanze').update({montepremi_round:0,fase_speciale:0,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} gira: ${label}!`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
                await passTurnBot();
                botFinishAction();
                return;
@@ -3566,7 +3765,7 @@
            
            
            if(prize >= 1000) {
-               await new Promise(r => TimerManager.setTimeout(r, 800));
+               await new Promise(r => TimerManager.setTimeout(r, 400));
            }
            
            await _supabase.from('stanze').update({montepremi_round:prize,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} gira: ${val}€`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
@@ -3576,7 +3775,7 @@
            
            if(!chosenChar) {
                // ⏱️ PAUSA REALISTICA: Il bot "pensa" prima di scegliere la consonante
-               const thinkTimeBeforeChoice = 800 + Math.random() * 700; // 0.8-1.5 secondi
+               const thinkTimeBeforeChoice = 300 + Math.random() * 500; // ✅ VELOCIZZATO: 0.3-0.8 secondi
                await new Promise(r => TimerManager.setTimeout(r, thinkTimeBeforeChoice));
                
                chosenChar = getNextConsonantHuman(lettersCalledThisRound);
@@ -4252,6 +4451,14 @@
         return;
       }
       
+      // ✅ BLOCCO ROUND SPECIALE: Non puoi girare se hai raggiunto 10 consonanti
+      if(isSpecialRound && !specialVowelsPhase && s.fase_speciale === 102) {
+        speak("Hai già chiamato 10 consonanti! Non puoi più girare. Devi risolvere o aspettare che l'host si arrenda.");
+        playAudio('snd-miss');
+        showFlashMessage('10 CONSONANTI RAGGIUNTE', 'bad');
+        return;
+      }
+      
       isSpinning=true;
       
       // ✅ SAFETY: Timeout di sicurezza per resettare isSpinning se qualcosa va storto
@@ -4327,6 +4534,11 @@
         isSpinning=false;
         TimerManager.clearTimeout(spinningTimeout); // ✅ Cancella timeout di sicurezza
         
+        // ✅ FIX CRITICO: Ricarica i dati freschi dal DB per avere scadenza_jolly aggiornato!
+        const {data: freshData} = await _supabase.from('stanze').select('*, giocatori(*)').eq('id', roomId).single();
+        if(freshData && freshData.giocatori) {
+          currentStanza.giocatori = freshData.giocatori; // Aggiorna i dati dei giocatori
+        }
         
         const saved=await tryUseJollyToAvoid("BANCAROTTA");
         if(saved) return;
@@ -4371,6 +4583,13 @@
       if(val==='PASSA' || val==='PASSA_TURNO' || val==='PASSA_AVVERSARIO'){
         isSpinning=false;
         TimerManager.clearTimeout(spinningTimeout); // ✅ Cancella timeout di sicurezza
+        
+        // ✅ FIX CRITICO: Ricarica i dati freschi dal DB per avere scadenza_jolly aggiornato!
+        const {data: freshData} = await _supabase.from('stanze').select('*, giocatori(*)').eq('id', roomId).single();
+        if(freshData && freshData.giocatori) {
+          currentStanza.giocatori = freshData.giocatori; // Aggiorna i dati dei giocatori
+        }
+        
         const label=(val==='PASSA_AVVERSARIO') ? "PASSA ALL'AVVERSARIO" : "PASSA TURNO";
         const saved=await tryUseJollyToAvoid(label);
         if(saved) return;
@@ -5985,7 +6204,7 @@
           : `Scegli 1 vocale`;
         
         speak(turnMsg);
-        await new Promise(resolve => TimerManager.setTimeout(resolve, 1500));
+        await new Promise(resolve => TimerManager.setTimeout(resolve, 800));
         
         // Imposta il turno su questo giocatore
         await _supabase.from('stanze').update({
@@ -6002,8 +6221,8 @@
         // Aspetta che il giocatore scelga la vocale
         await waitForPlayerVowel(player.id);
         
-        // ✅ Pausa di 2 secondi per vedere bene la vocale rivelata
-        await new Promise(resolve => TimerManager.setTimeout(resolve, 2000));
+        // ✅ Pausa di 1 secondo per vedere bene la vocale rivelata
+        await new Promise(resolve => TimerManager.setTimeout(resolve, 1000));
       }
       
       // Ora le vocali del sistema
@@ -6185,15 +6404,15 @@
           totalConsonants++;
           
           // ✅ Pausa per far finire i beep di lettera presente/assente
-          await new Promise(resolve => TimerManager.setTimeout(resolve, 1000));
+          await new Promise(resolve => TimerManager.setTimeout(resolve, 500));
           
           // ✅ Beep sintetico breve DOPO aver scelto la consonante (per conferma/transizione)
           if(totalConsonants < consonantsPerPlayer * numPlayers) {
             playSound(600, 80, 'sine'); // Beep breve di conferma
           }
           
-          // ✅ Pausa di 1 secondo aggiuntivo per vedere bene la consonante
-          await new Promise(resolve => TimerManager.setTimeout(resolve, 1000));
+          // ✅ Pausa di 0.5 secondi aggiuntivi per vedere bene la consonante
+          await new Promise(resolve => TimerManager.setTimeout(resolve, 500));
         }
       }
       

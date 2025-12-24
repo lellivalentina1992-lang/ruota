@@ -3247,11 +3247,12 @@
        await new Promise(r => TimerManager.setTimeout(r, thinkTime));
 
        const s = currentStanza;
-       const totalLetters = currentPuzzleText.replace(/[^A-ZÀ-Ù]/g, '').length;
+       // ✅ FIX: Conta solo le lettere della parte da indovinare, non del tema
+       const totalLetters = currentPuzzleTextWithoutHint.replace(/[^A-ZÀ-Ù]/gi, '').length;
        const revealedIndices = s.lettere_rivelate || [];
        
        // ✅ CORREZIONE: Conta solo le lettere DELLA FRASE CORRENTE (non di tutto il round)
-       const phraseUpper = currentPuzzleText.toUpperCase();
+       const phraseUpper = currentPuzzleTextWithoutHint.toUpperCase();
        let revealedInCurrentPhrase = 0;
        let posInBoard = 0;
        
@@ -3819,6 +3820,37 @@
         document.getElementById('category-main').textContent = displayCategory;
         document.getElementById('round-hint').textContent = currentHintText;
         vowelsBoughtThisTurn=0;
+        
+        // ✅ FIX CRITICO: Pulisci lettere_rivelate da eventuali indici corrotti
+        // Se il DB contiene indici calcolati sul vecchio sistema (con tema incluso),
+        // potrebbero esserci indici che puntano oltre la lunghezza di currentPuzzleTextWithoutHint
+        if(s.lettere_rivelate && s.lettere_rivelate.length > 0) {
+          // Conta il numero totale di lettere nella parte da indovinare
+          let letterCount = 0;
+          const solWithoutHint = currentPuzzleTextWithoutHint.toUpperCase();
+          for(let i = 0; i < solWithoutHint.length; i++) {
+            if(solWithoutHint[i].match(/[A-ZÀ-Ù]/)) {
+              letterCount++;
+            }
+          }
+          // Gli indici validi vanno da 0 a letterCount-1
+          const maxValidIndex = letterCount - 1;
+          
+          // Filtra via indici > maxValidIndex (sono corrotti)
+          const cleanedIndices = s.lettere_rivelate.filter(idx => idx <= maxValidIndex);
+          
+          if(cleanedIndices.length !== s.lettere_rivelate.length) {
+            console.warn(`⚠️ Puliti ${s.lettere_rivelate.length - cleanedIndices.length} indici corrotti da lettere_rivelate (max valido: ${maxValidIndex})`);
+            // Aggiorna nel DB
+            await _supabase.from('stanze').update({
+              lettere_rivelate: cleanedIndices
+            }).eq('id', roomId);
+            // Aggiorna cache locale
+            s.lettere_rivelate = cleanedIndices;
+            if(currentStanza) currentStanza.lettere_rivelate = cleanedIndices;
+          }
+        }
+        
         parseAndRenderBoard(currentPuzzleText, getRevealedLettersWithHint(s.lettere_rivelate), true); // ✅ Reset navigazione per nuova frase
         
 //         const speakText = currentHintText 
@@ -4638,7 +4670,30 @@
         // Questo garantisce che il template e la validazione usino dati consistenti
         frozenSolvePuzzleText = currentPuzzleTextWithoutHint; // Solo la parte da indovinare (senza tema)
         frozenSolveFraseId = freshStanza.frase_corrente_id; // L'ID della frase corrente
-        frozenSolveRevealedLetters = freshStanza.lettere_rivelate ? [...freshStanza.lettere_rivelate] : [];
+        
+        // ✅ FIX CRITICO: Pulisci lettere_rivelate da indici corrotti PRIMA di congelare
+        let cleanRevealedLetters = freshStanza.lettere_rivelate ? [...freshStanza.lettere_rivelate] : [];
+        if(cleanRevealedLetters.length > 0) {
+          // Conta numero totale di lettere valide
+          let letterCount = 0;
+          const solClean = currentPuzzleTextWithoutHint.toUpperCase();
+          for(let i = 0; i < solClean.length; i++) {
+            if(solClean[i].match(/[A-ZÀ-Ù]/)) {
+              letterCount++;
+            }
+          }
+          // Gli indici validi vanno da 0 a letterCount-1
+          const maxValidIndex = letterCount - 1;
+          
+          // Filtra indici corrotti (> maxValidIndex)
+          const beforeClean = cleanRevealedLetters.length;
+          cleanRevealedLetters = cleanRevealedLetters.filter(idx => idx <= maxValidIndex);
+          if(beforeClean !== cleanRevealedLetters.length) {
+            console.warn(`⚠️ RISOLVI: Puliti ${beforeClean - cleanRevealedLetters.length} indici corrotti (max: ${maxValidIndex})`);
+          }
+        }
+        
+        frozenSolveRevealedLetters = cleanRevealedLetters;
         
         // Genera template usando lo stato congelato
         const frozenPuzzleText = frozenSolvePuzzleText;
@@ -5938,12 +5993,15 @@
       if(!s || !currentPuzzleText) return;
       
       // Conta frequenza di ogni consonante NON ancora completamente rivelata
+      // ✅ FIX: Conta solo nella parte da indovinare, non nel tema
       const consonantCounts = {}; // Quante volte appare nella frase
       const revealedCounts = {};  // Quante sono già rivelate
       
       let gIdx = 0;
-      currentPuzzleText.toUpperCase().split('').forEach(c => {
-        if(c.match(/[A-Z]/)){
+      const solForFreq = currentPuzzleTextWithoutHint.toUpperCase();
+      for(let i = 0; i < solForFreq.length; i++) {
+        const c = solForFreq[i];
+        if(c.match(/[A-ZÀ-Ù]/)){
           if(!"AEIOU".includes(c)){
             // È una consonante
             consonantCounts[c] = (consonantCounts[c] || 0) + 1;
@@ -5954,7 +6012,7 @@
           }
           gIdx++;
         }
-      });
+      }
       
       // Trova la consonante con più occorrenze NON ancora rivelate
       let mostFrequent = null;
@@ -5979,16 +6037,18 @@
       }
       
       // Trova tutti gli indici NON rivelati di questa consonante nella frase
+      // ✅ FIX: Usa currentPuzzleTextWithoutHint per non includere lettere del tema
       const foundIndices = [];
       gIdx = 0;
-      currentPuzzleText.toUpperCase().split('').forEach(c => {
-        if(c.match(/[A-Z]/)){
-          if(c === mostFrequent && !s.lettere_rivelate.includes(gIdx)){
+      const solBot = currentPuzzleTextWithoutHint.toUpperCase();
+      for(let i = 0; i < solBot.length; i++) {
+        if(solBot[i].match(/[A-ZÀ-Ù]/)) {
+          if(cleanStr(solBot[i]) === cleanStr(mostFrequent) && !s.lettere_rivelate.includes(gIdx)){
             foundIndices.push(gIdx);
           }
           gIdx++;
         }
-      });
+      }
       
       // Aggiungi alle lettere rivelate
       const newRev = [...new Set([...(s.lettere_rivelate || []), ...foundIndices])];

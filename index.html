@@ -682,13 +682,13 @@
       <button id="btn-acc-spin" class="action-btn btn-spin" onclick="doSpin()" style="grid-column:1/-1;">GIRA</button>
       
       <!-- VOCALE -->
-      <button class="action-btn btn-vowel" onclick="tryOpenVowelInput()" style="grid-column:1/-1;">VOCALE</button>
+      <button id="btn-acc-vowel" class="action-btn btn-vowel" onclick="tryOpenVowelInput()" style="grid-column:1/-1;">VOCALE</button>
       
       <!-- PASSA - visibile SOLO nei round speciali -->
       <button id="btn-acc-pass-special" class="action-btn btn-pass" onclick="passTurn()" style="grid-column:1/-1;display:none;">PASSA</button>
       
       <!-- RISOLVI -->
-      <button class="action-btn btn-solve" onclick="openInput('solve')" style="grid-column:1/-1;">RISOLVI</button>
+      <button id="btn-acc-solve" class="action-btn btn-solve" onclick="openInput('solve')" style="grid-column:1/-1;">RISOLVI</button>
       
       <!-- Altri Comandi (collassabile) -->
       <button id="btn-acc-more" class="action-btn" onclick="toggleAccMoreCommands()" style="background:#333;border-color:#666;grid-column:1/-1;">
@@ -896,7 +896,7 @@
         <ul>
           <li><strong>BANCAROTTA / PERDE TUTTO</strong> - Perdi tutto il punteggio del round corrente E il punteggio totale! Il settore più pericoloso.</li>
           <li><strong>PASSA TURNO</strong> - Il turno passa automaticamente al giocatore successivo</li>
-          <li><strong>JOLLY</strong> - Ti protegge da bancarotta e passa turno per 5 round! Viene consumato automaticamente quando peschi uno di questi settori.</li>
+          <li><strong>JOLLY</strong> - Ti protegge da bancarotta e passa turno! Puoi accumulare max 2 Jolly. Viene consumato automaticamente quando peschi uno di questi settori (ne usi 1 alla volta).</li>
           <li><strong>MISTERO (?)</strong> - Scegli se aprire (rischio/opportunità) o prendere 500€ sicuri. Aprendo il mistero puoi trovare: RADDOPPIA, BANCAROTTA, +1000€, JOLLY, PASSA TURNO o PASSA ALL'AVVERSARIO</li>
           <li><strong>RADDOPPIA</strong> - Il prossimo giro vale il doppio! Quando lo peschi, devi girare di nuovo e il valore sarà moltiplicato x2.</li>
           <li><strong>+1000€</strong> - Aggiungi 1000€ al tuo punteggio di round e gira di nuovo!</li>
@@ -3054,9 +3054,14 @@
     }
 
     function hasActiveJolly(me, stanza){
-      return !!(me && typeof me.scadenza_jolly === 'number' && me.scadenza_jolly >= stanza.round_giocati);
+      return !!(me && typeof me.scadenza_jolly === 'number' && me.scadenza_jolly > 0);
     }
-    async function consumeJolly(){ await _supabase.from('giocatori').update({scadenza_jolly:0}).eq('id', myId); }
+    async function consumeJolly(){ 
+      // ✅ NUOVO: Decrementa il contatore jolly invece di azzerarlo
+      const me = currentStanza?.giocatori?.find(p => p.id === myId);
+      const currentCount = (me && me.scadenza_jolly) ? me.scadenza_jolly : 0;
+      await _supabase.from('giocatori').update({scadenza_jolly: Math.max(0, currentCount - 1)}).eq('id', myId);
+    }
 
     async function tryUseJollyToAvoid(kindLabel){
       const {data:freshStanza} = await _supabase.from('stanze').select('*, giocatori(*)').eq('id', roomId).maybeSingle();
@@ -3234,10 +3239,21 @@
            
            // JOLLY: salvalo e gira ancora
            if(val === 'JOLLY') {
-              const startR = s.round_giocati;
-              const newEndR = Math.min(startR + 4, 10);
-              await _supabase.from('giocatori').update({scadenza_jolly:newEndR}).eq('id', botPlayer.id);
-              await _supabase.from('stanze').update({montepremi_round:0,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} pesca JOLLY! Attivo fino al round ${newEndR}`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
+              // ✅ NUOVO: Accumulo max 2 Jolly per i bot
+              const currentCount = (botPlayer.scadenza_jolly || 0);
+              let msg;
+              
+              if(currentCount >= 2) {
+                msg = `${botPlayer.nome} pesca JOLLY ma ha già il massimo (2 Jolly)`;
+              } else if(currentCount === 1) {
+                await _supabase.from('giocatori').update({scadenza_jolly: 2}).eq('id', botPlayer.id);
+                msg = `${botPlayer.nome} pesca JOLLY! Ora ha 2 Jolly (massimo)`;
+              } else {
+                await _supabase.from('giocatori').update({scadenza_jolly: 1}).eq('id', botPlayer.id);
+                msg = `${botPlayer.nome} pesca JOLLY! Ha 1 Jolly attivo`;
+              }
+              
+              await _supabase.from('stanze').update({montepremi_round:0,ultima_azione:'gira_ruota',ultimo_messaggio:msg,azione_timestamp:DateUtils.now()}).eq('id', roomId);
               botFinishAction();
               return;
            }
@@ -3259,27 +3275,27 @@
            
            // BANCAROTTA: usa JOLLY se disponibile, altrimenti perde solo il round (NON il totale!)
            if(val === 'BANCAROTTA') {
-               // ✅ Controlla se ha un JOLLY attivo
-               const hasJolly = botPlayer.scadenza_jolly && botPlayer.scadenza_jolly >= s.round_giocati;
+               // ✅ NUOVO: Controlla se ha almeno 1 JOLLY
+               const hasJolly = botPlayer.scadenza_jolly && botPlayer.scadenza_jolly > 0;
                
                if(hasJolly) {
-                  // Usa il JOLLY per evitare la bancarotta
-                  await _supabase.from('giocatori').update({scadenza_jolly:0}).eq('id', botPlayer.id);
+                  // Usa il JOLLY per evitare la bancarotta (decrementa contatore)
+                  const newCount = Math.max(0, botPlayer.scadenza_jolly - 1);
+                  await _supabase.from('giocatori').update({scadenza_jolly: newCount}).eq('id', botPlayer.id);
                   await _supabase.from('stanze').update({montepremi_round:0,fase_speciale:0,ultima_azione:'jolly',ultimo_messaggio:`${botPlayer.nome} usa JOLLY per evitare BANCAROTTA!`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
                   botFinishAction();
                   return;
                }
                
-               // ✅ ROUND SPECIALI: Nel round speciale BANCAROTTA rigira automaticamente!
+               // ✅ CORRETTO: Nel round speciale, BANCAROTTA è DISABILITATO (rigira)
                if(isSpecialRound && !specialVowelsPhase) {
-                   // Azzera solo punteggio_round (non totale nei round speciali)
-                   await _supabase.from('giocatori').update({punteggio_round:0}).eq('id', botPlayer.id);
                    await _supabase.from('stanze').update({
-                       ultimo_messaggio:`${botPlayer.nome} becca BANCAROTTA! Nel round speciale RIGIRA AUTOMATICAMENTE! (${specialConsonantsUsed}/10 consonanti)`,
+                       montepremi:0,
+                       ultimo_messaggio:`${botPlayer.nome} becca BANCAROTTA! SETTORE DISABILITATO, rigira`,
                        azione_timestamp:DateUtils.now()
                    }).eq('id', roomId);
                    
-                   // Rigira automaticamente dopo 1 secondo
+                   // Rigira automaticamente dopo 1.5 secondi
                    botFinishAction(1000);
                    TimerManager.setTimeout(() => {
                        playBotTurn(botPlayer);
@@ -3297,14 +3313,15 @@
 
            // PASSA/PASSA_TURNO: usa JOLLY se disponibile
            if(val === 'PASSA' || val === 'PASSA_TURNO') {
-               // ✅ ROUND SPECIALI: Nel round speciale PASSA non esiste, rigira automaticamente!
+               // ✅ CORRETTO: Nel round speciale, PASSA è DISABILITATO (rigira)
                if(isSpecialRound && !specialVowelsPhase) {
                    await _supabase.from('stanze').update({
-                       ultimo_messaggio:`${botPlayer.nome} becca PASSA! Nel round speciale RIGIRA AUTOMATICAMENTE! (${specialConsonantsUsed}/10 consonanti)`,
+                       montepremi_round:0,
+                       ultimo_messaggio:`${botPlayer.nome} becca PASSA! SETTORE DISABILITATO, rigira`,
                        azione_timestamp:DateUtils.now()
                    }).eq('id', roomId);
                    
-                   // Rigira automaticamente dopo 1 secondo
+                   // Rigira automaticamente dopo 1.5 secondi
                    botFinishAction(1000);
                    TimerManager.setTimeout(() => {
                        playBotTurn(botPlayer);
@@ -3313,10 +3330,11 @@
                }
                
                // ROUND NORMALI: usa JOLLY se disponibile
-               const hasJolly = botPlayer.scadenza_jolly && botPlayer.scadenza_jolly >= s.round_giocati;
+               const hasJolly = botPlayer.scadenza_jolly && botPlayer.scadenza_jolly > 0;
                
                if(hasJolly) {
-                  await _supabase.from('giocatori').update({scadenza_jolly:0}).eq('id', botPlayer.id);
+                  const newCount = Math.max(0, botPlayer.scadenza_jolly - 1);
+                  await _supabase.from('giocatori').update({scadenza_jolly: newCount}).eq('id', botPlayer.id);
                   await _supabase.from('stanze').update({montepremi_round:0,fase_speciale:0,ultima_azione:'jolly',ultimo_messaggio:`${botPlayer.nome} usa JOLLY per evitare PASSA TURNO!`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
                   botFinishAction();
                   return;
@@ -3395,6 +3413,13 @@
                }
                
                await _supabase.from('stanze').update({lettere_rivelate:newRev,montepremi_round:0,fase_speciale:0,ultima_azione:'chiama_lettera',ultimo_messaggio:updateMessage,azione_timestamp:DateUtils.now()}).eq('id', roomId);
+               
+               // ✅ CORRETTO: Nel round speciale, passa turno automaticamente dopo ogni consonante
+               if(isSpecialRound && !specialVowelsPhase && !isVowel) {
+                   botFinishAction();
+                   await passTurnBot();
+                   return;
+               }
            } else {
                if(isVowel) await _supabase.from('giocatori').update({punteggio_round:(botPlayer.punteggio_round||0)-costVowel}).eq('id', botPlayer.id);
                vowelsBoughtThisTurn++; // ✅ FIX: Incrementa contatore vocali anche se non trovata
@@ -3720,7 +3745,8 @@
       const vCost=getVowelCost();
       const jInd=document.getElementById('jolly-indicator');
       if(hasActiveJolly(me, s)){
-        jInd.textContent=`JOLLY ATTIVO (FINO A ROUND ${me.scadenza_jolly})`;
+        const jollyCount = me.scadenza_jolly || 0;
+        jInd.textContent = jollyCount === 1 ? `1 JOLLY ATTIVO` : `${jollyCount} JOLLY ATTIVI`;
         jInd.classList.remove('hidden');
       } else jInd.classList.add('hidden');
       
@@ -3989,22 +4015,21 @@
         if(saved) return;
         
         
-        // ✅ Nel round speciale, BANCAROTTA rigira automaticamente - devi prendere soldi per chiamare!
+        // ✅ CORRETTO: Nel round speciale fase consonanti, BANCAROTTA è DISABILITATO
         if(isSpecialRound && !specialVowelsPhase){
-          // Azzera solo punteggio_round (non totale nei round speciali)
-          await _supabase.from('giocatori').update({punteggio_round:0}).eq('id', myId);
           await _supabase.from('stanze').update({
-            ultimo_messaggio:`${myName} becca BANCAROTTA! Nel round speciale RIGIRA AUTOMATICAMENTE! (${specialConsonantsUsed}/10 consonanti)`,
+            montepremi_round:0,
+            ultimo_messaggio:`${myName} becca BANCAROTTA nel round speciale! SETTORE DISABILITATO, rigira!`,
             azione_timestamp:DateUtils.now()
           }).eq('id', roomId);
           
-          speak("BANCAROTTA nel round speciale! Rigiri automaticamente!");
-          showFlashMessage('RIGIRA AUTOMATICAMENTE!', 'bad');
+          speak("BANCAROTTA disabilitata nel round speciale! Rigira!");
+          showFlashMessage('SETTORE DISABILITATO - RIGIRA', 'bad');
           
-          // Rigira automaticamente dopo 2 secondi
+          // Rigira automaticamente dopo 1.5 secondi
           TimerManager.setTimeout(() => {
             doSpin();
-          }, 2000);
+          }, 1500);
           return;
         }
         
@@ -4032,20 +4057,21 @@
         const saved=await tryUseJollyToAvoid(label);
         if(saved) return;
         
-        // ✅ Nel round speciale, PASSA non esiste - rigira automaticamente!
+        // ✅ CORRETTO: Nel round speciale fase consonanti, PASSA è DISABILITATO
         if(isSpecialRound && !specialVowelsPhase) {
           await _supabase.from('stanze').update({
-            ultimo_messaggio:`${myName} becca ${label}! Nel round speciale RIGIRA AUTOMATICAMENTE! (${specialConsonantsUsed}/10 consonanti)`,
+            montepremi_round:0,
+            ultimo_messaggio:`${myName} becca ${label} nel round speciale! SETTORE DISABILITATO, rigira!`,
             azione_timestamp:DateUtils.now()
           }).eq('id', roomId);
           
-          speak("PASSA nel round speciale! Rigiri automaticamente!");
-          showFlashMessage('RIGIRA AUTOMATICAMENTE!', 'bad');
+          speak("Passa turno disabilitato nel round speciale! Rigira!");
+          showFlashMessage('SETTORE DISABILITATO - RIGIRA', 'bad');
           
-          // Rigira automaticamente dopo 2 secondi
+          // Rigira automaticamente dopo 1.5 secondi
           TimerManager.setTimeout(() => {
             doSpin();
-          }, 2000);
+          }, 1500);
           return;
         }
         
@@ -4090,29 +4116,21 @@
         msg=`${myName} trova RADDOPPIA! Gira ancora!`;
         nextFaseSpeciale=2;
       } else if(val==='JOLLY'){
-        const startR=currentStanza.round_giocati;
+        // ✅ NUOVO SISTEMA: Accumulo max 2 Jolly
+        const currentJollyCount = (me && me.scadenza_jolly) ? me.scadenza_jolly : 0;
         
-        // ✅ FIX: Il Jolly dura 5 round completi dal round SUCCESSIVO
-        // Esempio: Se sei al round 4, dura fino al round 8 (round 5, 6, 7, 8 = 4 round di protezione)
-        // Ma il messaggio deve dire "fino al round 8" (5 round totali: 4, 5, 6, 7, 8)
-        const idealEndR = startR + 4; // Esempio: round 4 + 4 = 8
-        const newEndR = Math.min(idealEndR, 10); // Cap a round 10
-        
-        const currentJollyEnd = me && me.scadenza_jolly ? me.scadenza_jolly : 0;
-        
-        // Se hai già un Jolly attivo, NON estendere ma avvisare
-        if(currentJollyEnd >= startR) {
-          msg=`${myName} pesca un altro JOLLY! Hai già un Jolly attivo (fino al round ${currentJollyEnd})`;
-          // Non aggiornare la scadenza, mantieni quella esistente
+        if(currentJollyCount >= 2) {
+          // Hai già 2 Jolly (massimo)
+          msg=`${myName} pesca un altro JOLLY! Hai già il massimo (2 Jolly attivi). Non puoi accumularne altri.`;
+          // Non aggiornare il contatore
+        } else if(currentJollyCount === 1) {
+          // Passi da 1 a 2 Jolly
+          await _supabase.from('giocatori').update({scadenza_jolly: 2}).eq('id', myId);
+          msg=`${myName} pesca un JOLLY! Ora hai 2 Jolly attivi (massimo raggiunto)`;
         } else {
-          // Nuovo Jolly
-          await _supabase.from('giocatori').update({scadenza_jolly:newEndR}).eq('id', myId);
-          const roundsProtected = newEndR - startR; // Calcola quanti round di protezione
-          if(newEndR === 10 && idealEndR > 10) {
-            msg=`${myName} pesca il JOLLY! Attivo fino alla fine della partita (round ${newEndR})`;
-          } else {
-            msg=`${myName} pesca il JOLLY! Protegge per ${roundsProtected + 1} round (fino al round ${newEndR})`;
-          }
+          // Passi da 0 a 1 Jolly
+          await _supabase.from('giocatori').update({scadenza_jolly: 1}).eq('id', myId);
+          msg=`${myName} pesca un JOLLY! Hai 1 Jolly attivo`;
         }
         
         finalPrize=0;
@@ -4167,12 +4185,13 @@
         }
         
         if(val === 'JOLLY') {
-          // ✅ FIX: Usa la scadenza dal database (potrebbe essere invariata se già attivo)
+          // ✅ NUOVO: Mostra il contatore jolly
           const me = currentStanza.giocatori.find(p => p.id === myId);
-          const endR = me?.scadenza_jolly || (currentStanza.round_giocati + 4);
-          speak(`Hai pescato il JOLLY! Protegge da bancarotta e passa turno fino al round ${endR}. Ora gira di nuovo!`);
+          const jollyCount = me?.scadenza_jolly || 0;
+          const jollyText = jollyCount === 1 ? '1 Jolly' : `${jollyCount} Jolly`;
+          speak(`Hai pescato il JOLLY! Ora hai ${jollyText}. Protegge da bancarotta e passa turno. Gira di nuovo!`);
           localAnnouncementMade = true;
-          showFlashMessage(`JOLLY ATTIVO! (fino a round ${endR})`, 'good');
+          showFlashMessage(`JOLLY! Ora hai ${jollyText}`, 'good');
         } else if(val === '+1000') {
           speak(`Hai guadagnato mille euro! Ora gira di nuovo!`);
           localAnnouncementMade = true;
@@ -4405,24 +4424,19 @@
         const frozenRevealedLetters = currentStanza?.lettere_rivelate ? [...currentStanza.lettere_rivelate] : [];
         
         let template = "";
+        let gIdx = 0; // ✅ Contatore globale delle lettere (solo lettere, non numeri/simboli)
+        
         for(let i=0; i<frozenPuzzleText.length; i++){
           const char = frozenPuzzleText[i];
           const charUpper = char.toUpperCase();
           
           if(!charUpper.match(/[A-ZÀ-Ù]/)){
-            // Non è una lettera (spazio, punteggiatura)
+            // Non è una lettera (spazio, punteggiatura, numero, simbolo)
             template += char; 
           } else {
             // È una lettera
-            let gIdx = 0;
-            for(let j=0; j<=i; j++){
-              if(frozenPuzzleText[j].match(/[A-ZÀ-Ù]/)){
-                if(j === i) break;
-                gIdx++;
-              }
-            }
-            
             const isRevealed = frozenRevealedLetters.includes(gIdx);
+            
             if(isRevealed) {
               // ✅ Lettera rivelata: minuscolo (tranne inizio frase/dopo punto)
               // Cerca l'ultimo carattere non-spazio prima di questa lettera
@@ -4440,6 +4454,8 @@
               // ✅ Lettera coperta: asterisco
               template += '*';
             }
+            
+            gIdx++; // ✅ Incrementa SOLO per le lettere
           }
         }
         
@@ -4887,11 +4903,16 @@
           return;
         }
         
-        if(cleanStr(txt)===cleanStr(currentPuzzleText)){
+        // ✅ FIX BUG CRITICO: Rimuovi gli asterischi non sostituiti prima del confronto
+        // L'utente scrive SOPRA gli asterischi, quindi possono rimanere asterischi non sostituiti
+        // Esempio: "chi **r*e..." → "chi dorme..." (rimuovi gli *)
+        const userAnswer = txt.replace(/\*/g, ''); // Rimuovi tutti gli asterischi
+        
+        if(cleanStr(userAnswer)===cleanStr(currentPuzzleText)){
           playAudio('snd-win'); 
           const me=s.giocatori.find(p=>p.id===myId);
           
-          addActionToHistory(`${myName} HA RISOLTO! Soluzione: ${txt}`);
+          addActionToHistory(`${myName} HA RISOLTO! Soluzione: ${currentPuzzleText}`);
           
           
           if(isSpecialRound){
@@ -4911,7 +4932,7 @@
           }
         } else {
           playAudio('snd-miss'); 
-          addActionToHistory(`${myName}: Soluzione SBAGLIATA - ${txt}`);
+          addActionToHistory(`${myName}: Soluzione SBAGLIATA - ${userAnswer}`);
           passTurn();
         }
       } else {
@@ -5111,6 +5132,7 @@
                   ultimo_messaggio:`${myName}: ${char} - 10 CONSONANTI USATE! Tutti possono risolvere o l'host si arrende`,
                   azione_timestamp:DateUtils.now()
                 }).eq('id', roomId);
+                // NON passa turno - 10 consonanti raggiunte
               } else {
                 await _supabase.from('stanze').update({
                   lettere_rivelate:newRev,
@@ -5119,6 +5141,8 @@
                   ultimo_messaggio:`${myName}: Trovate ${newFoundIndices.length} ${char} (${specialConsonantsUsed}/10 consonanti)`,
                   azione_timestamp:DateUtils.now()
                 }).eq('id', roomId);
+                // ✅ CORRETTO: Passa turno automaticamente dopo ogni consonante
+                await passTurn();
               }
             } else {
               
@@ -5136,8 +5160,7 @@
         } else {
           playAudio('snd-miss'); 
           
-          // ✅ Nel round speciale consonanti NON si passa il turno per lettera mancante
-          // Il turno è gestito dal loop di startConsonantCollection
+          // ✅ Nel round speciale consonanti, passa turno anche se lettera mancante
           if(isSpecialRound && !specialVowelsPhase) {
             // ✅ CRITICO: Incrementa il contatore anche se la lettera non è trovata!
             specialConsonantsUsed++;
@@ -5149,7 +5172,8 @@
               ultimo_messaggio:`${myName}: ${char} assente (${specialConsonantsUsed}/10 consonanti)`,
               azione_timestamp:DateUtils.now()
             }).eq('id', roomId);
-            // NON chiamare passTurn() - il loop gestisce i turni
+            // ✅ CORRETTO: Passa turno automaticamente dopo ogni consonante
+            await passTurn();
           } else {
             // Round normale: passa il turno
             speak(`${char} non trovata! Passi il turno`);

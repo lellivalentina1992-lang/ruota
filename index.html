@@ -1040,6 +1040,40 @@
 
     let myId, myIndex, roomId, isHost=false;
     let currentFrase=null, currentStanza=null, currentPuzzleText="", currentHintText="", fullSolutionText="";
+    // ✅ FIX: Testo puzzle senza tema/hint (solo la parte da indovinare)
+    let currentPuzzleTextWithoutHint = "";
+    // ✅ FIX: Variabili per congelare lo stato quando si apre RISOLVI
+    let frozenSolvePuzzleText = null;
+    let frozenSolveFraseId = null;
+    let frozenSolveRevealedLetters = null;
+    
+    // ✅ FIX: Funzione per ottenere tutti gli indici rivelati includendo il tema
+    function getRevealedLettersWithHint(baseRevealed) {
+      if(!currentHintText) return baseRevealed; // Nessun tema, ritorna così
+      
+      // Calcola quante lettere ci sono nel tema (incluso " – ")
+      const hintWithSeparator = currentHintText + ' – ';
+      let hintLetterCount = 0;
+      for(let i = 0; i < hintWithSeparator.length; i++) {
+        if(hintWithSeparator[i].match(/[A-ZÀ-Ù]/i)) {
+          hintLetterCount++;
+        }
+      }
+      
+      // Crea array con tutti gli indici del tema (0, 1, 2, ..., hintLetterCount-1)
+      const hintIndices = [];
+      for(let i = 0; i < hintLetterCount; i++) {
+        hintIndices.push(i);
+      }
+      
+      // Aggiungi gli indici del tema a quelli rivelati (shiftati)
+      const allRevealed = [...hintIndices];
+      for(const idx of baseRevealed) {
+        allRevealed.push(idx + hintLetterCount);
+      }
+      
+      return allRevealed;
+    }
     let lastTimestamp="", isSpinning=false, inputMode=null, parsedBoard=[], localAnnouncementMade=false;
     let isFetching=false, isProcessingInput=false, isHandlingTimeout=false, actionJustCompleted=false;
     let processingInputTimeout=null; // ✅ Timeout di sicurezza per isProcessingInput
@@ -1614,7 +1648,7 @@
       const allRevealedLetters = new Set();
       
       // Scansiona il puzzle e trova quali lettere corrispondono agli indici rivelati
-      const sol = currentPuzzleText.toUpperCase();
+      const sol = currentPuzzleTextWithoutHint.toUpperCase();
       let globalIdx = 0;
       
       for(let i = 0; i < sol.length; i++) {
@@ -3472,7 +3506,7 @@
 
            
            let foundIndices = []; let gIdx = 0;
-           const sol = currentPuzzleText.toUpperCase();
+           const sol = currentPuzzleTextWithoutHint.toUpperCase();
            const cleanChar = cleanStr(chosenChar);
            for(let i=0; i<sol.length; i++) {
                if(sol[i].match(/[A-ZÀ-Ù]/)) {
@@ -3544,7 +3578,7 @@
 
     function isLetterAlreadyRevealedOnBoard(char, stanza) {
         let found = false; let gIdx = 0;
-        const sol = currentPuzzleText.toUpperCase();
+        const sol = currentPuzzleTextWithoutHint.toUpperCase();
         for(let i=0; i<sol.length; i++){
             if(sol[i].match(/[A-ZÀ-Ù]/)){
                 if(cleanStr(sol[i]) === cleanStr(char) && stanza.lettere_rivelate.includes(gIdx)) found = true;
@@ -3736,29 +3770,46 @@
         // ✅ PRIORITÀ 1: Usa il campo 'tema' se presente nel database
         if(currentFrase.tema){
           currentHintText = currentFrase.tema;
-          currentPuzzleText = fullSolutionText;
+          currentPuzzleTextWithoutHint = fullSolutionText; // Solo la parte da indovinare
+          currentPuzzleText = currentFrase.tema + ' – ' + fullSolutionText; // Testo completo mostrato
         }
         // ✅ PRIORITÀ 2: Usa il campo 'hint' (per retrocompatibilità)
         else if(currentFrase.hint){
           currentHintText = currentFrase.hint;
-          currentPuzzleText = fullSolutionText;
+          currentPuzzleTextWithoutHint = fullSolutionText; // Solo la parte da indovinare
+          currentPuzzleText = currentFrase.hint + ' – ' + fullSolutionText; // Testo completo mostrato
         }
-        // ✅ PRIORITÀ 3: Split sul trattino (per frasi vecchie come CURIOSITÀ)
+        // ✅ PRIORITÀ 3: Split sull'ULTIMO trattino (per frasi come CURIOSITÀ con formato "TEMA – SOLUZIONE")
         else if(fullSolutionText.includes(" - ") || fullSolutionText.includes("–") || fullSolutionText.includes(" – ")){
-          // Gestisci diversi formati di trattino
-          let p;
-          if(fullSolutionText.includes(" – ")){
-            p = fullSolutionText.split(" – ");
-          } else if(fullSolutionText.includes("–")){
-            p = fullSolutionText.split("–");
-          } else {
-            p = fullSolutionText.split(" - ");
+          // Trova l'ULTIMO trattino, non il primo!
+          let lastDashIndex = -1;
+          let dashPattern = null;
+          
+          if(fullSolutionText.lastIndexOf(" – ") !== -1) {
+            lastDashIndex = fullSolutionText.lastIndexOf(" – ");
+            dashPattern = " – ";
+          } else if(fullSolutionText.lastIndexOf("–") !== -1) {
+            lastDashIndex = fullSolutionText.lastIndexOf("–");
+            dashPattern = "–";
+          } else if(fullSolutionText.lastIndexOf(" - ") !== -1) {
+            lastDashIndex = fullSolutionText.lastIndexOf(" - ");
+            dashPattern = " - ";
           }
-          currentHintText=p[0].trim();
-          currentPuzzleText=p[1].trim();
+          
+          if(lastDashIndex !== -1) {
+            currentHintText = fullSolutionText.substring(0, lastDashIndex).trim();
+            currentPuzzleTextWithoutHint = fullSolutionText.substring(lastDashIndex + dashPattern.length).trim();
+            currentPuzzleText = currentHintText + ' – ' + currentPuzzleTextWithoutHint;
+          } else {
+            // Fallback se qualcosa va storto
+            currentHintText = "";
+            currentPuzzleTextWithoutHint = fullSolutionText;
+            currentPuzzleText = fullSolutionText;
+          }
         } else {
-          currentHintText="";
-          currentPuzzleText=fullSolutionText;
+          currentHintText = "";
+          currentPuzzleTextWithoutHint = fullSolutionText;
+          currentPuzzleText = fullSolutionText;
         }
         
         // ✅ Mostra categoria + hint (se presente) in elementi separati ma dentro lo stesso H2
@@ -3768,7 +3819,7 @@
         document.getElementById('category-main').textContent = displayCategory;
         document.getElementById('round-hint').textContent = currentHintText;
         vowelsBoughtThisTurn=0;
-        parseAndRenderBoard(currentPuzzleText, s.lettere_rivelate, true); // ✅ Reset navigazione per nuova frase
+        parseAndRenderBoard(currentPuzzleText, getRevealedLettersWithHint(s.lettere_rivelate), true); // ✅ Reset navigazione per nuova frase
         
 //         const speakText = currentHintText 
 //           ? `Nuovo Round. Categoria: ${currentFrase.categoria}. ${currentHintText}` 
@@ -3986,7 +4037,7 @@
       const isTyping = inputArea_check && !inputArea_check.classList.contains('hidden') && inputMode !== null;
       
       if (!isTyping) {
-        parseAndRenderBoard(currentPuzzleText, s.lettere_rivelate);
+        parseAndRenderBoard(currentPuzzleText, getRevealedLettersWithHint(s.lettere_rivelate));
       }
       if(isAccessibleMode) updateAccessibleBoard();
       
@@ -4583,9 +4634,15 @@
           return;
         }
         
-        // Usa i dati FRESCHI dal database, non quelli in memoria
-        const frozenPuzzleText = freshStanza.frasi.soluzione;
-        const frozenRevealedLetters = freshStanza.lettere_rivelate ? [...freshStanza.lettere_rivelate] : [];
+        // ✅ FIX RACE CONDITION 10/10: Congela TUTTO lo stato al momento dell'apertura
+        // Questo garantisce che il template e la validazione usino dati consistenti
+        frozenSolvePuzzleText = currentPuzzleTextWithoutHint; // Solo la parte da indovinare (senza tema)
+        frozenSolveFraseId = freshStanza.frase_corrente_id; // L'ID della frase corrente
+        frozenSolveRevealedLetters = freshStanza.lettere_rivelate ? [...freshStanza.lettere_rivelate] : [];
+        
+        // Genera template usando lo stato congelato
+        const frozenPuzzleText = frozenSolvePuzzleText;
+        const frozenRevealedLetters = frozenSolveRevealedLetters;
         
         let template = "";
         let gIdx = 0; // ✅ Contatore globale delle lettere (solo lettere, non numeri/simboli)
@@ -5012,7 +5069,7 @@
         // ✅ NUOVO SISTEMA: La vocale viene gestita direttamente qui
         // Aggiorna il database con la vocale scelta
         let foundIndices=[]; let gIdx=0;
-        const sol=currentPuzzleText.toUpperCase();
+        const sol=currentPuzzleTextWithoutHint.toUpperCase();
         for(let i=0;i<sol.length;i++){
           if(sol[i].match(/[A-ZÀ-Ù]/)){
             if(cleanStr(sol[i])===cleanStr(char)) foundIndices.push(gIdx);
@@ -5076,16 +5133,33 @@
           return;
         }
         
+        // ✅ VALIDAZIONE CRITICA 10/10: Verifica che la frase non sia cambiata
+        if(frozenSolveFraseId !== null && freshState.frase_corrente_id !== frozenSolveFraseId) {
+          playAudio('snd-miss');
+          alert("La frase è cambiata! Il round è terminato.");
+          speak("Errore: la frase è cambiata durante la risoluzione.");
+          closeInput();
+          isProcessingInput = false;
+          // Reset frozen state
+          frozenSolvePuzzleText = null;
+          frozenSolveFraseId = null;
+          frozenSolveRevealedLetters = null;
+          return;
+        }
+        
         // ✅ FIX BUG CRITICO: Rimuovi gli asterischi non sostituiti prima del confronto
         // L'utente scrive SOPRA gli asterischi, quindi possono rimanere asterischi non sostituiti
         // Esempio: "chi **r*e..." → "chi dorme..." (rimuovi gli *)
         const userAnswer = txt.replace(/\*/g, ''); // Rimuovi tutti gli asterischi
         
-        if(cleanStr(userAnswer)===cleanStr(currentPuzzleText)){
+        // ✅ USA LO STATO CONGELATO per il confronto, non currentPuzzleText che potrebbe essere cambiato
+        const correctAnswer = frozenSolvePuzzleText || currentPuzzleTextWithoutHint;
+        
+        if(cleanStr(userAnswer)===cleanStr(correctAnswer)){
           playAudio('snd-win'); 
           const me=s.giocatori.find(p=>p.id===myId);
           
-          addActionToHistory(`${myName} HA RISOLTO! Soluzione: ${currentPuzzleText}`);
+          addActionToHistory(`${myName} HA RISOLTO! Soluzione: ${correctAnswer}`);
           
           
           if(isSpecialRound){
@@ -5103,10 +5177,20 @@
             await _supabase.from('giocatori').update({punteggio_totale:(me.punteggio_totale||0)+(me.punteggio_round||0)+1000,punteggio_round:0}).eq('id', myId);
             await _supabase.from('stanze').update({stato:'finito',ultima_azione:'vittoria',ultimo_messaggio:`${myName} HA RISOLTO!`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
           }
+          
+          // ✅ Reset frozen state dopo aver risolto
+          frozenSolvePuzzleText = null;
+          frozenSolveFraseId = null;
+          frozenSolveRevealedLetters = null;
         } else {
           playAudio('snd-miss'); 
           addActionToHistory(`${myName}: Soluzione SBAGLIATA - ${userAnswer}`);
           passTurn();
+          
+          // ✅ Reset frozen state dopo tentativo sbagliato
+          frozenSolvePuzzleText = null;
+          frozenSolveFraseId = null;
+          frozenSolveRevealedLetters = null;
         }
       } else {
         const char=txt.charAt(0);
@@ -5160,7 +5244,7 @@
         }
 
         let foundIndices=[]; let gIdx=0;
-        const sol=currentPuzzleText.toUpperCase();
+        const sol=currentPuzzleTextWithoutHint.toUpperCase();
         
         
         if(lettersCalledThisRound.includes(char)) {
@@ -5954,7 +6038,7 @@
           
           
           let foundIndices=[]; let gIdx=0;
-          const sol=currentPuzzleText.toUpperCase();
+          const sol=currentPuzzleTextWithoutHint.toUpperCase();
           for(let i=0;i<sol.length;i++){
             if(sol[i].match(/[A-ZÀ-Ù]/)){
               if(sol[i]===v) foundIndices.push(gIdx);

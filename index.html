@@ -1155,6 +1155,86 @@
       e.target.setSelectionRange(cursorPos - (value.length - result.length), cursorPos - (value.length - result.length));
     };
     
+    // ✅ NUOVO: Handler separato per RISOLVI che sostituisce SOLO l'asterisco dove digiti
+    // NON rimuove asterischi adiacenti o in altre posizioni
+    let lastSolveValue = ''; // Memorizza il valore precedente
+    
+    const solveInputHandler = function(e) {
+      const cursorPos = e.target.selectionStart;
+      const newValue = e.target.value;
+      
+      // Se l'utente ha cancellato tutto o è il primo carattere, applica solo formattazione
+      if(newValue.length === 0 || lastSolveValue.length === 0) {
+        lastSolveValue = formatSolveText(newValue);
+        e.target.value = lastSolveValue;
+        e.target.setSelectionRange(cursorPos, cursorPos);
+        return;
+      }
+      
+      // Trova dove è stata fatta la modifica
+      let changePos = -1;
+      const minLen = Math.min(lastSolveValue.length, newValue.length);
+      
+      // Cerca la prima posizione diversa
+      for(let i = 0; i < minLen; i++) {
+        if(lastSolveValue[i] !== newValue[i]) {
+          changePos = i;
+          break;
+        }
+      }
+      
+      // Se non trovata differenza all'inizio, potrebbe essere alla fine
+      if(changePos === -1 && newValue.length > lastSolveValue.length) {
+        changePos = lastSolveValue.length;
+      }
+      
+      // Se l'utente ha digitato un carattere E c'era un asterisco in quella posizione
+      if(changePos !== -1 && 
+         newValue.length > lastSolveValue.length &&
+         changePos < lastSolveValue.length &&
+         lastSolveValue[changePos] === '*') {
+        
+        // L'asterisco è stato sostituito dalla lettera digitata - OK!
+        // Applica solo formattazione maiuscolo/minuscolo
+        lastSolveValue = formatSolveText(newValue);
+        e.target.value = lastSolveValue;
+        e.target.setSelectionRange(cursorPos, cursorPos);
+      } else {
+        // Modifica normale (non su asterisco) - applica formattazione
+        lastSolveValue = formatSolveText(newValue);
+        e.target.value = lastSolveValue;
+        e.target.setSelectionRange(cursorPos, cursorPos);
+      }
+    };
+    
+    // Helper per formattare il testo (maiuscolo/minuscolo) senza toccare asterischi
+    function formatSolveText(text) {
+      let result = '';
+      let isStartOfSentence = true;
+      
+      for(let char of text) {
+        // Asterisco → mantieni così com'è
+        if(char === '*') {
+          result += char;
+          isStartOfSentence = false;
+        }
+        // Lettera → converti maiuscolo/minuscolo
+        else if(/[A-ZÀ-Ùa-zà-ù]/.test(char)) {
+          result += isStartOfSentence ? char.toUpperCase() : char.toLowerCase();
+          isStartOfSentence = false;
+        }
+        // Spazi, punteggiatura
+        else {
+          result += char;
+          if(/[.!?]/.test(char)) {
+            isStartOfSentence = true;
+          }
+        }
+      }
+      
+      return result;
+    }
+    
     // Helper per resettare isBotThinking con delay
     function botFinishAction(delayMs = BOT_BREATH_TIME) {
       TimerManager.setTimeout(() => {
@@ -4752,10 +4832,16 @@
         // ✅ MOBILE: Ottimizza tastiera per testo completo
         inp.setAttribute('inputmode', 'text');
         
-        // ✅ FIX MEMORY LEAK: Rimuovi vecchio listener prima di aggiungerne uno nuovo
-        // Usa la funzione globale uppercaseInputHandler
+        // ✅ FIX: Per RISOLVI usa solveInputHandler che sostituisce asterischi solo dove digiti
+        // Rimuovi entrambi i vecchi handler
         inp.removeEventListener('input', uppercaseInputHandler);
-        inp.addEventListener('input', uppercaseInputHandler);
+        inp.removeEventListener('input', solveInputHandler);
+        
+        // Inizializza il valore precedente per il tracking delle modifiche
+        lastSolveValue = inp.value;
+        
+        // Aggiungi quello corretto per RISOLVI
+        inp.addEventListener('input', solveInputHandler);
         
         // Re-aggiungi listener per Enter
         inp.onkeydown = (e) => {
@@ -4908,8 +4994,12 @@
       // Rimuovi listener per evitare duplicazioni
       inp.onkeydown = null;
       inp.oninput = null;
-      // ✅ FIX MEMORY LEAK: Rimuovi anche il listener addEventListener
+      // ✅ FIX MEMORY LEAK: Rimuovi entrambi i listener
       inp.removeEventListener('input', uppercaseInputHandler);
+      inp.removeEventListener('input', solveInputHandler);
+      
+      // Reset stato tracking per RISOLVI
+      lastSolveValue = '';
       
       document.getElementById('input-area').classList.add('hidden'); 
       

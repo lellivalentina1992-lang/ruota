@@ -15,7 +15,7 @@
     form-action 'self';
   ">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <title>Ruota della Fortuna - Gioco Online</title>
+  <title>La Ruota - Gioco Online</title>
   <link rel="icon" href="data:," />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -786,7 +786,7 @@
     }
   </style>
 </head>
-<body aria-label="Ruota della Fortuna - Gioco in corso">
+<body aria-label="La Ruota - Gioco in corso">
   <!-- ✅ SCREEN READER FIX: Cambiato in assertive + role alert per annuncio immediato
        aria-live="polite" causava la lettura di tutto il contenuto della pagina prima dell'annuncio.
        Con "assertive" + "alert", lo screen reader interrompe e annuncia SUBITO.
@@ -1096,7 +1096,7 @@
       
       <h2 style="color:var(--col-neon); margin-top:30px;">REGOLE DEL GIOCO</h2>
       <div style="color:#ddd; line-height:1.6;">
-        <p><strong>La Ruota della Fortuna</strong> è un gioco dove devi indovinare frasi nascoste lettera per lettera.</p>
+        <p><strong>La Ruota</strong> è un gioco dove devi indovinare frasi nascoste lettera per lettera.</p>
         
         <h3 style="color:var(--col-accent);">Come si gioca:</h3>
         <ul>
@@ -4508,7 +4508,7 @@
         }
       }, 10000);
       
-      speak("Giro la ruota...");
+      speak("Giro la ruota.");
       playAudio('snd-spin');
       animateWheelSpin();
       await new Promise(r=>TimerManager.setTimeout(r,3000));
@@ -5721,7 +5721,7 @@
               await updateUI(currentStanza);
             }
             
-            const resultMsg = `Trovate ${newFoundIndices.length} ${char}! Guadagni ${gain} euro`;
+            const resultMsg = `Trovate ${newFoundIndices.length} ${char}. Guadagni ${gain} euro`;
             speak(resultMsg);
             localAnnouncementMade = true;
             addActionToHistory(`${myName}: ${char} - Trovate ${newFoundIndices.length}, guadagno €${gain}`);

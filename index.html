@@ -894,7 +894,7 @@
     
     <div class="acc-nav" role="navigation" aria-label="Comandi principali di gioco">
       <!-- GIRA - pulsante principale -->
-      <button id="btn-acc-spin" class="action-btn btn-spin" onclick="doSpin()" style="grid-column:1/-1;">GIRA</button>
+      <button id="btn-acc-spin" class="action-btn btn-spin" onclick="doSpin()" style="grid-column:1/-1;" aria-label="Gira la ruota per ottenere un valore">GIRA</button>
       
       <!-- VOCALE -->
       <button id="btn-acc-vowel" class="action-btn btn-vowel" onclick="tryOpenVowelInput()" style="grid-column:1/-1;">VOCALE</button>
@@ -930,7 +930,7 @@
     <!-- Sezione comandi rimossa intestazione H3 ridondante -->
     <div class="top-controls-wrapper">
       <div class="controls-grid">
-        <button id="btn-spin" class="action-btn btn-spin" onclick="doSpin()">GIRA</button>
+        <button id="btn-spin" class="action-btn btn-spin" onclick="doSpin()" aria-label="Gira la ruota per ottenere un valore">GIRA</button>
         <button id="btn-vowel" class="action-btn btn-vowel" onclick="tryOpenVowelInput()">VOCALE</button>
         <button id="btn-pass" class="action-btn btn-pass" onclick="passTurn()">PASSA</button>
         <button id="btn-pass-opponent" class="action-btn btn-pass" onclick="passToOpponent()">PASSA ALL'AVVERSARIO</button>
@@ -944,7 +944,7 @@
       <div id="wheel-pointer" aria-hidden="true"></div>
       <div id="wheel-visual" aria-hidden="true"></div>
     </div>
-    <div id="wheel-status-text" tabindex="-1" style="font-size:1.8em;font-weight:900;color:var(--col-accent);margin:10px 0;text-shadow:0 0 15px var(--col-accent);background:rgba(0,0,0,0.7);padding:15px 25px;border-radius:12px;border:2px solid var(--col-accent);min-height:60px;display:flex;align-items:center;justify-content:center;"></div>
+    <div id="wheel-status-text" aria-live="off" aria-atomic="true" tabindex="-1" style="font-size:1.8em;font-weight:900;color:var(--col-accent);margin:10px 0;text-shadow:0 0 15px var(--col-accent);background:rgba(0,0,0,0.7);padding:15px 25px;border-radius:12px;border:2px solid var(--col-accent);min-height:60px;display:flex;align-items:center;justify-content:center;"></div>
 
     <!-- ========== SEZIONE TABELLONE ========== -->
     <h2 id="heading-tabellone" style="color:var(--col-neon);font-size:1.8em;margin:20px auto 10px auto;text-align:left;width:95%;max-width:800px;">Tabellone</h2>

@@ -909,7 +909,7 @@
       
       <div id="acc-more-commands" style="display:none;grid-column:1/-1;">
         <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px;">
-          <button class="action-btn btn-pass" onclick="passTurn()">PASSA TURNO</button>
+          <!-- PASSA TURNO rimosso: non serve nei round normali -->
           <button class="action-btn" onclick="openChat()">CHAT</button>
           <button class="action-btn" onclick="openPlayersPanel()">CLASSIFICA</button>
           <button class="action-btn" onclick="openHelp()">AIUTO</button>
@@ -932,8 +932,7 @@
       <div class="controls-grid">
         <button id="btn-spin" class="action-btn btn-spin" onclick="doSpin()" aria-label="Gira la ruota per ottenere un valore">GIRA</button>
         <button id="btn-vowel" class="action-btn btn-vowel" onclick="tryOpenVowelInput()">VOCALE</button>
-        <button id="btn-pass" class="action-btn btn-pass" onclick="passTurn()">PASSA</button>
-        <button id="btn-pass-opponent" class="action-btn btn-pass" onclick="passToOpponent()">PASSA ALL'AVVERSARIO</button>
+        <!-- PASSA e PASSA ALL'AVVERSARIO rimossi: non servono nei round normali (solo nella ruota/mistero) -->
         <button id="btn-inspect-word" class="action-btn" style="border-color:#555;background:#222;" onclick="openWordInspector()">ISPEZIONA PAROLA</button>
         <button id="btn-letters" class="action-btn" onclick="readRevealedLetters()" style="border-color:#aaa; background:#111; font-size:0.9em;">LETTERE USCITE</button>
       </div>
@@ -1001,7 +1000,6 @@
       <input id="game-input" type="text" autocomplete="off" inputmode="text" enterkeyhint="done" aria-label="Campo di inserimento testo" aria-describedby="input-title">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
         <button onclick="submitInput()" class="action-btn btn-spin" style="grid-column:1/-1;">OK</button>
-        <button id="btn-copy-phrase" onclick="copySolvePhrase()" class="action-btn" style="background:#2c5282;display:none;">COPIA FRASE</button>
         <button id="btn-cancel-input" onclick="tryCancelInput()" class="action-btn btn-pass">ANNULLA</button>
       </div>
     </div>
@@ -1024,7 +1022,7 @@
   <div id="chat-overlay" class="hidden" role="dialog" aria-modal="true" aria-label="Finestra Chat">
     <div class="modal-content" style="height:80%; max-width:600px; display:flex; flex-direction:column;">
       <h2 style="color:var(--col-neon);">CHAT</h2>
-      <div id="chat-messages" tabindex="0" role="log" aria-live="polite" style="flex:1; overflow-y:auto; text-align:left; border:1px solid #444; padding:10px; margin-bottom:10px; background:#000; color:#ddd;"></div>
+      <div id="chat-messages" role="log" style="flex:1; overflow-y:auto; text-align:left; border:1px solid #444; padding:10px; margin-bottom:10px; background:#000; color:#ddd;"></div>
       <input id="chat-input" type="text" placeholder="Messaggio..." aria-label="Scrivi messaggio chat" style="font-size:1.2em; width:95%; margin-bottom:10px;">
       <div style="display:flex; gap:10px; width:100%;">
         <button onclick="sendChatMessage()" class="action-btn btn-vowel" style="flex:1;">INVIA</button>
@@ -1145,7 +1143,7 @@
         </ul>
       </div>
       
-      <button onclick="closeHelp()" class="action-btn btn-solve" style="margin:30px 0; width:100%;">CHIUDI (ESC)</button>
+      <button onclick="closeHelp()" class="action-btn btn-solve" style="margin:30px 0; width:100%;">TORNA ALLA RUOTA</button>
     </div>
   </div>
 
@@ -1153,7 +1151,7 @@
     <div class="modal-content" style="max-width:700px; text-align:left;">
       <h2 style="color:var(--col-neon);">GIOCATORI E CLASSIFICA</h2>
       <div id="players-list" style="margin:20px 0;"></div>
-      <button onclick="closePlayers()" class="action-btn full-width">CHIUDI (ESC)</button>
+      <button onclick="closePlayers()" class="action-btn full-width">TORNA ALLA RUOTA</button>
     </div>
   </div>
 
@@ -1183,7 +1181,7 @@
     <div class="modal-content">
       <h2 id="inspector-title" style="color:var(--col-neon);">ISPEZIONA PAROLA</h2>
       <div id="inspector-letters-container" style="margin:20px 0;"></div>
-      <button onclick="closeWordInspector()" class="action-btn full-width">CHIUDI (ESC)</button>
+      <button onclick="closeWordInspector()" class="action-btn full-width">TORNA ALLA RUOTA</button>
     </div>
   </div>
 
@@ -2350,16 +2348,26 @@
 
     function announceScore(){
       if(!currentStanza) return;
-      const me = currentStanza.giocatori.find(p=>p.id===myId);
-      if(!me){
+      
+      // Ordina giocatori per punteggio totale (come nella classifica)
+      const sorted = [...currentStanza.giocatori].sort((a,b) => (b.punteggio_totale||0) - (a.punteggio_totale||0));
+      
+      if(sorted.length === 0) {
         speak("Nessun giocatore trovato");
         return;
       }
       
-      const roundScore = me.punteggio_round || 0;
-      const totalScore = me.punteggio_totale || 0;
+      // Costruisci l'annuncio per tutti i giocatori
+      let announcement = "Punteggi. ";
       
-      speak(`Punteggio parziale: ${roundScore} euro. Punteggio totale: ${totalScore} euro.`);
+      sorted.forEach((player, index) => {
+        const roundScore = player.punteggio_round || 0;
+        const totalScore = player.punteggio_totale || 0;
+        
+        announcement += `${player.nome}: Parziale ${roundScore} euro. Totale ${totalScore} euro. `;
+      });
+      
+      speak(announcement);
     }
 
     async function openPlayersPanel(){
@@ -2382,7 +2390,7 @@
             div.style = 'background:#111; border:1px solid #333; padding:15px; margin-bottom:20px; border-radius:8px; display:flex; flex-direction:column; gap:10px;';
             
             const info = document.createElement('span');
-            info.style = 'color:#ddd; font-size:1.1em;';
+            info.style = 'color:#ddd; font-size:1.1em; display:block;'; // display:block per separare ogni giocatore
             info.innerHTML = `<strong style="color:var(--col-accent);">${i+1}.</strong> ${escapeHTML(p.nome)} - <strong>${p.punteggio_totale||0} €</strong> (Giro: ${p.punteggio_round||0} €)`;
             div.appendChild(info);
             
@@ -3699,7 +3707,7 @@
           if(Math.random() > successRate) {
              // Sbaglia!
              await _supabase.from('stanze').update({ultima_azione: 'errore', ultimo_messaggio: `${botPlayer.nome} tenta ma sbaglia la soluzione!`, azione_timestamp: DateUtils.now()}).eq('id', roomId);
-             await passTurnBot();
+             await passTurnBot(true); // ✅ Mantieni il messaggio "sbaglia la soluzione"
              botFinishAction();
              return;
           }
@@ -3721,7 +3729,7 @@
        if(Math.random() < 0.07 && lettersCalledThisRound.length > 3) {
           const errorChar = lettersCalledThisRound[Math.floor(Math.random()*lettersCalledThisRound.length)];
           await _supabase.from('stanze').update({ultima_azione: 'errore', ultimo_messaggio: `${botPlayer.nome} richiama la "${errorChar}" già provata!`, azione_timestamp: DateUtils.now()}).eq('id', roomId);
-          await passTurnBot();
+          await passTurnBot(true); // ✅ Mantieni il messaggio "lettera già provata"
           botFinishAction();
           return;
        }
@@ -3864,7 +3872,7 @@
                // BANCAROTTA azzera punteggio_round E punteggio_totale (perde tutto)!
                await _supabase.from('giocatori').update({punteggio_round:0, punteggio_totale:0}).eq('id', botPlayer.id);
                await _supabase.from('stanze').update({montepremi_round:0,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} gira BANCAROTTA! Perde tutto.`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
-               await passTurnBot();
+               await passTurnBot(true); // ✅ Mantieni il messaggio "BANCAROTTA"
                botFinishAction();
                return;
            }
@@ -3889,7 +3897,7 @@
                
                const label = (val === 'PASSA_AVVERSARIO') ? 'PASSA ALL\'AVVERSARIO' : 'PASSA TURNO';
                await _supabase.from('stanze').update({montepremi_round:0,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} gira ${label}!`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
-               await passTurnBot();
+               await passTurnBot(true); // ✅ Mantieni il messaggio "PASSA TURNO"
                botFinishAction();
                return;
            }
@@ -4004,13 +4012,14 @@
                    vowelsBoughtThisTurn++;
                }
                
-               // Messaggio errore
+               // ✅ ACCESSIBILITÀ: Messaggio chiaro del motivo della perdita turno
+               const letterType = isActuallyVowel ? 'vocale' : 'consonante';
                const errorMessage = `${botPlayer.nome}, ${chosenChar} assente`;
                
                await _supabase.from('stanze').update({ultima_azione:'errore',ultimo_messaggio:errorMessage,azione_timestamp:DateUtils.now()}).eq('id', roomId);
                
                botFinishAction();
-               await passTurnBot();
+               await passTurnBot(true); // ✅ Mantieni il messaggio "lettera assente"
                return; 
            }
        }
@@ -4040,7 +4049,7 @@
         return found;
     }
 
-    async function passTurnBot(){
+    async function passTurnBot(keepMessage = false){
       // ✅ RESET: Quando passa il turno, resetta il contatore delle vocali
       vowelsBoughtThisTurn = 0;
       
@@ -4068,10 +4077,16 @@
       let updateData = {
         id_giocatore_corrente:nextPlayerUUID,
         montepremi_round:0,
-        ultima_azione:'timeout',
-        ultimo_messaggio:`${currentPlayerName} passa il turno`,
         azione_timestamp:DateUtils.now()
       };
+      
+      // ✅ ACCESSIBILITÀ: Se keepMessage=true, non sovrascrivere il messaggio
+      // Questo permette ai messaggi specifici (es. "lettera X non trovata") 
+      // di rimanere visibili invece di essere sostituiti da "passa il turno"
+      if(!keepMessage) {
+        updateData.ultima_azione = 'timeout';
+        updateData.ultimo_messaggio = `${currentPlayerName} passa il turno`;
+      }
       
       // Resettiamo fase_speciale
       updateData.fase_speciale = 0;
@@ -4402,11 +4417,11 @@
 
       setBtnState('btn-spin', !canSpin);
       setBtnState('btn-solve', !canSolve);
-      setBtnState('btn-pass', !canPass);
+      // setBtnState('btn-pass', !canPass); // Pulsante PASSA rimosso (non serve nei round normali)
       
-      // ✅ PASSA ALL'AVVERSARIO: disabilitato se sei da solo
-      let canPassOpponent = canPass && s.giocatori.length > 1;
-      setBtnState('btn-pass-opponent', !canPassOpponent);
+      // ✅ PASSA ALL'AVVERSARIO: pulsante rimosso (non serve nei round normali)
+      // let canPassOpponent = canPass && s.giocatori.length > 1;
+      // setBtnState('btn-pass-opponent', !canPassOpponent);
       
       const btnV=document.getElementById('btn-vowel');
       setBtnState('btn-vowel', !canVowel);
@@ -5082,12 +5097,12 @@
         
         frozenSolveRevealedLetters = cleanRevealedLetters;
         
-        // ✅ OPZIONE B: Genera template ma NON copiare automaticamente
-        // L'utente decide quando copiare cliccando il pulsante "COPIA FRASE"
+        // ✅ OPZIONE B MIGLIORATA: Chiedi SUBITO se vuole copiare
+        // L'utente può scegliere Sì/No e se Sì viene copiato immediatamente
         const frozenPuzzleText = frozenSolvePuzzleText;
         const frozenRevealedLetters = frozenSolveRevealedLetters;
         
-        // Genera template da copiare (salvato in variabile globale)
+        // Genera template da copiare
         let templateToCopy = "";
         let gIdx = 0;
         let totalLetters = 0;
@@ -5120,10 +5135,28 @@
         
         const missingLetters = totalLetters - revealedCount;
         
-        // ✅ Salva template in variabile globale per il pulsante COPIA FRASE
+        // ✅ Salva template in variabile globale per riferimento
         window.currentSolveTemplate = templateToCopy;
         
-        // Campo vuoto - l'utente può scrivere da zero O copiare con il pulsante
+        // ✅ NUOVO: Chiedi SUBITO se vuole copiare la frase
+        // Se l'utente ha lettere rivelate, chiedi se vuole copiarle negli appunti
+        if(revealedCount > 0 && navigator.clipboard && navigator.clipboard.writeText) {
+          // Chiedi conferma
+          const wantsCopy = confirm(`Vuoi copiare la frase con le lettere rivelate negli appunti?\n\n${templateToCopy}\n\n(${revealedCount}/${totalLetters} lettere rivelate)`);
+          
+          if(wantsCopy) {
+            // Copia SENZA alert di conferma (come richiesto!)
+            try {
+              await navigator.clipboard.writeText(templateToCopy);
+              speak("Copiata"); // Solo annuncio vocale, niente alert
+            } catch(err) {
+              console.warn("Errore copia:", err);
+              speak("Errore nella copia");
+            }
+          }
+        }
+        
+        // Campo vuoto - l'utente può incollare o scrivere da zero
         inp.value = '';
         
         // Suggerimento nel placeholder
@@ -5186,7 +5219,6 @@
       
       // Nascondi/mostra bottoni in base al mode
       const btnCancel = document.getElementById('btn-cancel-input');
-      const btnCopyPhrase = document.getElementById('btn-copy-phrase');
       
       if(btnCancel){
         if(mode === 'letter'){
@@ -5198,15 +5230,8 @@
         }
       }
       
-      if(btnCopyPhrase){
-        if(mode === 'solve'){
-          // ✅ OPZIONE B: RISOLVI → mostra COPIA FRASE
-          btnCopyPhrase.style.display = 'flex';
-        } else {
-          // Vocale/Consonante: nascondi COPIA FRASE
-          btnCopyPhrase.style.display = 'none';
-        }
-      }
+      // ✅ RIMOSSO: Pulsante COPIA FRASE non più necessario
+      // Ora chiediamo subito all'apertura se l'utente vuole copiare
       
       // ✅ FIX NVDA: Focus viene impostato UNA SOLA VOLTA quando il campo viene aperto
       // NON verrà più forzato continuamente da updateUI
@@ -5262,33 +5287,8 @@
       closeInput();
     }
     
-    function copySolvePhrase(){
-      // ✅ OPZIONE B: Copia la frase con asterischi negli appunti
-      const template = window.currentSolveTemplate;
-      
-      if(!template) {
-        speak("Nessuna frase da copiare");
-        return;
-      }
-      
-      // Prova a copiare negli appunti
-      if(navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(template)
-          .then(() => {
-            alert("Frase copiata!");
-            speak("Frase copiata negli appunti. Incolla nel campo per completarla.");
-          })
-          .catch((err) => {
-            console.warn("Clipboard non disponibile:", err);
-            alert(`Frase da completare: ${template}`);
-            speak(`Frase da completare: ${template}`);
-          });
-      } else {
-        // Browser vecchio senza clipboard API
-        alert(`Frase da completare: ${template}`);
-        speak(`Frase da completare: ${template}`);
-      }
-    }
+    // ✅ RIMOSSO: copySolvePhrase() non più necessaria
+    // Ora la copia avviene all'apertura tramite confirm()
     
     function closeInput(actionWasCompleted = false){ 
       const inp = document.getElementById('game-input');
@@ -5596,6 +5596,10 @@
           playAudio('snd-miss'); 
           addActionToHistory(`${myName}, Soluzione SBAGLIATA - ${userAnswer}`);
           
+          // ✅ ACCESSIBILITÀ: Annuncio chiaro del motivo della perdita turno
+          speak(`Soluzione sbagliata. Hai scritto: ${userAnswer}. Perdi il turno.`);
+          localAnnouncementMade = true;
+          
           // ✅ Aggiorna il messaggio nel database prima di passare il turno
           await _supabase.from('stanze').update({
             ultima_azione:'errore',
@@ -5659,7 +5663,9 @@
         
         if(lettersCalledThisRound.includes(char)) {
           playAudio('snd-miss');
-          speak(`${char} già chiamata in questo round!`);
+          // ✅ ACCESSIBILITÀ: Annuncio più chiaro
+          speak(`La lettera ${char} è già stata chiamata in questo round. Perdi il turno.`);
+          localAnnouncementMade = true;
           addActionToHistory(`${myName}, ${char} già chiamata!`);
           await _supabase.from('stanze').update({
             ultima_azione:'errore',
@@ -5692,7 +5698,9 @@
           
           if(newFoundIndices.length === 0){
             playAudio('snd-miss'); 
-            speak(`${char} già rivelata!`);
+            // ✅ ACCESSIBILITÀ: Annuncio più chiaro
+            speak(`La lettera ${char} è già stata rivelata. Perdi il turno.`);
+            localAnnouncementMade = true;
             addActionToHistory(`${myName}, ${char} già rivelata!`);
             await _supabase.from('stanze').update({
               ultima_azione:'errore',
@@ -5779,12 +5787,13 @@
           // ✅ LETTERA NON TROVATA (consonante o vocale)
           playAudio('snd-miss'); 
           
-          // Round normale: passa il turno
-          speak(`${char} non trovata! Passi il turno`);
+          // ✅ ACCESSIBILITÀ: Annuncio chiaro e completo del motivo della perdita turno
+          const letterType = isVowel ? 'vocale' : 'consonante';
+          speak(`La ${letterType} ${char} non è presente nella frase. Perdi il turno.`);
           localAnnouncementMade = true;
-            addActionToHistory(`${myName}: ${char} NON PRESENTE`);
-            await _supabase.from('stanze').update({ultima_azione:'errore',ultimo_messaggio:`${myName}: ${char} assente`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
-            await passTurn();
+          addActionToHistory(`${myName}: ${char} NON PRESENTE`);
+          await _supabase.from('stanze').update({ultima_azione:'errore',ultimo_messaggio:`${myName}: ${char} assente`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
+          await passTurn();
           }
         }
       

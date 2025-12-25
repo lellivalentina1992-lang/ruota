@@ -1621,7 +1621,9 @@
     function getNextConsonantHuman(alreadyRevealed){
       // 🧠 INTELLIGENZA SEMANTICA: Prova a completare parole quasi finite
       const smartLetter = tryCompleteWord(alreadyRevealed);
-      if(smartLetter) {
+      // ✅ FIX CRITICO: VERIFICA che smartLetter NON sia una vocale!
+      // Le vocali si comprano, non si chiamano dopo aver girato la ruota!
+      if(smartLetter && !"AEIOU".includes(smartLetter.toUpperCase())) {
         return smartLetter;
       }
       
@@ -3355,20 +3357,24 @@
       const isMyTurn = (currentStanza.id_giocatore_corrente === myId);
       
       if(!isMyTurn) {
-        speak("Non è il tuo turno!");
+        speak("Non è il tuo turno.");
         playAudio('snd-miss');
         return;
       }
       
-      // ✅ NUOVA REGOLA: Puoi comprare vocali SOLO se hai già rivelato qualche lettera
-      // (cioè se c'è una frase parziale visibile, non la frase completa coperta)
-      const revealedLetters = currentStanza?.lettere_rivelate || [];
-      if(revealedLetters.length === 0) {
+      // ✅ REGOLA CRITICA: NON puoi comprare vocali subito dopo aver girato la ruota!
+      // Devi prima chiamare una consonante
+      // montepremi_round > 0 significa che hai appena girato e non hai ancora chiamato consonante
+      if(currentStanza.montepremi_round > 0) {
         playAudio('snd-miss');
-        speak("Non puoi comprare vocali senza aver prima rivelato delle consonanti! Gira la ruota.");
-        alert("Devi prima girare la ruota e trovare almeno una consonante!\n\nNon puoi comprare vocali con la frase completamente coperta.");
+        speak("Devi prima chiamare una consonante! Hai appena girato la ruota.");
+        alert("Hai appena girato la ruota!\nDevi chiamare una CONSONANTE prima di poter comprare una vocale.");
         return;
       }
+      
+      // ✅ REGOLA: Puoi comprare vocali anche se non ci sono lettere rivelate
+      // (esempio: inizio round, hai soldi dal round precedente, compri vocale PRIMA di girare)
+      // RIMOSSO il controllo revealedLetters.length === 0
       
       // Controlla condizioni PRIMA di aprire l'input
       const cost = getVowelCost();
@@ -3727,14 +3733,17 @@
        const botMoney = botPlayer.punteggio_round || 0;
 
        
-       // ✅ REGOLE NORMALI: Le vocali si COMPRANO pagando dal montepremi personale
-       // Il bot può comprarle SOLO se ha abbastanza soldi, SENZA girare la ruota!
-       // Il bot compra vocali quando:
-       // 1. Ha soldi sufficienti
-       // 2. La frase è ancora poco rivelata (< 65%)
-       // 3. Ha già chiamato almeno una consonante (ratio > 0.15 significa che ha iniziato a giocare)
-       // 4. Non ha già comprato una vocale in questo giro
-       if(botMoney >= costVowel && ratio > 0.15 && ratio < 0.65 && Math.random() < 0.50 && vowelsBoughtThisTurn < 1) {
+       // ✅ REGOLE CORRETTE: Le vocali si COMPRANO pagando dal punteggio del ROUND
+       // Il bot può comprarle quando:
+       // 1. Ha soldi sufficienti nel punteggio_round
+       // 2. NON ha appena girato la ruota (montepremi_round === 0)
+       // 3. Non ha già comprato una vocale in questo "giro" (vowelsBoughtThisTurn < 1)
+       // 
+       // SEQUENZE VALIDE:
+       // ✅ COMPRA VOCALE → GIRA → CHIAMA CONSONANTE
+       // ✅ GIRA → CHIAMA CONSONANTE → COMPRA VOCALE
+       // ❌ GIRA → COMPRA VOCALE (vietato!)
+       if(botMoney >= costVowel && s.montepremi_round === 0 && ratio > 0.15 && ratio < 0.65 && Math.random() < 0.50 && vowelsBoughtThisTurn < 1) {
            // ⏱️ PAUSA REALISTICA: Il bot "pensa" prima di comprare la vocale
            const thinkTimeBeforeVowel = 200 + Math.random() * 300;
            await new Promise(r => TimerManager.setTimeout(r, thinkTimeBeforeVowel));
@@ -3746,8 +3755,10 @@
        // ✅ REGOLE UFFICIALI: La ruota si gira SOLO per le CONSONANTI, MAI per le vocali!
        if(s.montepremi_round === 0 && !isVowel) {
            
-           // ✅ RESET: Quando si gira la ruota, si può comprare una nuova vocale
-           vowelsBoughtThisTurn = 0;
+           // ✅ RESET: Quando si gira la ruota, si può comprare una nuova vocale NEL PROSSIMO GIRO
+           // IMPORTANTE: NON resettare qui! Deve essere resettato SOLO dopo aver chiamato la consonante
+           // altrimenti il bot potrebbe comprare una vocale subito dopo aver girato!
+           // vowelsBoughtThisTurn = 0; // ❌ SPOSTATO DOPO
            
            let wheelValues = WHEEL_VALUES;
            
@@ -3820,14 +3831,14 @@
            // +1000: aggiungi 1000€ e gira ancora
            if(val === '+1000') {
               await _supabase.from('giocatori').update({punteggio_round:(botPlayer.punteggio_round||0)+1000}).eq('id', botPlayer.id);
-              await _supabase.from('stanze').update({montepremi_round:0,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} becca +1000€! Gira ancora!`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
+              await _supabase.from('stanze').update({montepremi_round:0,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} becca +1000€! Gira ancora.`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
               botFinishAction();
               return;
            }
            
            // RADDOPPIA: attiva raddoppio e gira ancora
            if(val === 'RADDOPPIA') {
-              await _supabase.from('stanze').update({montepremi_round:0,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} trova RADDOPPIA! Gira ancora!`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
+              await _supabase.from('stanze').update({montepremi_round:0,ultima_azione:'gira_ruota',ultimo_messaggio:`${botPlayer.nome} trova RADDOPPIA! Gira ancora.`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
               botFinishAction();
               return;
            }
@@ -3908,12 +3919,27 @@
 
            if(!chosenChar) chosenChar = "Z";
            
-           // ✅ VALIDAZIONE: Se per qualche motivo è una vocale MA non era intenzionale (isVowel=false), cambiala
+           // ✅ VALIDAZIONE MIGLIORATA: Se per qualche motivo è una vocale MA non era intenzionale (isVowel=false), cambiala
            // IMPORTANTE: Se isVowel=true, significa che il bot VOLEVA comprare una vocale, quindi la lasciamo!
            if("AEIOU".includes(chosenChar) && !isVowel) {
-               console.warn(`⚠️ BUG: Il bot ha scelto una vocale (${chosenChar}) senza volerla comprare! Cambio in consonante...`);
-               chosenChar = getNextConsonantHuman(lettersCalledThisRound);
-               if(!chosenChar || "AEIOU".includes(chosenChar)) chosenChar = "Z"; // Fallback
+               console.warn(`⚠️ BUG RILEVATO: Il bot ha scelto una vocale (${chosenChar}) dopo aver girato la ruota! Questo è VIETATO. Cambio in consonante...`);
+               
+               // Prova con consonanti sicure che non sono state ancora chiamate
+               const safeConsonants = ['R', 'S', 'T', 'N', 'L', 'C', 'D', 'M', 'P', 'Z', 'V', 'B', 'F', 'G', 'H', 'Q'];
+               let foundSafe = false;
+               for(let safeCons of safeConsonants) {
+                 if(!lettersCalledThisRound.includes(safeCons)) {
+                   chosenChar = safeCons;
+                   foundSafe = true;
+                   console.log(`✅ Sostituito con consonante sicura: ${safeCons}`);
+                   break;
+                 }
+               }
+               
+               if(!foundSafe) {
+                 chosenChar = "Z"; // Fallback finale
+                 console.warn(`⚠️ Nessuna consonante sicura disponibile, uso Z come fallback`);
+               }
            } 
 
            // ✅ FIX: Aggiungi la lettera chiamata PRIMA di verificare se è presente
@@ -3951,6 +3977,9 @@
                    const multiplier = (s.fase_speciale === 2) ? 2 : 1;
                    gain = (s.fase_speciale === 3) ? (s.montepremi_round||0) : ((s.montepremi_round||0) * newFound.length * multiplier);
                    await _supabase.from('giocatori').update({punteggio_round:(botPlayer.punteggio_round||0)+gain}).eq('id', botPlayer.id);
+                   
+                   // ✅ RESET CORRETTO: Dopo aver trovato una CONSONANTE, può comprare una vocale nel prossimo giro
+                   vowelsBoughtThisTurn = 0;
                }
                
                let updateMessage;
@@ -4489,13 +4518,16 @@
       const isMyTurn = (s.id_giocatore_corrente === myId);
       
       if(!isMyTurn) {
-        speak("Non è il tuo turno!");
+        speak("Non è il tuo turno.");
         playAudio('snd-miss');
         return;
       }
       
-      // Reset contatore vocali quando giri la ruota
-      vowelsBoughtThisTurn = 0;
+      // ✅ FIX CRITICO: NON resettare vowelsBoughtThisTurn quando giri la ruota!
+      // Il reset deve avvenire DOPO aver chiamato e TROVATO una consonante
+      // Altrimenti puoi: GIRA → COMPRA VOCALE (che è vietato!)
+      // Sequenza corretta: GIRA → CHIAMA CONSONANTE → (se trovi) reset → COMPRA VOCALE
+      // vowelsBoughtThisTurn = 0; // ❌ RIMOSSO
       
       isSpinning=true;
       
@@ -4575,7 +4607,7 @@
         }).eq('id', roomId);
         
         addActionToHistory(`${myName} BANCAROTTA! Perde tutto`);
-        speak("BANCAROTTA! Hai perso tutto e passi il turno!");
+        speak("BANCAROTTA. Hai perso tutto e passi il turno.");
         showFlashMessage('BANCAROTTA!', 'bad');
         
         passTurn();
@@ -4608,7 +4640,7 @@
         }).eq('id', roomId);
         
         addActionToHistory(`${myName} ${label}`);
-        speak(`${label}! Passi il turno.`);
+        speak(`${label}. Passi il turno.`);
         showFlashMessage(`${label}`, 'bad');
         
         passTurn();
@@ -4633,11 +4665,11 @@
       } else if(val==='+1000'){
         await _supabase.from('giocatori').update({punteggio_round:(me.punteggio_round||0)+1000}).eq('id', myId);
         finalPrize=0;
-        msg=`${myName} becca +1000€! Gira ancora!`;
+        msg=`${myName} becca +1000€! Gira ancora.`;
         nextFaseSpeciale=0;
       } else if(val==='RADDOPPIA'){
         finalPrize=0;
-        msg=`${myName} trova RADDOPPIA! Gira ancora!`;
+        msg=`${myName} trova RADDOPPIA! Gira ancora.`;
         nextFaseSpeciale=2;
       } else if(val==='JOLLY'){
         // ✅ NUOVO SISTEMA: Accumulo max 2 Jolly con scadenza a 5 round
@@ -4665,9 +4697,9 @@
           
           const jollyCount = jollyArray.length;
           if(jollyCount === 1) {
-            msg=`${myName} pesca il JOLLY! Ora hai 1 Jolly. Protegge da bancarotta e passa turno fino al round ${expiryRound}. Gira di nuovo!`;
+            msg=`${myName} pesca il JOLLY! Ora hai 1 Jolly. Protegge da bancarotta e passa turno fino al round ${expiryRound}. Gira di nuovo.`;
           } else {
-            msg=`${myName} pesca il JOLLY! Ora hai 2 Jolly. Protegge da bancarotta e passa turno fino ai round ${jollyArray[0]} e ${jollyArray[1]}. Gira di nuovo!`;
+            msg=`${myName} pesca il JOLLY! Ora hai 2 Jolly. Protegge da bancarotta e passa turno fino ai round ${jollyArray[0]} e ${jollyArray[1]}. Gira di nuovo.`;
           }
         }
         
@@ -4696,13 +4728,13 @@
       
       // ✅ ANNUNCIO SCREEN READER: Comunica quanto hai girato
       if(typeof val === 'number' && finalPrize > 0) {
-        speak(`${finalPrize} euro`);
+        speak(`Hai girato ${finalPrize} euro.`);
       } else if(val === '+1000') {
-        speak("Più mille euro!");
+        speak("Più mille euro.");
       } else if(val === 'RADDOPPIA') {
-        speak("RADDOPPIA! Gira ancora!");
+        speak("RADDOPPIA. Gira ancora.");
       } else if(val === 'JOLLY') {
-        speak("JOLLY! Gira ancora!");
+        speak("JOLLY. Gira ancora.");
       }
       // Per PASSA/BANCAROTTA gli annunci sono già gestiti sopra
       
@@ -4753,14 +4785,14 @@
           let jollyText;
           if(jollyArray.length === 1) {
             jollyText = `1 Jolly (scade al round ${jollyArray[0]})`;
-            speak(`Hai pescato il JOLLY! Ora hai ${jollyText}. Protegge da bancarotta e passa turno. Gira di nuovo!`);
+            speak(`Hai pescato il JOLLY! Ora hai ${jollyText}. Protegge da bancarotta e passa turno. Gira di nuovo.`);
           } else if(jollyArray.length === 2) {
             jollyText = `2 Jolly (scadono ai round ${jollyArray[0]} e ${jollyArray[1]})`;
-            speak(`Hai pescato il JOLLY! Ora hai ${jollyText}. Protegge da bancarotta e passa turno. Gira di nuovo!`);
+            speak(`Hai pescato il JOLLY! Ora hai ${jollyText}. Protegge da bancarotta e passa turno. Gira di nuovo.`);
           } else {
             // Caso edge: nessun jolly (non dovrebbe succedere ma per sicurezza)
             jollyText = `${jollyArray.length} Jolly`;
-            speak(`Hai pescato il JOLLY! Protegge da bancarotta e passa turno. Gira di nuovo!`);
+            speak(`Hai pescato il JOLLY! Protegge da bancarotta e passa turno. Gira di nuovo.`);
           }
           
           localAnnouncementMade = true;
@@ -4770,7 +4802,7 @@
           localAnnouncementMade = true;
           showFlashMessage(`+1000 EURO GUADAGNATI!`, 'good');
         } else if(val === 'RADDOPPIA') {
-          speak(`Raddoppia attivo! Il prossimo giro vale il doppio. Gira ora!`);
+          speak(`Raddoppia attivo! Il prossimo giro vale il doppio. Gira ora.`);
           localAnnouncementMade = true;
           showFlashMessage(`RADDOPPIA ATTIVO!`, 'good');
         }
@@ -4959,7 +4991,7 @@
         const canEveryoneSolve = (currentStanza.fase_speciale === 102); // Round speciale, 10 consonanti usate
         
         if(!isMyTurn && !canEveryoneSolve) {
-          speak("Non è il tuo turno!");
+          speak("Non è il tuo turno.");
           playAudio('snd-miss');
           return;
         }
@@ -5679,9 +5711,13 @@
           const newRev=[...new Set([...(s.lettere_rivelate||[]), ...foundIndices])];
           if(mode==='letter'){
             
-            // ✅ CORREZIONE: NON resettare vowelsBoughtThisTurn qui!
-            // Il reset avviene solo quando GIRI LA RUOTA, non quando trovi consonanti
-            // vowelsBoughtThisTurn = 0; // <- RIMOSSO
+            // ✅ CORREZIONE CRITICA: Resetta vowelsBoughtThisTurn SOLO se hai trovato una CONSONANTE
+            // Questo permette di comprare una vocale nel prossimo turno (prima di girare di nuovo)
+            // REGOLA: GIRA → CONSONANTE (trovata) → reset → puoi COMPRARE VOCALE o GIRARE
+            const isConsonant = !"AEIOU".includes(char.toUpperCase());
+            if(isConsonant) {
+              vowelsBoughtThisTurn = 0;
+            }
             
             const me=s.giocatori.find(p=>p.id===myId);
             

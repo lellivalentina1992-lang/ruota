@@ -2694,6 +2694,22 @@
     window.addEventListener('keydown', (e)=>{
       if(!e.key) return;
       
+      // 🔒 BLOCCO TASTI DI SISTEMA USATI DAL GIOCO
+      // Previene conflitti con scorciatoie browser (es. Ctrl+T apre nuova scheda)
+      // Blocca SOLO i tasti già assegnati alle funzioni del gioco
+      const k = ((e && e.key) || "").toLowerCase();
+      
+      // Lista tasti Ctrl usati dal gioco (da bloccare per evitare conflitti)
+      const gameTasteCtrl = ['i', 'h', 'g', 'r', 't', 'k', 's', 'l', 'd', 'b'];
+      
+      if(e.ctrlKey && gameTasteCtrl.includes(k)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      
+      // Nota: Ctrl+V e Ctrl+A vengono gestiti dopo (servono per input)
+      // Nota: Ctrl+P NON bloccato (passa turno manuale rimosso, puoi stampare)
+      
       // ✅ GESTIONE NAVIGAZIONE PANNELLO CRONOLOGIA (prima di tutto)
       const historyPanel=document.getElementById('action-history-panel');
       const historyOpen = historyPanel && !historyPanel.classList.contains('hidden');
@@ -2720,7 +2736,7 @@
       // ✅ GESTIONE TASTI RAPIDI DI GIOCO
       if((e.ctrlKey && e.shiftKey && e.key && e.key.toLowerCase() === 'r') || (e.key && e.key.toLowerCase() === 'f5')) return;
       
-      const k = ((e && e.key) || "").toLowerCase();
+      // k è già dichiarato sopra alla riga 2700
       
       // ✅ FIX: I tasti rapidi di gioco funzionano SOLO quando sei nella stanza
       // Non interferire con i campi di input nella schermata di setup
@@ -2846,14 +2862,6 @@
       if((k==='g' && !isInInput) || (e.ctrlKey && k==='g')){ e.preventDefault(); doSpin(); return; }
       // ✅ Ctrl+V apre vocale SOLO se NON sei in un campo input (altrimenti Ctrl+V = incolla)
       if((k==='v' && !isInInput) || (e.ctrlKey && k==='v' && !isInInput)){ e.preventDefault(); tryOpenVowelInput(); return; }
-      if((k==='p' && !isInInput) || (e.ctrlKey && k==='p')){ 
-      e.preventDefault(); 
-      // ✅ CORREZIONE CHATGPT: Passa solo se è il tuo turno o sei host
-      if(isMe || isHost){
-        passTurn();
-      } else {
-        speak("Non è il tuo turno");
-      } return; }
       if((k==='r' && !isInInput) || (e.ctrlKey && k==='r')){ e.preventDefault(); openInput('solve'); return; }
       if((k==='t' && !isInInput) || (e.ctrlKey && k==='t')){ e.preventDefault(); announceTurn(); return; }
       if((k==='k' && !isInInput) || (e.ctrlKey && k==='k')){ e.preventDefault(); openChat(); return; }
@@ -5858,7 +5866,8 @@
         msgs.forEach(m=>{
           const d=document.createElement('div');
           d.style="border-bottom:1px solid #333; margin-bottom:5px; padding:8px;";
-          d.tabIndex = 0;
+          // ❌ Rimosso tabIndex per evitare letture multiple
+          // Gli annunci vengono gestiti da speakChat() quando arrivano nuovi messaggi
           
           // Check if it's a sound effect
           if(m.messaggio.startsWith('[SOUND:')){
@@ -5878,7 +5887,8 @@
         const lastMsg = msgs[msgs.length - 1];
         const d=document.createElement('div');
         d.style="border-bottom:1px solid #333; margin-bottom:5px; padding:8px; font-size:1.1em;";
-        d.tabIndex = 0;
+        // ❌ Rimosso tabIndex per evitare letture multiple
+        // Gli annunci vengono gestiti da speakChat() quando arrivano nuovi messaggi
         
         // Check if it's a sound effect
         if(lastMsg.messaggio.startsWith('[SOUND:')){

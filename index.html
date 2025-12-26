@@ -1356,8 +1356,11 @@
     //
     // SOLUZIONE SEMPLICE: Campo vuoto, l'utente scrive la soluzione completa
     const solveInputHandler = function(e) {
-      const cursorPos = e.target.selectionStart;
-      let newValue = e.target.value;
+      // ✅ FIX SCREENREADER MOBILE: Migliore gestione del cursore
+      const inputElement = e.target;
+      const oldValue = lastSolveValue || '';
+      const cursorPos = inputElement.selectionStart || 0;
+      let newValue = inputElement.value;
       
       // ✅ NON applicare formattazione automatica maiuscole/minuscole
       // L'utente scrive come vuole, il confronto sarà case-insensitive con cleanStr()
@@ -1366,11 +1369,34 @@
       const maxLength = 200;
       if(newValue.length > maxLength) {
         newValue = newValue.substring(0, maxLength);
-        e.target.value = newValue;
+        inputElement.value = newValue;
       }
       
+      // ✅ FIX SCREENREADER MOBILE: Usa requestAnimationFrame invece di setSelectionRange sincrono
+      // Questo permette allo screenreader di aggiornare correttamente la posizione
       lastSolveValue = newValue;
-      e.target.setSelectionRange(cursorPos, cursorPos);
+      
+      // ✅ Ripristina la posizione del cursore con requestAnimationFrame
+      // Questo è fondamentale per VoiceOver, TalkBack e altri screenreader mobile
+      requestAnimationFrame(() => {
+        try {
+          // Calcola la nuova posizione del cursore
+          let newCursorPos = cursorPos;
+          
+          // Se il valore è cambiato, mantieni il cursore nella posizione logica
+          if (newValue !== oldValue) {
+            const lengthDiff = newValue.length - oldValue.length;
+            if (lengthDiff !== 0) {
+              newCursorPos = Math.min(Math.max(0, cursorPos), newValue.length);
+            }
+          }
+          
+          inputElement.setSelectionRange(newCursorPos, newCursorPos);
+        } catch (err) {
+          // Ignora errori di setSelectionRange su alcuni browser
+          console.warn('Impossibile ripristinare cursore:', err);
+        }
+      });
     };
     
     // ✅ RIMOSSA formatSolveText() - Non serve più!

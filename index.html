@@ -3175,17 +3175,13 @@
             return;
           }
           
-          // ✅ SICUREZZA ANTI-BARO: Usa funzione RPC per pescare frase casuale
-          // La funzione get_random_phrase_id() restituisce solo ID e categoria, NON la soluzione
-          const {data: randomPhrase, error: rpcError} = await _supabase.rpc('get_random_phrase_id');
-          
-          if(rpcError || !randomPhrase || randomPhrase.length === 0){
-            speak("Errore nel pescare la frase");
+          const {data:allIds}=await _supabase.from('frasi').select('id,categoria').eq('categoria','SITUAZIONI QUOTIDIANE').limit(500);
+          if(!allIds || allIds.length===0){
+            speak("Nessuna frase disponibile");
             return;
           }
-          
-          // ✅ Estrai ID dalla risposta RPC
-          const rid = randomPhrase[0].p_id;
+          const chosen = allIds[Math.floor(Math.random()*allIds.length)];
+          const rid = chosen.id;
           const {data}=await _supabase.from('stanze').insert({
             codice:cd, 
             frase_corrente_id:rid, 
@@ -6046,19 +6042,14 @@
       
       lettersCalledThisRound = [];
       
-      // ✅ SICUREZZA ANTI-BARO: Usa funzione RPC per pescare frase casuale
-      // La funzione get_random_phrase_id() restituisce solo ID e categoria, NON la soluzione
-      // La soluzione sarà visibile solo dopo che frase_corrente_id è nella tabella stanze
-      const {data: randomPhrase, error: rpcError} = await _supabase.rpc('get_random_phrase_id');
-      
-      if(rpcError || !randomPhrase || randomPhrase.length === 0){
-        speak("Errore nel pescare la frase");
+      const {data:allIds}=await _supabase.from('frasi').select('id,categoria').limit(500);
+      if(!allIds || allIds.length===0){
+        speak("Nessuna frase disponibile");
         return;
       }
-      
-      // ✅ Estrai ID e categoria dalla risposta RPC
-      const rid = randomPhrase[0].p_id;
-      const categoria = randomPhrase[0].p_categoria;
+      const chosen = allIds[Math.floor(Math.random()*allIds.length)];
+      const rid = chosen.id;
+      const categoria = chosen.categoria;
       
       await _supabase.from('giocatori').update({punteggio_round:0}).eq('stanza_id', roomId);
       await _supabase.from('stanze').update({frase_corrente_id:rid,stato:'gioco',round_giocati:n,lettere_rivelate:[],montepremi_round:0,id_giocatore_corrente:startingPlayerUUID,ultima_azione:'nuovo',ultimo_messaggio:`Inizio Round ${n}`,azione_timestamp:DateUtils.now()}).eq('id', roomId);

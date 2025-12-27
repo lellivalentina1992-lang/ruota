@@ -3175,18 +3175,17 @@
             return;
           }
           
-          const {data:fr}=await _supabase.from('frasi').select('id,categoria').neq('categoria','SITUAZIONI QUOTIDIANE').limit(500);
-          if(!fr || fr.length === 0){
-            speak("Errore: nessuna frase disponibile");
+          // ✅ SICUREZZA ANTI-BARO: Usa funzione RPC per pescare frase casuale
+          // La funzione get_random_phrase_id() restituisce solo ID e categoria, NON la soluzione
+          const {data: randomPhrase, error: rpcError} = await _supabase.rpc('get_random_phrase_id');
+          
+          if(rpcError || !randomPhrase || randomPhrase.length === 0){
+            speak("Errore nel pescare la frase");
             return;
           }
           
-          const validPhrases = fr.filter(f => f.categoria !== 'SITUAZIONI QUOTIDIANE');
-          if(validPhrases.length === 0){
-            speak("Errore: tutte le frasi sono SITUAZIONI QUOTIDIANE");
-            return;
-          }
-          const rid=validPhrases[Math.floor(Math.random()*validPhrases.length)].id;
+          // ✅ Estrai ID dalla risposta RPC
+          const rid = randomPhrase[0].p_id;
           const {data}=await _supabase.from('stanze').insert({
             codice:cd, 
             frase_corrente_id:rid, 
@@ -4249,6 +4248,11 @@
 
       if(!currentFrase || currentFrase.id !== s.frasi.id){
         currentFrase=s.frasi;
+        // ✅ SICUREZZA: La soluzione è ora protetta da RLS (Row Level Security)
+        // - startNewRound() chiama get_random_phrase_id() che restituisce solo ID e categoria
+        // - La policy RLS permette di leggere 'soluzione' SOLO se frase_corrente_id è in stanze
+        // - Questo avviene DOPO che startNewRound() ha aggiornato la stanza con il nuovo ID
+        // - Quindi qui la soluzione è accessibile solo dopo l'update, mai prima
         fullSolutionText=currentFrase.soluzione;
         
         
@@ -6042,14 +6046,19 @@
       
       lettersCalledThisRound = [];
       
-      // ✅ MODIFICATO: Tutti i round usano frasi casuali da TUTTE le categorie
-      const {data:fr}=await _supabase.from('frasi').select('id,categoria').limit(500);
-      if(!fr || fr.length === 0){
-        speak("Errore: nessuna frase disponibile");
+      // ✅ SICUREZZA ANTI-BARO: Usa funzione RPC per pescare frase casuale
+      // La funzione get_random_phrase_id() restituisce solo ID e categoria, NON la soluzione
+      // La soluzione sarà visibile solo dopo che frase_corrente_id è nella tabella stanze
+      const {data: randomPhrase, error: rpcError} = await _supabase.rpc('get_random_phrase_id');
+      
+      if(rpcError || !randomPhrase || randomPhrase.length === 0){
+        speak("Errore nel pescare la frase");
         return;
       }
       
-      const rid = fr[Math.floor(Math.random()*fr.length)].id;
+      // ✅ Estrai ID e categoria dalla risposta RPC
+      const rid = randomPhrase[0].p_id;
+      const categoria = randomPhrase[0].p_categoria;
       
       await _supabase.from('giocatori').update({punteggio_round:0}).eq('stanza_id', roomId);
       await _supabase.from('stanze').update({frase_corrente_id:rid,stato:'gioco',round_giocati:n,lettere_rivelate:[],montepremi_round:0,id_giocatore_corrente:startingPlayerUUID,ultima_azione:'nuovo',ultimo_messaggio:`Inizio Round ${n}`,azione_timestamp:DateUtils.now()}).eq('id', roomId);
